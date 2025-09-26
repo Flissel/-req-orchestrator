@@ -1,0 +1,23 @@
+Flask==3.0.3
+# OpenAI ist optional; für Legacy-API wird 0.28.x genutzt (ChatCompletion)
+openai==0.28.1
+Flask-Cors==4.0.1
+python-dotenv==1.0.1
+gunicorn==21.2.0
+# --- Vektor-RAG Ingest / Embeddings / Parser ---
+qdrant-client==1.11.1
+tiktoken==0.7.0
+PyMuPDF==1.24.4
+python-docx==1.1.0
+markdown-it-py==3.0.0
+pydantic>=2.10.0,<3
+tenacity==8.2.3
+requests==2.32.3
+pytest==8.2.1
+# --- AutoGen 0.4+ ---
+autogen-agentchat==0.7.4
+autogen-core==0.7.4
+autogen-ext==0.7.4
+pytest-asyncio
+# Structured extraction library
+langextract

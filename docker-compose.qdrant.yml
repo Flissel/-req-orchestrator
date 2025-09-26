@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant_rag
+    restart: unless-stopped
+    ports:
+      - "6335:6333"  # HTTP API auf Host 6335
+      - "6336:6334"  # gRPC auf Host 6336
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/collections"]
+      interval: 10s
+      timeout: 5s
+      retries: 10

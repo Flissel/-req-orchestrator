@@ -1,0 +1,96 @@
+# ---------------------------
+# Python
+# ---------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+dist/
+build/
+.coverage*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+
+# ---------------------------
+# Environments/Secrets
+# ---------------------------
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+.envrc
+
+# ---------------------------
+# Node/JS
+# ---------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# ---------------------------
+# IDE/Editor
+# ---------------------------
+.vscode/
+.idea/
+*.code-workspace
+
+# ---------------------------
+# OS
+# ---------------------------
+.DS_Store
+Thumbs.db
+
+# ---------------------------
+# Docker/Runtime logs
+# ---------------------------
+*.log
+logs/
+tmp/
+temp/
+
+# ---------------------------
+# Databases / local state
+# ---------------------------
+app.db
+*.db
+*.db-journal
+
+# ---------------------------
+# Data directory (keep selected docs)
+# ---------------------------
+data/**
+!data/*.md
+!data/README.md
+!data/requirements.md
+# Optional: wenn JSON-Beispiele behalten werden sollen, folgende Zeile aktivieren
+# !data/*.json
+
+# Qdrant storage (lokal/persist)
+data/qdrant/
+qdrant-data/
+prometheus-data/
+grafana-data/
+
+# ---------------------------
+# Test/Playwright artefacts
+# ---------------------------
+test-results/
+playwright-report/
+blob-report/
+*.trace
+
+# ---------------------------
+# Tooling
+# ---------------------------
+.kilocode/

@@ -1,0 +1,45 @@
+services:
+  backend:
+    build: .
+    image: req-eval-backend:dev
+    env_file:
+      - .env
+    environment:
+      SQLITE_PATH: /app/app.db
+      AGENT_WORKER_URL: http://agent:8090
+    ports:
+      - "8083:8081"
+    volumes:
+      - ./docs:/app/docs:ro
+      - ./data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8081/health').getcode()==200 else sys.exit(1)\""]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  agent:
+    build: ./agent_worker
+    image: req-eval-agent:dev
+    environment:
+      - BACKEND_BASE_URL=http://backend:8081
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=gpt-4o-mini
+      - OPENAI_TEMPERATURE=0.2
+      - AGENT_DEBUG=1
+    ports:
+      - "8090:8090"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "8081:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+    restart: unless-stopped

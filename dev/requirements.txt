@@ -1,0 +1,2 @@
+# Base dependency for the LangExtract Dev-Pipeline
+langextract

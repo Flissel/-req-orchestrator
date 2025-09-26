@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Requirements Evaluator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <script>
+    // Basis-URL für das Backend (kann bei Bedarf überschrieben werden)
+    // Frontend läuft auf 8081 (nginx), Backend laut docker-compose auf 5000.
+    // Cross-Origin ist erlaubt; app_optimized.js nutzt window.API_BASE bevorzugt.
+    window.API_BASE = window.API_BASE || "http://localhost:8083";
+  </script>
+</head>
+<body>
+  <header>
+    <h1>Requirements Evaluator</h1>
+    <p>Backend: <span class="mono">http://localhost:8083</span> | Frontend läuft via Nginx (Port 8081)</p>
+  </header>
+
+  <main>
+    <div class="columns" id="app-columns">
+      <!-- Konfiguration / Eingabe -->
+      <div class="card" id="input-card">
+        <h2>⚙️ Konfiguration</h2>
+
+        <div class="button-group">
+          <button id="load-btn">📁 Load demo MD</button>
+          <button id="process-btn" disabled>⚙️ Process</button>
+        </div>
+
+        <div class="button-group" style="margin-top:10px;">
+          <button id="upload-btn">⬆️ Upload requirements</button>
+          <input id="upload-input" type="file" multiple style="display:none" accept=".md,.pdf,.docx,.txt,.json,application/pdf,application/json,text/plain"/>
+        </div>
+
+        <div class="button-group" style="margin-top:10px;">
+          <button id="reset-index-btn" title="Drop & recreate the vector index (Qdrant collection).">🧹 Reset index</button>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+          <h2>🔎 RAG Search</h2>
+          <div class="row" style="margin-top:6px; gap:8px; align-items:center;">
+            <input type="text" id="rag-query" placeholder="Query eingeben..." />
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;">
+              <input type="checkbox" id="rag-use-agent" checked />
+              <span title="Wenn aktiv, verwendet die Suche den Agent-/Memory-Endpoint. Deaktiviert: Basis-RAG (/api/v1/rag/search).">Use memory (Agent)</span>
+            </label>
+            <button id="rag-search-btn">Suchen</button>
+          </div>
+          <div class="row" style="margin-top:6px;">
+            <button id="rag-mine-btn" title="Extrahiert Anforderungen aus dem Dokument und fügt sie links als Eingaben hinzu.">Mine requirements to input</button>
+          </div>
+          <div id="rag-results" class="small" style="margin-top:8px;">Keine Suche ausgeführt.</div>
+        </div>
+
+        <div class="status" id="status" style="margin-top:12px;">
+          Bereit. Klicken Sie 'Load demo MD' oder laden Sie eigene Dateien hoch.
+        </div>
+
+        <!-- Requirements Input -->
+        <div id="requirements-section" class="card" style="display: none; margin-top: 16px;">
+          <h2>📝 Requirements Input</h2>
+          <div id="requirements-display"></div>
+        </div>
+      </div>
+
+      <!-- Ergebnisse -->
+      <div class="card" id="results">
+        <h2>📊 Ergebnisse</h2>
+        <p>Keine Ergebnisse verfügbar. Laden Sie zuerst Requirements und starten Sie die Verarbeitung.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <small>© 2025 Requirements Evaluator</small>
+  </footer>
+
+  <!-- Batch-only Logik und UI-Handling -->
+  <script src="./app_optimized.js?v=inc-4"></script>
+</body>
+</html>

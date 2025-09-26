@@ -1,0 +1,239 @@
+version: '3.8'
+
+services:
+  # FastAPI Backend mit AutoGen
+  fastapi-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.fastapi
+      target: production
+    container_name: requirements-fastapi-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - FASTAPI_HOST=0.0.0.0
+      - FASTAPI_PORT=8000
+      - GRPC_HOST=grpc-host
+      - GRPC_PORT=50051
+      - DATABASE_PATH=/app/data/app.db
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - MOCK_MODE=${MOCK_MODE:-true}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/app/data
+      - ./docs:/app/docs:ro
+    depends_on:
+      - grpc-host
+      - redis
+    networks:
+      - requirements-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # gRPC Host Service
+  grpc-host:
+    build:
+      context: .
+      dockerfile: Dockerfile.fastapi
+      target: development
+    container_name: requirements-grpc-host
+    ports:
+      - "50051:50051"
+    environment:
+      - GRPC_HOST=0.0.0.0
+      - GRPC_PORT=50051
+      - LOG_LEVEL=DEBUG
+    command: ["python", "-c", "
+      import asyncio;
+      from autogen_ext.runtimes.grpc import GrpcWorkerAgentRuntimeHost;
+      async def main():
+        host = GrpcWorkerAgentRuntimeHost(address='0.0.0.0:50051');
+        host.start();
+        await host.stop_when_signal();
+      asyncio.run(main())
+    "]
+    networks:
+      - requirements-network
+    restart: unless-stopped
+
+  # AutoGen Worker 1 - Evaluation
+  worker-evaluator:
+    build:
+      context: .
+      dockerfile: Dockerfile.fastapi
+      target: worker
+    container_name: requirements-worker-evaluator
+    environment:
+      - GRPC_HOST=grpc-host
+      - GRPC_PORT=50051
+      - WORKER_TYPE=evaluator
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - MOCK_MODE=${MOCK_MODE:-true}
+      - LOG_LEVEL=INFO
+    depends_on:
+      - grpc-host
+    networks:
+      - requirements-network
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+
+  # AutoGen Worker 2 - Suggestion
+  worker-suggester:
+    build:
+      context: .
+      dockerfile: Dockerfile.fastapi
+      target: worker
+    container_name: requirements-worker-suggester
+    environment:
+      - GRPC_HOST=grpc-host
+      - GRPC_PORT=50051
+      - WORKER_TYPE=suggester
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - MOCK_MODE=${MOCK_MODE:-true}
+      - LOG_LEVEL=INFO
+    depends_on:
+      - grpc-host
+    networks:
+      - requirements-network
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+
+  # AutoGen Worker 3 - Rewriter
+  worker-rewriter:
+    build:
+      context: .
+      dockerfile: Dockerfile.fastapi
+      target: worker
+    container_name: requirements-worker-rewriter
+    environment:
+      - GRPC_HOST=grpc-host
+      - GRPC_PORT=50051
+      - WORKER_TYPE=rewriter
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - MOCK_MODE=${MOCK_MODE:-true}
+      - LOG_LEVEL=INFO
+    depends_on:
+      - grpc-host
+    networks:
+      - requirements-network
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+
+  # Legacy Flask Backend (Compatibility)
+  flask-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: requirements-flask-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - REQUIREMENTS_MD_PATH=/app/docs/requirements.md
+      - DATABASE_PATH=/app/data/app.db
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - MOCK_MODE=${MOCK_MODE:-true}
+    volumes:
+      - ./data:/app/data
+      - ./docs:/app/docs:ro
+    networks:
+      - requirements-network
+    restart: unless-stopped
+
+  # Redis für Caching und Session Management
+  redis:
+    image: redis:7-alpine
+    container_name: requirements-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - requirements-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: requirements-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - requirements-network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: requirements-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./fastapi_frontend.html:/usr/share/nginx/html/index.html:ro
+      - ./tag_requirements_test.html:/usr/share/nginx/html/tag-demo.html:ro
+    depends_on:
+      - fastapi-backend
+      - flask-backend
+    networks:
+      - requirements-network
+    restart: unless-stopped
+
+  # Monitoring mit Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: requirements-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - requirements-network
+    restart: unless-stopped
+
+  # Grafana für Dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: requirements-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - requirements-network
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  qdrant-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  requirements-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Development Override
+# docker-compose -f docker-compose.yml -f docker-compose.dev.yml up

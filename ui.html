@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Requirements Evaluator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <script>
+    // Basis-URL für das Backend (kann bei Bedarf überschrieben werden)
+    // Temporär auf den laufenden Docker-Port 8082 umgebogen.
+    // Hinweis: Der Code in app_optimized.js nutzt window.API_BASE vorrangig vor location.origin.
+    window.API_BASE = window.API_BASE || "http://localhost:8082";
+  </script>
+</head>
+<body>
+  <header>
+    <h1>Requirements Evaluator</h1>
+    <p>Backend: <span class="mono">http://localhost:8081</span> | Frontend läuft in Flask (Port 8081)</p>
+  </header>
+
+  <main>
+    <div class="columns" id="app-columns">
+      <!-- Konfiguration / Eingabe -->
+      <div class="card" id="input-card">
+        <h2>⚙️ Konfiguration</h2>
+
+        <div class="button-group">
+          <button id="load-btn">📁 Load MD</button>
+          <button id="process-btn" disabled>⚙️ Process</button>
+        </div>
+
+        <div class="status" id="status" style="margin-top:12px;">
+          Bereit. Klicken Sie 'Load MD' um zu beginnen.
+        </div>
+
+        <!-- Requirements Input -->
+        <div id="requirements-section" class="card" style="display: none; margin-top: 16px;">
+          <h2>📝 Requirements Input</h2>
+          <div id="requirements-display"></div>
+        </div>
+      </div>
+
+      <!-- Ergebnisse -->
+      <div class="card" id="results">
+        <h2>📊 Ergebnisse</h2>
+        <p>Keine Ergebnisse verfügbar. Laden Sie zuerst Requirements und starten Sie die Verarbeitung.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <small>© 2025 Requirements Evaluator</small>
+  </footer>
+
+  <!-- Batch-only Logik und UI-Handling -->
+  <script src="./app_optimized.js"></script>
+</body>
+</html>

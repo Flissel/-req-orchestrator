@@ -1,0 +1,35 @@
+# Python Artefakte
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pytest_cache/
+*.egg-info/
+
+# Virtual Environments
+.venv/
+venv/
+
+# Lokale Datenbanken und Laufzeitdaten
+app.db
+*.db
+*.log
+
+# VCS und Editor
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Env-Dateien und Secrets
+.env
+.env.*.local
+
+# Build/Cache
+dist/
+build/
+.cache/
+
+# Sonstiges
+node_modules/
+docs/

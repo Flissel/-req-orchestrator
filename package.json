@@ -1,0 +1,11 @@
+{
+  "name": "ui-compare",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "^1.54.2"
+  },
+  "scripts": {
+    "test:ui": "playwright test tests/ui --reporter=list",
+    "test:ui:headed": "playwright test tests/ui --headed --reporter=list"
+  }
+}

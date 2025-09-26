@@ -1,0 +1,358 @@
+<style>
+.lx-highlight { position: relative; border-radius:3px; padding:1px 2px;}
+.lx-highlight .lx-tooltip {
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  background: #333;
+  color: #fff;
+  text-align: left;
+  border-radius: 4px;
+  padding: 6px 8px;
+  position: absolute;
+  z-index: 1000;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  max-width: 240px;
+  white-space: normal;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.lx-highlight:hover .lx-tooltip { visibility: visible; opacity:1; }
+.lx-animated-wrapper { max-width: 100%; font-family: Arial, sans-serif; }
+.lx-controls {
+  background: #fafafa; border: 1px solid #90caf9; border-radius: 8px;
+  padding: 12px; margin-bottom: 16px;
+}
+.lx-button-row {
+  display: flex; justify-content: center; gap: 8px; margin-bottom: 12px;
+}
+.lx-control-btn {
+  background: #4285f4; color: white; border: none; border-radius: 4px;
+  padding: 8px 16px; cursor: pointer; font-size: 13px; font-weight: 500;
+  transition: background-color 0.2s;
+}
+.lx-control-btn:hover { background: #3367d6; }
+.lx-progress-container {
+  margin-bottom: 8px;
+}
+.lx-progress-slider {
+  width: 100%; margin: 0; appearance: none; height: 6px;
+  background: #ddd; border-radius: 3px; outline: none;
+}
+.lx-progress-slider::-webkit-slider-thumb {
+  appearance: none; width: 18px; height: 18px; background: #4285f4;
+  border-radius: 50%; cursor: pointer;
+}
+.lx-progress-slider::-moz-range-thumb {
+  width: 18px; height: 18px; background: #4285f4; border-radius: 50%;
+  cursor: pointer; border: none;
+}
+.lx-status-text {
+  text-align: center; font-size: 12px; color: #666; margin-top: 4px;
+}
+.lx-text-window {
+  font-family: monospace; white-space: pre-wrap; border: 1px solid #90caf9;
+  padding: 12px; max-height: 260px; overflow-y: auto; margin-bottom: 12px;
+  line-height: 1.6;
+}
+.lx-attributes-panel {
+  background: #fafafa; border: 1px solid #90caf9; border-radius: 6px;
+  padding: 8px 10px; margin-top: 8px; font-size: 13px;
+}
+.lx-current-highlight {
+  border-bottom: 4px solid #ff4444;
+  font-weight: bold;
+  animation: lx-pulse 1s ease-in-out;
+}
+@keyframes lx-pulse {
+  0% { text-decoration-color: #ff4444; }
+  50% { text-decoration-color: #ff0000; }
+  100% { text-decoration-color: #ff4444; }
+}
+.lx-legend {
+  font-size: 12px; margin-bottom: 8px;
+  padding-bottom: 8px; border-bottom: 1px solid #e0e0e0;
+}
+.lx-label {
+  display: inline-block;
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin-right: 4px;
+  color: #000;
+}
+.lx-attr-key {
+  font-weight: 600;
+  color: #1565c0;
+  letter-spacing: 0.3px;
+}
+.lx-attr-value {
+  font-weight: 400;
+  opacity: 0.85;
+  letter-spacing: 0.2px;
+}
+
+/* Add optimizations with larger fonts and better readability for GIFs */
+.lx-gif-optimized .lx-text-window { font-size: 16px; line-height: 1.8; }
+.lx-gif-optimized .lx-attributes-panel { font-size: 15px; }
+.lx-gif-optimized .lx-current-highlight { text-decoration-thickness: 4px; }
+</style>
+  <div class="lx-animated-wrapper lx-gif-optimized">
+    <div class="lx-attributes-panel">
+      <div class="lx-legend">Highlights Legend: <span class="lx-label" style="background-color:#D2E3FC;">requirement</span></div>
+      <div id="attributesContainer"></div>
+    </div>
+    <div class="lx-text-window" id="textWindow">
+      {
+&quot;nodes&quot;: [
+  {
+    &quot;embed_text&quot;: &quot;<span class="lx-highlight lx-current-highlight" data-idx="0" style="background-color:#D2E3FC;">Health-Endpoint bereitstellen</span>&quot;,
+    &quot;id&quot;: &quot;REQ-d831b2-000-a&quot;,
+    &quot;name&quot;: &quot;Health-Endpoint bereitstellen&quot;,
+    &quot;payload&quot;: {
+      &quot;canonical_key&quot;: &quot;requirement#req-d831b2-000-a&quot;,
+      &quot;name&quot;: &quot;Health-Endpoint bereitstellen&quot;,
+      &quot;node_id&quot;: &quot;REQ-d831b2-000-a&quot;,
+      &quot;raw&quot;: {
+        &quot;evidence_refs&quot;: [
+          {
+            &quot;chunkIndex&quot;: 0,
+            &quot;sha1&quot;: &quot;N/A&quot;,
+            &quot;sourceFile&quot;: &quot;Anforderungen an die aktuelle Backend-Software&quot;
+          }
+        ],
+        &quot;req_id&quot;: &quot;REQ-d831b2-000-a&quot;,
+        &quot;tag&quot;: &quot;ops&quot;,
+        &quot;title&quot;: &quot;Health-Endpoint bereitstellen&quot;
+      },
+      &quot;source&quot;: {
+        &quot;chunkIndex&quot;: 0,
+        &quot;file&quot;: &quot;Anforderungen an die aktuelle Backend-Software&quot;,
+        &quot;sha1&quot;: &quot;N/A&quot;
+      },
+      &quot;tag&quot;: &quot;ops&quot;,
+      &quot;type&quot;: &quot;Requirement&quot;
+    },
+    &quot;type&quot;: &quot;Requirement&quot;
+  },
+  {
+    &quot;id&quot;: &quot;Tag:ops&quot;,
+    &quot;name&quot;: &quot;ops&quot;,
+    &quot;payload&quot;: {
+      &quot;canonical_key&quot;: &quot;tag#ops&quot;,
+      &quot;name&quot;: &quot;ops&quot;,
+      &quot;node_id&quot;: &quot;Tag:ops&quot;,
+      &quot;type&quot;: &quot;Tag&quot;
+    },
+    &quot;type&quot;: &quot;Tag&quot;
+  },
+  {
+    &quot;id&quot;: &quot;Action:bereitstellen&quot;,
+    &quot;name&quot;: &quot;bereitstellen&quot;,
+    &quot;payload&quot;: {
+      &quot;canonical_key&quot;: &quot;action#bereitstellen&quot;,
+      &quot;node_id&quot;: &quot;Action:bereitstellen&quot;,
+      &quot;type&quot;: &quot;Action&quot;,
+      &quot;verb&quot;: &quot;bereitstellen&quot;
+    },
+    &quot;type&quot;: &quot;Action&quot;
+  },
+  {
+    &quot;embed_text&quot;: &quot;<span class="lx-highlight" data-idx="1" style="background-color:#D2E3FC;">Endpoint für aktive Evaluationskriterien</span>&quot;,
+    &quot;id&quot;: &quot;REQ-d831b2-000-b&quot;,
+    &quot;name&quot;: &quot;Endpoint für aktive Evaluationskriterien&quot;,
+    &quot;payload&quot;: {
+      &quot;canonical_key&quot;: &quot;requirement#req-d831b2-000-b&quot;,
+      &quot;name&quot;: &quot;Endpoint für aktive Evaluationskriterien&quot;,
+      &quot;node_id&quot;: &quot;REQ-d831b2-000-b&quot;,
+      &quot;raw&quot;: {
+        &quot;evidence_refs&quot;: [
+          {
+            &quot;chunkIndex&quot;: 0,
+            &quot;sha1&quot;: &quot;N/A&quot;,
+            &quot;sourceFile&quot;: &quot;Anforderungen an die aktuelle Backend-Software&quot;
+          }
+        ],
+        &quot;req_id&quot;: &quot;REQ-d831b2-000-b&quot;,
+        &quot;tag&quot;: &quot;functional&quot;,
+        &quot;title&quot;: &quot;<span class="lx-highlight" data-idx="2" style="background-color:#D2E3FC;">Endpoint für aktive Evaluationskriterien</span>&quot;
+      },
+      &quot;source&quot;: {
+        &quot;chunkIndex&quot;: 0,
+        &quot;file&quot;: &quot;Anforderungen an die aktuelle Backend-Software&quot;,
+        &quot;sha1&quot;: &quot;N/A&quot;
+      },
+      &quot;tag&quot;: &quot;functional&quot;,
+      &quot;type&quot;: &quot;Requirement&quot;
+    },
+    &quot;type&quot;: &quot;Requirement&quot;
+  },
+  {
+    &quot;id&quot;: &quot;Tag:functional&quot;,
+    &quot;name&quot;: &quot;functional&quot;,
+    &quot;payload&quot;: {
+      &quot;canonical_key&quot;: &quot;tag#functional&quot;,
+      &quot;name&quot;: &quot;functional&quot;,
+      &quot;node_id&quot;: &quot;Tag:functional&quot;,
+      &quot;type&quot;: &quot;Tag&quot;
+    },
+    &quot;type&quot;: &quot;Tag&quot;
+  },
+  {
+    &quot;id&quot;: &quot;Action:evaluationskriterien&quot;,
+    &quot;name&quot;: &quot;Evaluationskriterien&quot;,
+    &quot;payload&quot;: {
+      &quot;canonical_key&quot;: &quot;action#evaluationskriterien&quot;,
+      &quot;node_id&quot;: &quot;Action:evaluationskriterien&quot;,
+      &quot;type&quot;: &quot;Action&quot;,
+      &quot;verb&quot;: &quot;Evaluationskriterien&quot;
+    },
+    &quot;type&quot;: &quot;Action&quot;
+  },
+  {
+    &quot;embed_text&quot;: &quot;<span class="lx-highlight" data-idx="3" style="background-color:#D2E3FC;">POST-Endpoint für Evaluierungen</span>&quot;,
+    &quot;id&quot;: &quot;REQ-d831b2-000-c&quot;,
+    &quot;name&quot;: &quot;POST-Endpoint für Evaluierungen&quot;,
+    &quot;payload&quot;: {
+      &quot;canonical_key&quot;: &quot;requirement#req-d831b2-000-c&quot;,
+      &quot;name&quot;: &quot;POST-Endpoint für Evaluierungen&quot;,
+      &quot;node_id&quot;: &quot;REQ-d831b2-000-c&quot;,
+      &quot;raw&quot;: {
+        &quot;evidence_refs&quot;: [
+          {
+            &quot;chunkIndex&quot;: 0,
+            &quot;sha1&quot;: &quot;N/A&quot;,
+            &quot;sourceFile&quot;: &quot;Anforderungen an die aktuelle Backend-Software&quot;
+          }
+        ],
+        &quot;req_id&quot;: &quot;REQ-d831b2-000-c&quot;,
+        &quot;tag&quot;: &quot;functional&quot;,
+        &quot;title&quot;: &quot;POST-Endpoint für Evaluierungen&quot;
+      },
+      &quot;source&quot;: {
+        &quot;chunkIndex&quot;: 0,
+        &quot;file&quot;: &quot;Anforderungen an die aktuelle Backend-Software&quot;,
+        &quot;sha1&quot;: &quot;N/A&quot;
+      },
+      &quot;tag&quot;: &quot;functional&quot;,
+      &quot;type&quot;: &quot;Requirement&quot;
+    },
+    &quot;type&quot;: &quot;Requirement&quot;
+  },
+  {
+    &quot;id&quot;: &quot;Action:evaluierungen&quot;,
+    &quot;name&quot;: &quot;Evaluierungen&quot;,
+    &quot;payload&quot;: {
+      &quot;canonical_key&quot;: &quot;action#evaluierungen&quot;,
+      &quot;node_id&quot;: &quot;Action:evaluierungen&quot;,
+      &quot;type&quot;: &quot;Action&quot;,
+      &quot;verb&quot;: &quot;Evaluierungen&quot;
+    },
+    &quot;type&quot;: &quot;Action&quot;
+  },
+  {
+    &quot;embed_text&quot;: &quot;<span class="lx-highlight" data-idx="4" style="background-color:#D2E3FC;">Klartext des requirementText nicht persistent speichern</span>&quot;,
+    &quot;id&quot;: &quot;REQ-d831b2-000-d&quot;,
+    &quot;name&quot;: &quot;Klartext des requirementText nicht persistent speichern&quot;,
+    &quot;payload&quot;: {
+      &quot;canonical_key&quot;: &quot;requirement#req-d831b2-000-d&quot;,
+      &quot;name&quot;: &quot;Klartext des requirementText nicht persistent speichern&quot;,
+      &quot;node_id&quot;: &quot;REQ-d831b2-000-d&quot;,
+      &quot;raw&quot;: {
+        &quot;evidence_refs&quot;: [
+          {
+            &quot;chunkIndex&quot;: 0,
+            &quot;sha1&quot;: &quot;N/A&quot;,
+            &quot;sourceFile&quot;: &quot;Anforderungen an die aktuelle Backend-Software&quot;
+          }
+        ],
+        &quot;req_id&quot;: &quot;REQ-d831b2-000-d&quot;,
+        &quot;tag&quot;: &quot;security&quot;,
+        &quot;title&quot;: &quot;Klartext des requirementText nicht persistent speichern&quot;
+      },
+      &quot;source&quot;: {
+        &quot;chunkIndex&quot;: 0,
+        &quot;file&quot;: &quot;Anforderungen an die aktuelle Backend-S
+    </div>
+    <div class="lx-controls">
+      <div class="lx-button-row">
+        <button class="lx-control-btn" onclick="playPause()">▶️ Play</button>
+        <button class="lx-control-btn" onclick="prevExtraction()">⏮ Previous</button>
+        <button class="lx-control-btn" onclick="nextExtraction()">⏭ Next</button>
+      </div>
+      <div class="lx-progress-container">
+        <input type="range" id="progressSlider" class="lx-progress-slider"
+               min="0" max="4" value="0"
+               onchange="jumpToExtraction(this.value)">
+      </div>
+      <div class="lx-status-text">
+        Entity <span id="entityInfo">1/5</span> |
+        Pos <span id="posInfo">[42-71]</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const extractions = [{"index": 0, "class": "requirement", "text": "Health-Endpoint bereitstellen", "color": "#D2E3FC", "startPos": 42, "endPos": 71, "beforeText": "{\n  &quot;nodes&quot;: [\n    {\n      &quot;embed_text&quot;: &quot;", "extractionText": "Health-Endpoint bereitstellen", "afterText": "&quot;,\n      &quot;id&quot;: &quot;REQ-d831b2-000-a&quot;,\n      &quot;name&quot;: &quot;Health-Endpoint bereitstellen&quot;,\n      &quot;payload&quot;: {\n        &quot;canonical_key&quot;: &quot;requirement#req-d831b2-", "attributesHtml": "<div><strong>class:</strong> requirement</div><div><strong>attributes:</strong> {<span class=\"lx-attr-key\">category</span>: <span class=\"lx-attr-value\">ops</span>}</div>"}, {"index": 1, "class": "requirement", "text": "Endpoint f\u00fcr aktive Evaluationskriterien", "color": "#D2E3FC", "startPos": 1437, "endPos": 1477, "beforeText": ": &quot;Action:bereitstellen&quot;,\n        &quot;type&quot;: &quot;Action&quot;,\n        &quot;verb&quot;: &quot;bereitstellen&quot;\n      },\n      &quot;type&quot;: &quot;Action&quot;\n    },\n    {\n      &quot;embed_text&quot;: &quot;", "extractionText": "Endpoint f\u00fcr aktive Evaluationskriterien", "afterText": "&quot;,\n      &quot;id&quot;: &quot;REQ-d831b2-000-b&quot;,\n      &quot;name&quot;: &quot;Endpoint f\u00fcr aktive Evaluationskriterien&quot;,\n      &quot;payload&quot;: {\n        &quot;canonical_key&quot;: &quot;requirement#", "attributesHtml": "<div><strong>class:</strong> requirement</div><div><strong>attributes:</strong> {}</div>"}, {"index": 2, "class": "requirement", "text": "Endpoint f\u00fcr aktive Evaluationskriterien", "color": "#D2E3FC", "startPos": 2060, "endPos": 2100, "beforeText": " die aktuelle Backend-Software&quot;\n            }\n          ],\n          &quot;req_id&quot;: &quot;REQ-d831b2-000-b&quot;,\n          &quot;tag&quot;: &quot;functional&quot;,\n          &quot;title&quot;: &quot;", "extractionText": "Endpoint f\u00fcr aktive Evaluationskriterien", "afterText": "&quot;\n        },\n        &quot;source&quot;: {\n          &quot;chunkIndex&quot;: 0,\n          &quot;file&quot;: &quot;Anforderungen an die aktuelle Backend-Software&quot;,\n          &quot;sha1&quot;: &quot;N/A", "attributesHtml": "<div><strong>class:</strong> requirement</div><div><strong>attributes:</strong> {<span class=\"lx-attr-key\">category</span>: <span class=\"lx-attr-value\">functional</span>}</div>"}, {"index": 3, "class": "requirement", "text": "POST-Endpoint f\u00fcr Evaluierungen", "color": "#D2E3FC", "startPos": 2960, "endPos": 2991, "beforeText": "uationskriterien&quot;,\n        &quot;type&quot;: &quot;Action&quot;,\n        &quot;verb&quot;: &quot;Evaluationskriterien&quot;\n      },\n      &quot;type&quot;: &quot;Action&quot;\n    },\n    {\n      &quot;embed_text&quot;: &quot;", "extractionText": "POST-Endpoint f\u00fcr Evaluierungen", "afterText": "&quot;,\n      &quot;id&quot;: &quot;REQ-d831b2-000-c&quot;,\n      &quot;name&quot;: &quot;POST-Endpoint f\u00fcr Evaluierungen&quot;,\n      &quot;payload&quot;: {\n        &quot;canonical_key&quot;: &quot;requirement#req-d831b", "attributesHtml": "<div><strong>class:</strong> requirement</div><div><strong>attributes:</strong> {<span class=\"lx-attr-key\">category</span>: <span class=\"lx-attr-value\">api</span>}</div>"}, {"index": 4, "class": "requirement", "text": "Klartext des requirementText nicht persistent speichern", "color": "#D2E3FC", "startPos": 4161, "endPos": 4216, "beforeText": ": &quot;Action:evaluierungen&quot;,\n        &quot;type&quot;: &quot;Action&quot;,\n        &quot;verb&quot;: &quot;Evaluierungen&quot;\n      },\n      &quot;type&quot;: &quot;Action&quot;\n    },\n    {\n      &quot;embed_text&quot;: &quot;", "extractionText": "Klartext des requirementText nicht persistent speichern", "afterText": "&quot;,\n      &quot;id&quot;: &quot;REQ-d831b2-000-d&quot;,\n      &quot;name&quot;: &quot;Klartext des requirementText nicht persistent speichern&quot;,\n      &quot;payload&quot;: {\n        &quot;canonical_key&quot;", "attributesHtml": "<div><strong>class:</strong> requirement</div><div><strong>attributes:</strong> {<span class=\"lx-attr-key\">category</span>: <span class=\"lx-attr-value\">security</span>}</div>"}];
+      let currentIndex = 0;
+      let isPlaying = false;
+      let animationInterval = null;
+      let animationSpeed = 1.0;
+
+      function updateDisplay() {
+        const extraction = extractions[currentIndex];
+        if (!extraction) return;
+
+        document.getElementById('attributesContainer').innerHTML = extraction.attributesHtml;
+        document.getElementById('entityInfo').textContent = (currentIndex + 1) + '/' + extractions.length;
+        document.getElementById('posInfo').textContent = '[' + extraction.startPos + '-' + extraction.endPos + ']';
+        document.getElementById('progressSlider').value = currentIndex;
+
+        const playBtn = document.querySelector('.lx-control-btn');
+        if (playBtn) playBtn.textContent = isPlaying ? '⏸ Pause' : '▶️ Play';
+
+        const prevHighlight = document.querySelector('.lx-text-window .lx-current-highlight');
+        if (prevHighlight) prevHighlight.classList.remove('lx-current-highlight');
+        const currentSpan = document.querySelector('.lx-text-window span[data-idx="' + currentIndex + '"]');
+        if (currentSpan) {
+          currentSpan.classList.add('lx-current-highlight');
+          currentSpan.scrollIntoView({block: 'center', behavior: 'smooth'});
+        }
+      }
+
+      function nextExtraction() {
+        currentIndex = (currentIndex + 1) % extractions.length;
+        updateDisplay();
+      }
+
+      function prevExtraction() {
+        currentIndex = (currentIndex - 1 + extractions.length) % extractions.length;
+        updateDisplay();
+      }
+
+      function jumpToExtraction(index) {
+        currentIndex = parseInt(index);
+        updateDisplay();
+      }
+
+      function playPause() {
+        if (isPlaying) {
+          clearInterval(animationInterval);
+          isPlaying = false;
+        } else {
+          animationInterval = setInterval(nextExtraction, animationSpeed * 1000);
+          isPlaying = true;
+        }
+        updateDisplay();
+      }
+
+      window.playPause = playPause;
+      window.nextExtraction = nextExtraction;
+      window.prevExtraction = prevExtraction;
+      window.jumpToExtraction = jumpToExtraction;
+
+      updateDisplay();
+    })();
+  </script>
