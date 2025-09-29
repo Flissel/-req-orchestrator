@@ -11,9 +11,13 @@ from backend_app import settings
 from backend_app.db import init_db
 from .api_v2 import api_bp
 from backend_app.batch import batch_bp
+from pathlib import Path
 
 def create_app() -> Flask:
     app = Flask(__name__, static_folder=None)
+    # Projektpfade (absolut), damit Static-Serving unabhängig vom CWD funktioniert
+    PROJECT_DIR = Path(__file__).resolve().parent.parent  # .../test
+    FRONTEND_DIR = PROJECT_DIR / "frontend"
 
     # Lightweight debug context
     import os
@@ -107,11 +111,18 @@ def create_app() -> Flask:
     # Statische Auslieferung des Frontends
     @app.get("/")
     def _index():
-        return send_from_directory("frontend", "index.html")
+        return send_from_directory(str(FRONTEND_DIR.resolve()), "index.html")
 
     @app.get("/<path:filename>")
     def _assets(filename: str):
-        return send_from_directory("frontend", filename)
+        return send_from_directory(str(FRONTEND_DIR.resolve()), filename)
+
+    # Static-Serve für das eingebettete TAG-Repo (TextAnnotationGraphs)
+    # Beispiel: http://localhost:8087/tag/demo/index.html
+    @app.get("/tag/<path:filename>")
+    def _serve_tag_repo(filename: str):
+        tag_dir = PROJECT_DIR / "dev" / "external" / "TextAnnotationGraphs"
+        return send_from_directory(str(tag_dir.resolve()), filename)
 
     # Blueprints und v2-Teilmodule registrieren
     # WICHTIG: api_v2_part2 importieren, damit die Routen (z. B. /api/v1/lx/*) gebunden werden

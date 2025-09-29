@@ -32,6 +32,7 @@
   let currentConfigId = "default";
   const statusEl = $("#status");
   const resultsEl = $("#results");
+  const btnSaveReqs = document.getElementById("btnSaveReqs") || null;
 
   // Preview-Elemente rechts
   const previewMeta = $("#previewMeta");
@@ -663,6 +664,43 @@
     }
   }
 
+  const lxResultsMsg = { type: "LX_MINE_RESULTS", lxPreview: []}; const lxReportsMsg = { type: "LX_REPORT_RESULTS", lxPreview: [] };
+  // Öffnet den Vollbild‑TAG‑Viewer in neuem Tab und sendet lxPreview via postMessage
+  let __tag_win = null;
+  function ensureTagWindow() {
+    try {
+      if (!__tag_win || __tag_win.closed) {
+        __tag_win = window.open("/tag_view.html", "_blank", "noopener");
+      }
+    } catch (e) {
+      console.warn("ensureTagWindow failed:", e);
+    }
+    return __tag_win;
+  }
+  function openTagView(lxPreview) {
+    try {
+      if (!Array.isArray(lxPreview) || !lxPreview.length) return;
+      ensureTagWindow();
+      const payload = { type: "TAG_VIEW_LOAD", lxPreview: lxPreview };
+      // leicht verzögert senden, bis der Viewer geladen ist
+      const tries = 10;
+      let n = 0;
+      const t = setInterval(() => {
+        try {
+          if (!__tag_win || __tag_win.closed) { clearInterval(t); return; }
+          // targetOrigin bewusst locker, Viewer prüft Port/Protokoll
+          __tag_win.postMessage(payload, "*");
+          n++;
+          if (n >= tries) clearInterval(t);
+        } catch (_) {
+          n++;
+          if (n >= tries) clearInterval(t);
+        }
+      }, 200);
+    } catch (e) {
+      console.warn("openTagView failed:", e);
+    }
+  }
   // Fallback: Wenn LangExtract keine Vorschau liefert, versuche Mining über Agent-/RAG-Endpoint
   async function mineFallback() {
     try {
@@ -821,6 +859,8 @@
       btn.disabled = true;
       setStatus("Mining läuft…", "warn");
       clearResults();
+      // Popup-freundlich: Viewer synchron öffnen
+      ensureTagWindow();
 
       const fd = new FormData();
       for (const f of files) fd.append("files", f, f.name);
@@ -911,6 +951,8 @@
         try {
           buildKGFromLx(sortLxPreviewByPos(allPreview));
         } catch (e) { console.warn('KG build failed', e); }
+        // Öffne automatisch den TAG‑Viewer mit der kombinierten Vorschau
+        try { openTagView(sortLxPreviewByPos(allPreview)); } catch (e) { console.warn("TAG viewer open failed", e); }
       } else {
         setStatus("Keine Requirements extrahiert.", "warn");
       }
@@ -927,6 +969,8 @@
       btn.disabled = true;
       setStatus("Mining (Beispiel) läuft…", "warn");
       clearResults();
+      // Popup-freundlich: Viewer synchron öffnen
+      ensureTagWindow();
 
       const resp = await fetch("./sample_requirements.md");
       if (!resp.ok) {
@@ -962,6 +1006,8 @@
       if (data && Array.isArray(data.lxPreview) && data.lxPreview.length) {
         try { renderItems(itemsFromLx(data.lxPreview)); } catch (e) { console.warn(e); }
         buildKGFromLx(data.lxPreview);
+        // Öffne automatisch den TAG‑Viewer für die Sample‑Vorschau
+        try { openTagView(sortLxPreviewByPos(data.lxPreview)); } catch (_) {}
       } else {
         await mineFallback();
       }

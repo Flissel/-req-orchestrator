@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>TAG Viewer – LangExtract</title>
+  <link rel="stylesheet" href="/tag/dist/tag/css/tag.min.css" />
+  <style>
+    :root { --bg:#0b0e14; --fg:#e6e6e6; --muted:#9aa5b1; --accent:#4cc9f0; --card:#11151c; }
+    html,body { height:100%; margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,Segoe UI,Roboto,Inter,Arial,sans-serif; }
+    .toolbar { display:flex; align-items:center; gap:8px; padding:10px 12px; background:#0f1320; border-bottom:1px solid #1f2937; position:sticky; top:0; z-index:10; }
+    .btn { background:var(--accent); color:#061018; border:0; padding:8px 12px; border-radius:10px; font-weight:600; cursor:pointer; }
+    .muted { color:var(--muted); font-size:13px; }
+    #container { height: calc(100vh - 56px); overflow:auto; padding:8px; }
+    #tagHost { background:#0b0e14; border:1px solid #1f2937; min-height: calc(100vh - 120px); }
+    textarea { width:100%; height:120px; background:#0b0e14; color:var(--fg); border:1px solid #1f2937; border-radius:8px; padding:8px; font-family:ui-monospace,Consolas,monospace; }
+  </style>
+  <script src="/tag/dist/tag/js/tag.min.js"></script>
+</head>
+<body>
+  <div class="toolbar">
+    <button class="btn" id="btnFit">Fit</button>
+    <button class="btn" id="btnReload">Neu rendern</button>
+    <span class="muted" id="status">Bereit – auf Daten warten…</span>
+  </div>
+  <div id="container">
+    <div id="tagHost"></div>
+    <details style="margin-top:10px;">
+      <summary>Debug Eingabedaten (Odin JSON)</summary>
+      <textarea id="debugJson" readonly></textarea>
+    </details>
+  </div>
+
+  <script>
+    // Utility: TitleCase
+    function titleCase(s){ try{ s=String(s||""); return s.slice(0,1).toUpperCase()+s.slice(1).toLowerCase(); }catch(e){ return s; } }
+
+    // Split in tokens with offsets
+    function tokenizeWithOffsets(text){
+      const tokens = []; const re = /\S+/g; let m;
+      while((m = re.exec(text))){ tokens.push({text: m[0], start: m.index, end: m.index + m[0].length}); }
+      return tokens;
+    }
+
+    // Find first occurrence of span in text, starting search from hintPos (best effort)
+    function findSpan(text, span, hintPos){
+      if(!span) return null;
+      const start = Math.max(0, hintPos|0);
+      let idx = text.indexOf(span, start);
+      if(idx < 0) idx = text.indexOf(span); // fallback
+      if(idx < 0) return null;
+      return { start: idx, end: idx + span.length };
+    }
+
+    // Map char interval to token interval
+    function charToTokenInterval(tokens, st, en){
+      if(!tokens.length) return {start:0,end:0};
+      let a = 0, b = tokens.length;
+      for(let i=0;i<tokens.length;i++){ if(tokens[i].end > st){ a = i; break; } }
+      for(let i=tokens.length-1;i>=0;i--){ if(tokens[i].start < en){ b = i+1; break; } }
+      if(b < a) b = a+1;
+      return { start: a, end: b };
+    }
+
+    // Konvertiere lxPreview -> minimales Odin JSON (ein Dokument, eine "Sentence" aus gesamtem Text)
+    function lxPreviewToOdin(lxPreview){
+      const items = Array.isArray(lxPreview) ? lxPreview.filter(e => e && typeof e.extraction_text === 'string' && e.extraction_text.trim()) : [];
+      const docText = items.map(e => e.extraction_text.trim()).join(" ");
+      const tokens = tokenizeWithOffsets(docText);
+
+      const mentions = [];
+      let cursor = 0;
+      const docId = String(Date.now());
+      let mid = 0;
+      for(const e of items){
+        const spanTxt = e.extraction_text.trim();
+        const span = findSpan(docText, spanTxt, cursor) || findSpan(docText, spanTxt, 0);
+        if(!span) continue;
+        cursor = span.end;
+        const ti = charToTokenInterval(tokens, span.start, span.end);
+        mentions.push({
+          type: "TextBoundMention",
+          id: `T:${++mid}`,
+          text: spanTxt,
+          labels: [ titleCase(e.extraction_class || "Entity") ],
+          tokenInterval: { start: ti.start, end: ti.end },
+          characterStartOffset: span.start,
+          characterEndOffset: span.end,
+          sentence: 0,
+          document: docId,
+          keep: true,
+          foundBy: "lx-preview"
+        });
+      }
+
+      // Odin JSON (vereinfachte Struktur)
+      return {
+        documents: [
+          {
+            id: docId,
+            text: docText,
+            sentences: [
+              {
+                words: tokens.map(t => t.text),
+                startOffsets: tokens.map(t => t.start),
+                endOffsets: tokens.map(t => t.end)
+              }
+            ],
+            mentions
+          }
+        ]
+      };
+    }
+
+    let __lastOdin = null;
+    let __lastTag = null;
+
+    function setStatus(msg){ try{ document.getElementById('status').textContent = msg; }catch(e){} }
+
+    function renderTAG(odin){
+      try{
+        __lastOdin = odin;
+        const host = document.getElementById('tagHost');
+        host.innerHTML = ""; // reset container
+        __lastTag = TAG.tag({
+          container: "tagHost",
+          data: odin,
+          format: "odin",
+          options: { showTopArgLabels: true }
+        });
+        try{
+          document.getElementById('debugJson').value = JSON.stringify(odin, null, 2);
+        }catch(e){}
+        setStatus("Gerendert (" + (odin?.documents?.[0]?.mentions?.length || 0) + " Mentions).");
+        // Rückmeldung an Öffner
+        try { if (window.opener) window.opener.postMessage({ type: 'TAG_VIEW_RENDERED', mentions: (odin?.documents?.[0]?.mentions?.length || 0) }, '*'); } catch(e){}
+      }catch(err){
+        console.error(err);
+        setStatus("Fehler beim Rendern: " + err);
+      }
+    }
+
+    // Message Listener: erwartet { type: 'TAG_VIEW_LOAD', lxPreview: [...] }
+    window.addEventListener('message', (ev) => {
+      try {
+        // Erlaube localhost <-> 127.0.0.1, solange Protokoll/Port übereinstimmen
+        const a = new URL(ev.origin);
+        const b = new URL(location.href);
+        const sameProtocol = a.protocol === b.protocol;
+        const samePort = (a.port || (a.protocol === 'https:' ? '443' : '80')) === (b.port || (b.protocol === 'https:' ? '443' : '80'));
+        if (!(sameProtocol && samePort)) {
+          // andere Origin (z. B. anderer Port) ignorieren
+          return;
+        }
+      } catch (_) {
+        // Falls URL-PARSING fehlschlägt, nicht hart abbrechen
+      }
+      const data = ev.data || {};
+      if (data && data.type === 'TAG_VIEW_LOAD' && Array.isArray(data.lxPreview)) {
+        try { window.__debug_last_event = { receivedAt: Date.now(), count: data.lxPreview.length }; } catch {}
+        setStatus("Daten empfangen – rendere TAG… (" + (data.lxPreview.length || 0) + " items)");
+        const odin = lxPreviewToOdin(data.lxPreview);
+        renderTAG(odin);
+      }
+    });
+
+    // Handshake: dem Öffner mitteilen, dass der Viewer bereit ist
+    (function announceReady(){
+      try { if (window.opener) window.opener.postMessage({ type: 'TAG_VIEW_READY' }, '*'); } catch(e){}
+      // vorsichtshalber mehrfach ankündigen (langsamer Load in manchen Browsern)
+      let c = 0; const t = setInterval(() => {
+        try { if (window.opener) window.opener.postMessage({ type: 'TAG_VIEW_READY' }, '*'); } catch(e){}
+        c++; if (c >= 10) clearInterval(t);
+      }, 300);
+    })();
+
+    // Toolbar
+    document.getElementById('btnReload')?.addEventListener('click', () => { if(__lastOdin) renderTAG(__lastOdin); });
+    document.getElementById('btnFit')?.addEventListener('click', () => {
+      try{
+        // Manche TAG Builds exposen fit(); falls nicht vorhanden, neu rendern
+        if (__lastTag && typeof __lastTag.fit === 'function') __lastTag.fit();
+      }catch(e){}
+    });
+  </script>
+ </body>
+ </html>
