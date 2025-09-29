@@ -97,10 +97,22 @@ def merged_markdown(rows: List[Dict[str, str]]) -> str:
     return "\n".join(out)
 
 
+def _safe_g_attr(name: str, default=None):
+    """
+    Liefert g.<name>, falls ein Flask-Anfragekontext vorhanden ist,
+    sonst default. Verhindert RuntimeError außerhalb des App-Kontexts.
+    """
+    try:
+        from flask import g as _g  # lokaler Import, um Proxy erst hier zu binden
+        return getattr(_g, name, default)
+    except Exception:
+        return default
+
+
 def process_evaluations(rows: List[Dict[str, str]]) -> Dict[str, Any]:
     lg = logging.getLogger("app")
-    corr = getattr(g, "correlation_id", None)
-    op = getattr(g, "operation_id", None) or "process_evaluations"
+    corr = _safe_g_attr("correlation_id", None)
+    op = _safe_g_attr("operation_id", None) or "process_evaluations"
     total = len(rows)
     batch_size = settings.BATCH_SIZE
     total_chunks = (total + batch_size - 1) // batch_size
@@ -151,8 +163,8 @@ def process_evaluations(rows: List[Dict[str, str]]) -> Dict[str, Any]:
 
 def process_suggestions(rows: List[Dict[str, str]]) -> Dict[str, Any]:
     lg = logging.getLogger("app")
-    corr = getattr(g, "correlation_id", None)
-    op = getattr(g, "operation_id", None) or "process_suggestions"
+    corr = _safe_g_attr("correlation_id", None)
+    op = _safe_g_attr("operation_id", None) or "process_suggestions"
     total = len(rows)
     batch_size = settings.BATCH_SIZE
     total_chunks = (total + batch_size - 1) // batch_size
@@ -230,8 +242,8 @@ def process_rewrites(rows: List[Dict[str, str]]) -> Dict[str, Any]:
 
     collected: List[Tuple[str, str, str]] = []
     lg = logging.getLogger("app")
-    corr = getattr(g, "correlation_id", None)
-    op = getattr(g, "operation_id", None) or "process_rewrites"
+    corr = _safe_g_attr("correlation_id", None)
+    op = _safe_g_attr("operation_id", None) or "process_rewrites"
     total = len(rows)
     batch_size = settings.BATCH_SIZE
     total_chunks = (total + batch_size - 1) // batch_size

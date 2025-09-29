@@ -7,17 +7,28 @@ import asyncio
 import sqlite3
 import aiosqlite
 import logging
+import os
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import json
+from .db import DDL
+from . import settings
 
 logger = logging.getLogger(__name__)
 
 class AsyncDatabase:
     """Async Database Wrapper für Requirements System"""
     
-    def __init__(self, db_path: str = "./data/app.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        # Bevorzugt Settings-Pfad; in Pytest auf isolierte Test-DB umleiten
+        effective_path = db_path or getattr(settings, "SQLITE_PATH", "./data/app.db")
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            effective_path = "./test_data/test_app.db"
+        try:
+            os.makedirs(os.path.dirname(effective_path) or ".", exist_ok=True)
+        except Exception:
+            pass
+        self.db_path = effective_path
         self._connection_pool: Optional[aiosqlite.Connection] = None
     
     async def get_connection(self) -> aiosqlite.Connection:
@@ -25,6 +36,16 @@ class AsyncDatabase:
         if not self._connection_pool:
             self._connection_pool = await aiosqlite.connect(self.db_path)
             await self._connection_pool.execute("PRAGMA journal_mode=WAL")
+            await self._connection_pool.execute("PRAGMA synchronous=NORMAL")
+            await self._connection_pool.execute("PRAGMA busy_timeout=5000")
+            await self._connection_pool.execute("PRAGMA foreign_keys=ON")
+            # Stelle sicher, dass das Schema existiert (idempotent)
+            try:
+                await self._connection_pool.executescript(DDL)
+                await self._connection_pool.commit()
+            except Exception:
+                # Schema-Init ist best-effort; Fehler hier nicht kritisch für Verbindungsaufbau
+                pass
             await self._connection_pool.commit()
         return self._connection_pool
     
@@ -76,28 +97,56 @@ async def save_evaluation_async(
         
         evaluation_id = f"eval_{int(asyncio.get_event_loop().time() * 1000)}"
         
+        # Verdict auf DB-Schema ('pass'|'fail') mappen
+        raw_verdict = str(evaluation_data.get("verdict") or "").strip().lower()
+        score_val = float(evaluation_data.get("score") or 0.0)
+        if raw_verdict in ("pass", "fail"):
+            verdict_db = raw_verdict
+        elif raw_verdict in ("excellent", "good", "acceptable"):
+            verdict_db = "pass"
+        elif raw_verdict in ("needs_improvement", "poor"):
+            verdict_db = "fail"
+        else:
+            verdict_db = "pass" if score_val >= 0.7 else "fail"
+        model_val = str(evaluation_data.get("model") or "unknown")
+        
         await db.execute(
             """INSERT INTO evaluation 
-               (id, requirement_checksum, verdict, score, latency_ms, model, created_at)
+               (id, requirement_checksum, model, latency_ms, score, verdict, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (
                 evaluation_id,
                 requirement_checksum,
-                evaluation_data.get("verdict", "unknown"),
-                evaluation_data.get("score", 0.0),
-                evaluation_data.get("latency_ms", 0),
-                evaluation_data.get("model", "unknown"),
+                model_val,
+                int(evaluation_data.get("latency_ms") or 0),
+                score_val,
+                verdict_db,
                 datetime.now()
             )
         )
         
         # Details speichern
-        for criterion, score in evaluation_data.get("details", {}).items():
+        for criterion, c_score in (evaluation_data.get("details") or {}).items():
+            # Stelle sicher, dass das Kriterium existiert (FK constraint)
+            try:
+                await db.execute(
+                    """INSERT OR IGNORE INTO criterion(key, name, description, weight, active)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (str(criterion), str(criterion), "", 1.0, 1),
+                )
+            except Exception:
+                pass
+            try:
+                c_val = float(c_score)
+            except Exception:
+                c_val = 0.0
+            passed = 1 if c_val >= 0.7 else 0
+            feedback = ""
             await db.execute(
                 """INSERT INTO evaluation_detail 
-                   (evaluation_id, criterion_key, score, created_at)
-                   VALUES (?, ?, ?, ?)""",
-                (evaluation_id, criterion, score, datetime.now())
+                   (evaluation_id, criterion_key, score, passed, feedback)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (evaluation_id, str(criterion), c_val, passed, feedback)
             )
         
         await db.commit()

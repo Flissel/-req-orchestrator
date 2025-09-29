@@ -446,5 +446,4 @@ def files_ingest():
 # RESTLICHE FUNKTIONEN (unverändert)
 # =========================
 
-# [Der Rest der Datei bleibt unverändert - nur die LangExtract-spezifischen Teile wurden korrigiert]</result>
-</edit_file>
+# [Der Rest der Datei bleibt unverändert - nur die LangExtract-spezifischen Teile wurden korrigiert]

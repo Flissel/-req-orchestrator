@@ -449,7 +449,7 @@ Dieser Überblick ist die Zentrale. Ergänzende Detail-MDs (werden sukzessive er
   - Evaluate/Rewrite liefern Heuristik oder Originaltext (s. [llm_evaluate()](../../backend_app/llm.py:102), [llm_rewrite()](../../backend_app/llm.py:253))
   - Suggest kann leer bleiben (wenn nicht MOCK_MODE)
 - CORS-Preflight explizit implementiert, um 204/Headers für /api/* sicherzustellen ([__init__.py](../../backend_app/__init__.py:37), [api.py](../../backend_app/api.py))
-- RAG-Port-Fallback: [get_qdrant_client()](../../backend_app/vector_store.py:41) prüft 6333/6335
+- RAG-Port-Fallback: [backend_app.vector_store.get_qdrant_client()](../../backend_app/vector_store.py:41) prüft 6333/6401
 - Retention: Alte Evaluations via [purge_old_evaluations()](../../backend_app/db.py:113)
 - Runtime-Konfiguration bei Start geloggt: [log_runtime_config_once()](../../backend_app/logging_ext.py:248)
 

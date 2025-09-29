@@ -3,6 +3,12 @@ Flask==3.0.3
 openai==0.28.1
 Flask-Cors==4.0.1
 python-dotenv==1.0.1
+# --- FastAPI Stack (für Tests/Backend v2) ---
+fastapi==0.115.5
+starlette==0.41.3
+uvicorn==0.30.6
+# --- Async SQLite für Tests/Persistenz ---
+aiosqlite==0.20.0
 gunicorn==21.2.0
 # --- Vektor-RAG Ingest / Embeddings / Parser ---
 qdrant-client==1.11.1
@@ -18,6 +24,6 @@ pytest==8.2.1
 autogen-agentchat==0.7.4
 autogen-core==0.7.4
 autogen-ext==0.7.4
-pytest-asyncio
+pytest-asyncio>=0.23.6
 # Structured extraction library
 langextract

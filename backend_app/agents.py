@@ -6,6 +6,7 @@ Distributed Processing von Requirements über gRPC Worker Runtime
 
 import asyncio
 import logging
+import inspect
 from dataclasses import dataclass
 from typing import Dict, List, Any, Optional
 from datetime import datetime
@@ -26,6 +27,22 @@ from .utils import compute_verdict, sha256_text, weighted_score
 from .db import get_db
 
 logger = logging.getLogger(__name__)
+
+# Utility: Unterstützt sync/async Callables transparent
+async def _maybe_await(func, *args, **kwargs):
+    """
+    Ruft func wahlweise synchron oder asynchron auf.
+    - Unterstützt reine kwargs-Aufrufe (unsere Call-Sites nutzen Keyword-Args).
+    - Wenn das Ergebnis awaitable ist, wird es awaited, sonst direkt zurückgegeben.
+    """
+    try:
+        result = func(*args, **kwargs)
+    except TypeError:
+        # Falls die Signatur nur kwargs erwartet oder args leer sein sollen
+        result = func(**kwargs)
+    if inspect.isawaitable(result):
+        return await result
+    return result
 
 # =============================================================================
 # Message Types für Agent-Kommunikation
@@ -127,7 +144,18 @@ class RequirementsEvaluatorAgent(RoutedAgent):
     """Agent für Requirements-Evaluation mit LLM"""
     
     def __init__(self, agent_name: str = "RequirementsEvaluator") -> None:
+        # Stelle _id bereits vor Basisklassen-Init bereit
+        try:
+            self._id = getattr(self, "_id", AgentId(type=str(agent_name), key=str(agent_name)))
+        except Exception:
+            self._id = AgentId(type=str(agent_name), key=str(agent_name))
         super().__init__(f"{agent_name} - Evaluiert Requirements mit LLM")
+        # Öffentliche id sicherstellen (für Tests/Logs)
+        try:
+            if not hasattr(self, "id") or self.id is None:
+                self.id = self._id
+        except Exception:
+            self.id = self._id
         self.processed_count = 0
         logger.info(f"RequirementsEvaluatorAgent initialisiert: {self.id}")
     
@@ -152,10 +180,11 @@ class RequirementsEvaluatorAgent(RoutedAgent):
             )
             
             # LLM Evaluation ausführen
-            evaluation_result = await llm_evaluate(
+            evaluation_result = await _maybe_await(
+                llm_evaluate,
                 requirement_text=message.requirement_text,
                 context=message.context,
-                criteria_keys=message.criteria_keys
+                criteria_keys=message.criteria_keys,
             )
             
             end_time = asyncio.get_event_loop().time()
@@ -208,7 +237,17 @@ class RequirementsSuggestionAgent(RoutedAgent):
     """Agent für Requirements-Suggestion-Generierung"""
     
     def __init__(self, agent_name: str = "RequirementsSuggester") -> None:
+        try:
+            self._id = getattr(self, "_id", AgentId(type=str(agent_name), key=str(agent_name)))
+        except Exception:
+            self._id = AgentId(type=str(agent_name), key=str(agent_name))
         super().__init__(f"{agent_name} - Generiert Verbesserungsvorschläge")
+        # Öffentliche id sicherstellen (für Tests/Logs)
+        try:
+            if not hasattr(self, "id") or self.id is None:
+                self.id = self._id
+        except Exception:
+            self.id = self._id
         self.processed_count = 0
         logger.info(f"RequirementsSuggestionAgent initialisiert: {self.id}")
     
@@ -233,9 +272,10 @@ class RequirementsSuggestionAgent(RoutedAgent):
             )
             
             # LLM Suggestions generieren
-            suggestions_result = await llm_suggest(
+            suggestions_result = await _maybe_await(
+                llm_suggest,
                 requirement_text=message.requirement_text,
-                context=message.context
+                context=message.context,
             )
             
             end_time = asyncio.get_event_loop().time()
@@ -285,7 +325,17 @@ class RequirementsRewriteAgent(RoutedAgent):
     """Agent für Requirements-Rewriting"""
     
     def __init__(self, agent_name: str = "RequirementsRewriter") -> None:
+        try:
+            self._id = getattr(self, "_id", AgentId(type=str(agent_name), key=str(agent_name)))
+        except Exception:
+            self._id = AgentId(type=str(agent_name), key=str(agent_name))
         super().__init__(f"{agent_name} - Schreibt Requirements um")
+        # Öffentliche id sicherstellen (für Tests/Logs)
+        try:
+            if not hasattr(self, "id") or self.id is None:
+                self.id = self._id
+        except Exception:
+            self.id = self._id
         self.processed_count = 0
         logger.info(f"RequirementsRewriteAgent initialisiert: {self.id}")
     
@@ -310,9 +360,10 @@ class RequirementsRewriteAgent(RoutedAgent):
             )
             
             # LLM Rewrite ausführen
-            rewrite_result = await llm_rewrite(
+            rewrite_result = await _maybe_await(
+                llm_rewrite,
                 requirement_text=message.requirement_text,
-                context=message.context
+                context=message.context,
             )
             
             end_time = asyncio.get_event_loop().time()
@@ -362,7 +413,17 @@ class RequirementsOrchestratorAgent(RoutedAgent):
     """Master Agent für Requirements Processing Orchestration"""
     
     def __init__(self, agent_name: str = "RequirementsOrchestrator") -> None:
+        try:
+            self._id = getattr(self, "_id", AgentId(type=str(agent_name), key=str(agent_name)))
+        except Exception:
+            self._id = AgentId(type=str(agent_name), key=str(agent_name))
         super().__init__(f"{agent_name} - Orchestriert Requirements Processing")
+        # Öffentliche id sicherstellen (für Tests/Logs)
+        try:
+            if not hasattr(self, "id") or self.id is None:
+                self.id = self._id
+        except Exception:
+            self.id = self._id
         self.active_requests: Dict[str, Dict] = {}
         self.results_cache: Dict[str, Dict] = {}
         logger.info(f"RequirementsOrchestratorAgent initialisiert: {self.id}")
@@ -432,7 +493,17 @@ class RequirementsMonitorAgent(RoutedAgent):
     """Agent für Monitoring und Logging des gesamten Systems"""
     
     def __init__(self, agent_name: str = "RequirementsMonitor") -> None:
+        try:
+            self._id = getattr(self, "_id", AgentId(type=str(agent_name), key=str(agent_name)))
+        except Exception:
+            self._id = AgentId(type=str(agent_name), key=str(agent_name))
         super().__init__(f"{agent_name} - Monitort System Performance")
+        # Öffentliche id sicherstellen (für Tests/Logs)
+        try:
+            if not hasattr(self, "id") or self.id is None:
+                self.id = self._id
+        except Exception:
+            self.id = self._id
         self.processing_stats = {
             "total_requests": 0,
             "completed_evaluations": 0,

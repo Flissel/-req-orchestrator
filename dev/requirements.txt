@@ -1,2 +1,2 @@
 # Base dependency for the LangExtract Dev-Pipeline
-langextract
+langextract==1.0.9

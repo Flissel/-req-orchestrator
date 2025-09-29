@@ -40,9 +40,9 @@ def _build_url_with_port(base_url: str, port: int) -> str:
 
 def get_qdrant_client(timeout: float = 5.0) -> Tuple[QdrantClient, int]:
     """
-    Liefert einen Qdrant-Client. Versucht Fallback auf Port 6335, falls 6333 nicht erreichbar.
+    Liefert einen Qdrant-Client. Versucht Fallback auf Port 6401, falls 6333 nicht erreichbar.
     Gibt (client, effektiver_port) zurück.
-    Hinweis: 6334 ist gRPC, HTTP bleibt 6333. Für Ausweichbetrieb nutzen wir 6335→6333 Mapping in Docker.
+    Hinweis: 6334 ist gRPC, HTTP bleibt 6333. Alternativer HTTP-Fallback kann 6401 sein.
     """
     base_url = getattr(settings, "QDRANT_URL", "http://localhost")
     port = int(getattr(settings, "QDRANT_PORT", 6333))
@@ -56,13 +56,13 @@ def get_qdrant_client(timeout: float = 5.0) -> Tuple[QdrantClient, int]:
     except Exception:
         pass
 
-    # Fallback auf 6335, falls primärer Port 6333 war
+    # Fallback auf 6401, falls primärer Port 6333 war
     if port == 6333:
         try:
-            url = _build_url_with_port(base_url, 6335)
+            url = _build_url_with_port(base_url, 6401)
             client = QdrantClient(url=url, timeout=timeout)
             _ = client.get_collections()
-            return client, 6335
+            return client, 6401
         except Exception:
             pass
 
@@ -136,7 +136,14 @@ def upsert_points(
         pid = it.get("id")
         if pid is None:
             pid = uuid.uuid4().hex
-        payload = dict(it.get("payload") or {})
+        # Vereinheitlichung: 'payload' und 'metadata' unterstützen; zusammenführen
+        _pl = it.get("payload") if isinstance(it.get("payload"), dict) else None
+        _md = it.get("metadata") if isinstance(it.get("metadata"), dict) else None
+        payload: Dict[str, Any] = {}
+        if _pl:
+            payload.update(_pl)
+        if _md:
+            payload.update(_md)
         if "createdAt" not in payload:
             payload["createdAt"] = now
         points.append(PointStruct(id=pid, vector=list(vec), payload=payload))
@@ -164,10 +171,13 @@ def search(
     results = cli.search(collection_name=coll, query_vector=list(query_vector), limit=int(top_k or 5))
     out: List[Dict[str, Any]] = []
     for r in results:
+        _pl = getattr(r, "payload", {}) or {}
         out.append({
             "id": getattr(r, "id", None),
             "score": getattr(r, "score", None),
-            "payload": getattr(r, "payload", {}) or {},
+            "payload": _pl,
+            # Alias für vereinheitlichte Schlüssel-Namensgebung
+            "metadata": dict(_pl),
         })
     return out
 
@@ -257,9 +267,12 @@ def fetch_window_by_source_and_index(
             offset=next_offset,
         )
         for r in res:
+            _pl = getattr(r, "payload", {}) or {}
             out.append({
                 "id": getattr(r, "id", None),
-                "payload": getattr(r, "payload", {}) or {},
+                "payload": _pl,
+                # Alias für vereinheitlichte Schlüssel-Namensgebung
+                "metadata": dict(_pl),
             })
         if not next_offset:
             break

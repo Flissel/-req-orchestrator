@@ -28,7 +28,7 @@ class QdrantKGClient:
       - Beim Upsert werden Duplicate Keys überschrieben (idempotent).
 
     ENV:
-      - QDRANT_URL (z. B. http://host.docker.internal oder http://host.docker.internal:6335)
+      - QDRANT_URL (z. B. http://host.docker.internal oder http://host.docker.internal:6401)
       - QDRANT_PORT (optional, falls URL ohne Port)
       - QDRANT_API_KEY (optional)
     """
@@ -53,8 +53,8 @@ class QdrantKGClient:
             if env_url and env_port and "://" in env_url and ":" not in env_url.split("://", 1)[1]:
                 self.qdrant_url = f"{env_url}:{env_port}"
             else:
-                # default-port für demo-compose: 6335
-                self.qdrant_url = env_url or "http://localhost:6335"
+                # Fallback-HTTP-Port (falls Primary 6333 nicht erreichbar): 6401
+                self.qdrant_url = env_url or "http://localhost:6401"
 
         self.api_key = api_key or os.environ.get("QDRANT_API_KEY") or None
         self.nodes_collection = nodes_collection

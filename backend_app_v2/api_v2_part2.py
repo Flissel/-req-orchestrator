@@ -19,6 +19,8 @@ from backend_app import settings
 from backend_app.ingest import extract_texts, chunk_payloads
 from backend_app.embeddings import build_embeddings, get_embeddings_dim
 from backend_app.vector_store import get_qdrant_client, upsert_points
+# ÄNDERN: Zusatz‑Importe für Reset/Search (Qdrant)
+from backend_app.vector_store import reset_collection as vs_reset_collection, search as vs_search
 
 # Optional: LangExtract global import (verhindert NameError bei fehlender Lib)
 try:
@@ -208,7 +210,21 @@ def files_ingest():
             })
 
         client, eff_port = get_qdrant_client()
-        upserted = upsert_points(items, client=client, collection_name=collection, dim=dim)
+        try:
+            upserted = upsert_points(items, client=client, collection_name=collection, dim=dim)
+        except Exception as _up_err:
+            _msg = str(_up_err)
+            if "Vector dimension error" in _msg or "expected dim" in _msg:
+                try:
+                    # Collection mit aktueller Embedding-Dimension neu anlegen
+                    vs_reset_collection(client=client, collection_name=collection, dim=int(dim))
+                    upserted = upsert_points(items, client=client, collection_name=collection, dim=dim)
+                except Exception as _retry_err:
+                    raise _retry_err
+            else:
+                raise _up_err
+        finally:
+            pass
 
         resp = {
             "countFiles": len(files),
@@ -1806,64 +1822,34 @@ def lx_extract_endpoint_v2():
 
         total_extractions = 0
         coverage_sum = 0.0
+
         for i, p in enumerate(payloads):
             txt = p.get("text") or ""
-            if "use_neighbors" in locals() and use_neighbors:
-                try:
-                    prev_txt = payloads[i-1]["text"] if i-1 >= 0 else ""
-                    next_txt = payloads[i+1]["text"] if i+1 < len(payloads) else ""
-                    # Kontext links/rechts begrenzen
-                    prefix = prev_txt[-500:] if prev_txt else ""
-                    suffix = next_txt[:500] if next_txt else ""
-                    txt = (prefix + "\n" + txt + "\n" + suffix).strip()
-                except Exception:
-                    pass
+            # Temperaturstrategie: fast → eine Temperatur (0.2 / override), sonst konservativ (0.0)
+            temp = user_temperature if isinstance(user_temperature, (int, float)) else (0.2 if bool(fast_mode) else 0.0)
             try:
-                # Self-consistency (disabled in fast mode): multiple temperatures, then merge
-                def _once(temp: float) -> list:
+                # Robust: Falls das Fake/SDK keine 'temperature'-KW-Arg unterstützt, ohne Temperatur erneut aufrufen.
+                def _lx_call(_text: str, _prompt: str, _examples: list, _temp: float):
                     try:
-                        r = lx.extract(
-                            text_or_documents=txt,
-                            prompt_description=prompt,
-                            examples=examples_sdk,
+                        return lx.extract(
+                            text_or_documents=_text,
+                            prompt_description=_prompt,
+                            examples=_examples,
                             model_id=getattr(settings, "OPENAI_MODEL", "gpt-4o-mini"),
                             api_key=getattr(settings, "OPENAI_API_KEY", None),
-                            temperature=temp,
+                            temperature=float(_temp),
                         )
-                        ex, _, _ = _normalize_lx_result(r, txt)
-                        return ex
-                    except Exception:
-                        return []
-                if fast_mode:
-                    t = user_temperature if isinstance(user_temperature, (int, float)) else 0.2
-                    temps = [float(t)]
-                else:
-                    temps = [0.0, 0.2, 0.6, 0.8, 0.9]
-                votes = []
-                for t in temps:
-                    votes.extend(_once(t))
-                if (not votes) and (not fast_mode):
-                    votes = _repair_pass(txt, prompt, examples_sdk)
-                from collections import defaultdict
-                buckets = defaultdict(list)
-                for e in votes:
-                    key = (str(e.get("extraction_class") or ""), str(e.get("extraction_text") or ""))
-                    buckets[key].append(e)
-                exts = []
-                for _, arr in buckets.items():
-                    validated = _constrain_and_validate(arr, txt, {"requirement", "section", "paragraph", "bullet_item", "numbered_item", "table_row"})
-                    if not validated:
-                        continue
-                    # pick longest span, attach votes
-                    def _span_len(x):
-                        ci = x.get("char_interval") or {}
-                        return int(ci.get("end_pos") or 0) - int(ci.get("start_pos") or 0)
-                    best = max(validated, key=_span_len)
-                    best = best.copy()
-                    best["votes"] = len(arr)
-                    exts.append(best)
-                covered = sum(max(0, int(((e.get("char_interval") or {}).get("end_pos") or 0)) - int(((e.get("char_interval") or {}).get("start_pos") or 0))) for e in exts)
-                ratio = (covered / max(1, len(txt))) if txt else 0.0
+                    except TypeError:
+                        return lx.extract(
+                            text_or_documents=_text,
+                            prompt_description=_prompt,
+                            examples=_examples,
+                            model_id=getattr(settings, "OPENAI_MODEL", "gpt-4o-mini"),
+                            api_key=getattr(settings, "OPENAI_API_KEY", None),
+                        )
+
+                res = _lx_call(txt, prompt_desc, examples_sdk, float(temp))
+                exts, covered, ratio = _normalize_lx_result(res, txt)
                 p.setdefault("payload", {}).setdefault("lx", {})
                 p["payload"]["lx"].update({
                     "version": "le.v1",
@@ -1872,16 +1858,16 @@ def lx_extract_endpoint_v2():
                     "run_id": str(int(time.time())),
                     "extractions": exts,
                     "coverage": {"chunk_len": len(txt), "covered": covered, "coverage_ratio": round(ratio, 4)},
-                    "evidence": {"sourceFile": p["payload"].get("sourceFile"), "chunkIndex": p["payload"].get("chunkIndex")},
+                    "evidence": {"sourceFile": (p["payload"] or {}).get("sourceFile"), "chunkIndex": (p["payload"] or {}).get("chunkIndex")},
                 })
                 total_extractions += len(exts)
                 coverage_sum += ratio
-            except Exception as _le:
+            except Exception as le:
                 p.setdefault("payload", {}).setdefault("lx", {})
-                p["payload"]["lx"].update({"version": "le.v1", "error": str(_le)})
+                p["payload"]["lx"].update({"version": "le.v1", "error": str(le)})
 
         lx_preview = _lx_preview_from_payloads(payloads)
-        # final dedupe/merge with confidence
+        # final dedupe/merge mit confidence
         try:
             lx_preview = _dedupe_merge_by_text(lx_preview)
             lx_preview = _dedupe_nearby_by_similarity(lx_preview, threshold=0.88)
@@ -2093,8 +2079,8 @@ def lx_structure_endpoint():
             from collections import defaultdict
             buckets = defaultdict(list)
             for e in votes:
-                ci = e.get("char_interval") or {}
-                key = (str(e.get("extraction_class") or ""), str(e.get("extraction_text") or ""), int(ci.get("start_pos") or 0), int(ci.get("end_pos") or 0))
+                ci = (e or {}).get("char_interval")
+                key = (str((e or {}).get("extraction_class")) or ""), str((e or {}).get("extraction_text")) or "", int(ci.get("start_pos") or 0) if ci else None, int(ci.get("end_pos") or 0) if ci else None
                 buckets[key].append(e)
             merged = []
             for _, arr in buckets.items():
@@ -2475,6 +2461,128 @@ def lx_result_chunk():
             return jsonify({"error": "internal_error", "message": str(e), "trace": traceback.format_exc(limit=8)}), 500
         return jsonify({"error": "internal_error", "message": "result chunk failed"}), 500
 
+
+# NEU: Demo-Endpoint für UI – lädt Requirements aus JSON/Markdown (Fallback Heuristik)
+@api_bp.get("/api/v1/demo/requirements")
+def demo_requirements_v2():
+    """
+    Liefert {items:[{id, requirementText, context?}]} für die Demo/UI.
+    Priorität:
+      1) ./data/requirements.out.json (Shape {items:[...]})
+      2) ./frontend/sample_requirements.md (Tables oder Bullets → mining)
+      3) Leere Liste
+    """
+    try:
+        import json as _json
+        # 1) JSON falls vorhanden
+        p_json = "./data/requirements.out.json"
+        if os.path.exists(p_json):
+            with open(p_json, "r", encoding="utf-8") as f:
+                data = _json.load(f) or {}
+            items = data.get("items")
+            if isinstance(items, list):
+                # IDs sicherstellen
+                out = []
+                for i, it in enumerate(items, start=1):
+                    if isinstance(it, dict):
+                        txt = str(it.get("requirementText") or it.get("text") or "").strip()
+                    else:
+                        txt = str(it or "").strip()
+                    if not txt:
+                        continue
+                    out.append({"id": f"R{i}", "requirementText": txt, "context": it.get("context") if isinstance(it, dict) else {}})
+                return jsonify({"items": out}), 200
+
+        # 2) Markdown Sample → parse Tables, sonst heuristisch minen
+        p_md = "./frontend/sample_requirements.md"
+        md_txt = ""
+        if os.path.exists(p_md):
+            with open(p_md, "r", encoding="utf-8") as f:
+                md_txt = f.read()
+        items = []
+        if md_txt:
+            table_items = _parse_markdown_tables_to_gold(md_txt)
+            if table_items:
+                items = [{"id": f"R{i}", "requirementText": str(it.get("requirementText") or "").strip()} for i, it in enumerate(table_items, start=1) if str(it.get("requirementText") or "").strip()]
+            if not items:
+                mined = _mine_heuristic_requirements(md_txt)
+                items = [{"id": f"R{i}", "requirementText": str(it.get("requirementText") or "").strip()} for i, it in enumerate(mined, start=1) if str(it.get("requirementText") or "").strip()]
+            return jsonify({"items": items}), 200
+
+        # 3) Fallback: leer
+        return jsonify({"items": []}), 200
+    except Exception as e:
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
+
+# NEU: Agent-Antwort (einfacher Wrapper um RAG-Suche)
+@api_bp.post("/api/v1/agent/answer")
+def agent_answer_v2():
+    """
+    Body: { query: str, topK?: int }
+    Response: { query, effectiveQuery, topK, collection, hits:[...], triggeredPolicies:[], agentNotes:[] }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        q = str(body.get("query") or "").strip()
+        top_k = int(body.get("topK") or 5)
+        if not q:
+            return jsonify({"error": "invalid_request", "message": "query fehlt"}), 400
+        coll = getattr(settings, "QDRANT_COLLECTION", "requirements_v1")
+        qvec = build_embeddings([q], model=getattr(settings, "EMBEDDINGS_MODEL", "text-embedding-3-small"))[0]
+        hits = vs_search(qvec, top_k=int(top_k), collection_name=str(coll))
+        return jsonify({
+            "query": q,
+            "effectiveQuery": q,
+            "topK": int(top_k),
+            "collection": coll,
+            "hits": hits,
+            "triggeredPolicies": [],
+            "agentNotes": []
+        }), 200
+    except Exception as e:
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
+
+# NEU: Agent – Requirements Mining (nutzt RAG und baut simple Items-Liste)
+@api_bp.post("/api/v1/agent/mine_requirements")
+def agent_mine_requirements_v2():
+    """
+    Body: { query: str, topK?: int }
+    Response: { items: [ { id, requirementText, context? } ] }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        q = str(body.get("query") or "").strip()
+        top_k = int(body.get("topK") or 10)
+        if not q:
+            return jsonify({"error": "invalid_request", "message": "query fehlt"}), 400
+        coll = getattr(settings, "QDRANT_COLLECTION", "requirements_v1")
+        qvec = build_embeddings([q], model=getattr(settings, "EMBEDDINGS_MODEL", "text-embedding-3-small"))[0]
+        hits = vs_search(qvec, top_k=int(top_k), collection_name=str(coll))
+        items = []
+        for i, h in enumerate(hits or [], start=1):
+            try:
+                p = (h.get("payload") or {}) if isinstance(h, dict) else {}
+                txt = str(p.get("text") or "").strip()
+                if not txt:
+                    continue
+                items.append({
+                    "id": f"R{i}",
+                    "requirementText": txt,
+                    "context": {"source": p.get("sourceFile"), "chunkIndex": p.get("chunkIndex")}
+                })
+            except Exception:
+                continue
+        # Dedupe by text (einfach)
+        seen = set()
+        dedup = []
+        for it in items:
+            norm = " ".join(str(it.get("requirementText") or "").lower().split())
+            if norm and norm not in seen:
+                seen.add(norm)
+                dedup.append(it)
+        return jsonify({"items": dedup}), 200
+    except Exception as e:
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
 
 # =========================
 # WEITERE ENDPOINTS (Platzhalter für spätere Teile)

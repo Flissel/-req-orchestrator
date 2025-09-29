@@ -197,7 +197,7 @@ Wichtige ENV:
 ### 2.3 Vector-DB/Qdrant
 
 - Client/Abstraktion: [backend_app.vector_store.*](../../backend_app/vector_store.py)
-- Port-Fallback: [backend_app.vector_store.get_qdrant_client()](../../backend_app/vector_store.py:41) prüft 6333/6335
+- Port-Fallback: [backend_app.vector_store.get_qdrant_client()](../../backend_app/vector_store.py:41) prüft 6333/6401
 - Compose-Beispiel: [docker-compose.qdrant.yml](../../docker-compose.qdrant.yml)
 
 ### 2.4 Frontend/UI

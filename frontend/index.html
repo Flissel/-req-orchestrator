@@ -10,13 +10,13 @@
     // Basis-URL für das Backend (kann bei Bedarf überschrieben werden)
     // Frontend läuft auf 8081 (nginx), Backend laut docker-compose auf 5000.
     // Cross-Origin ist erlaubt; app_optimized.js nutzt window.API_BASE bevorzugt.
-    window.API_BASE = window.API_BASE || "http://localhost:8083";
+    window.API_BASE = window.API_BASE || "http://localhost:8087";
   </script>
 </head>
 <body>
   <header>
     <h1>Requirements Evaluator</h1>
-    <p>Backend: <span class="mono">http://localhost:8083</span> | Frontend läuft via Nginx (Port 8081)</p>
+    <p>Backend: <span class="mono">http://localhost:8087</span> | Frontend läuft via Nginx (Port 8081)</p>
   </header>
 
   <main>
@@ -37,22 +37,6 @@
 
         <div class="button-group" style="margin-top:10px;">
           <button id="reset-index-btn" title="Drop & recreate the vector index (Qdrant collection).">🧹 Reset index</button>
-        </div>
-
-        <div class="card" style="margin-top:12px;">
-          <h2>🔎 RAG Search</h2>
-          <div class="row" style="margin-top:6px; gap:8px; align-items:center;">
-            <input type="text" id="rag-query" placeholder="Query eingeben..." />
-            <label style="display:flex;align-items:center;gap:6px;font-size:12px;">
-              <input type="checkbox" id="rag-use-agent" checked />
-              <span title="Wenn aktiv, verwendet die Suche den Agent-/Memory-Endpoint. Deaktiviert: Basis-RAG (/api/v1/rag/search).">Use memory (Agent)</span>
-            </label>
-            <button id="rag-search-btn">Suchen</button>
-          </div>
-          <div class="row" style="margin-top:6px;">
-            <button id="rag-mine-btn" title="Extrahiert Anforderungen aus dem Dokument und fügt sie links als Eingaben hinzu.">Mine requirements to input</button>
-          </div>
-          <div id="rag-results" class="small" style="margin-top:8px;">Keine Suche ausgeführt.</div>
         </div>
 
         <div class="status" id="status" style="margin-top:12px;">

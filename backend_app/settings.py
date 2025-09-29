@@ -59,6 +59,33 @@ VERDICT_THRESHOLD = float(os.environ.get("VERDICT_THRESHOLD", "0.7"))
 SUGGEST_MAX = int(os.environ.get("SUGGEST_MAX", "10"))
 OUTPUT_MD_PATH = os.environ.get("OUTPUT_MD_PATH", "")  # optional: schreibt mergedMarkdown serverseitig
 
+
+def _env_bool(name: str, default: str = "false") -> bool:
+    """
+    Liest ein Bool-ENV. Akzeptiert: 1,true,yes,on (case-insensitive).
+    """
+    return (os.environ.get(name, default) or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _compose_qdrant_url(base_url: str, port: int) -> str:
+    """
+    Baut eine Qdrant-URL inkl. Port, wenn keiner im Hostteil enthalten ist.
+    Beispiele:
+      - http://localhost  + 6333 -> http://localhost:6333
+      - http://127.0.0.1  + 6401 -> http://127.0.0.1:6401
+      - http://host:6333  + 6333 -> http://host:6333 (unverändert)
+    """
+    base = str(base_url or "http://localhost").rstrip("/")
+    try:
+        hostpart = base.split("://", 1)[-1]
+        if ":" in hostpart:
+            return base
+        return f"{base}:{int(port)}"
+    except Exception:
+        # Fallback: naive Zusammensetzung
+        return f"{base}:{int(port)}"
+
+
 def _read_file_text(path: str) -> str:
     try:
         if path and os.path.exists(path):
@@ -118,7 +145,70 @@ def get_runtime_config() -> dict:
     if os.environ.get("OPENAI_MAX_TOKENS") is not None and os.environ.get("LLM_MAX_TOKENS") is None:
         unused_env_hints.append("OPENAI_MAX_TOKENS ist gesetzt, wird aber ignoriert. Bitte LLM_MAX_TOKENS verwenden.")
 
-    return {
+    # Autodetect: Embeddings-Dimension
+    embeddings_detected_dim = None  # type: ignore[assignment]
+    try:
+        # Bevorzugt statisch reportete Dimension aus embeddings-Modul
+        from .embeddings import get_embeddings_dim, build_embeddings  # lazy import
+        embeddings_detected_dim = int(get_embeddings_dim())
+        # Optional aktive Probe gegen das konfiguriere Modell (nur wenn explizit gewünscht)
+        if _env_bool("EMBEDDINGS_AUTOPROBE", "false") and OPENAI_API_KEY:
+            try:
+                vecs = build_embeddings(["probe_text_for_dim_detection"], model=EMBEDDINGS_MODEL, batch_size=1)
+                if vecs and isinstance(vecs[0], list):
+                    embeddings_detected_dim = int(len(vecs[0]))
+            except Exception:
+                # Probe fehlgeschlagen → still, wir behalten die statische Dim
+                pass
+    except Exception:
+        # embeddings-Modul nicht verfügbar → ignorieren
+        pass
+
+    # Autodetect: Qdrant Collection (Existenz/Dimension) und optional Auto-Create
+    q_exists: bool | None = None
+    q_coll_dim: int | None = None
+    q_matches_dim: bool | None = None
+    q_auto_created: bool = False
+    q_effective_url: str | None = None
+    q_error: str | None = None
+
+    if _env_bool("QDRANT_AUTODETECT", "true"):
+        try:
+            # Lazy Imports, um harte Abhängigkeiten in Settings zu vermeiden
+            from qdrant_client import QdrantClient  # type: ignore
+            from qdrant_client.models import VectorParams, Distance  # type: ignore
+
+            q_effective_url = _compose_qdrant_url(QDRANT_URL, QDRANT_PORT)
+            cli = QdrantClient(url=q_effective_url, timeout=3.0, api_key=os.environ.get("QDRANT_API_KEY") or None)
+
+            try:
+                info = cli.get_collection(collection_name=QDRANT_COLLECTION)
+                q_exists = True
+                vp = getattr(getattr(info, "config", None), "params", None)
+                v = getattr(vp, "vectors", None)
+                cdim = getattr(v, "size", None)
+                if cdim is not None:
+                    q_coll_dim = int(cdim)
+            except Exception:
+                q_exists = False
+
+            desired_dim = int(embeddings_detected_dim or 1536)
+            # Optional: Auto-Create/Recreate (destruktiv) nur wenn ausdrücklich angefordert
+            if _env_bool("QDRANT_AUTOCREATE", "false") and (not q_exists or (q_coll_dim and int(q_coll_dim) != desired_dim)):
+                cli.recreate_collection(
+                    collection_name=QDRANT_COLLECTION,
+                    vectors_config=VectorParams(size=desired_dim, distance=Distance.COSINE),
+                )
+                q_auto_created = True
+                q_exists = True
+                q_coll_dim = desired_dim
+
+            if embeddings_detected_dim and q_coll_dim:
+                q_matches_dim = (int(embeddings_detected_dim) == int(q_coll_dim))
+        except Exception as e:
+            q_error = str(e)
+
+    cfg = {
         "api": {
             "host": API_HOST,
             "port": API_PORT,
@@ -131,6 +221,13 @@ def get_runtime_config() -> dict:
             "qdrant_url": QDRANT_URL,
             "qdrant_port": QDRANT_PORT,
             "collection": QDRANT_COLLECTION,
+            # Autodetect-Erweiterungen
+            "effective_url": q_effective_url,
+            "detected_dim": q_coll_dim,
+            "exists": q_exists,
+            "matches_dim": q_matches_dim,
+            "auto_created": q_auto_created,
+            **({"error": q_error} if q_error else {}),
         },
         "batch": {
             "batch_size": BATCH_SIZE,
@@ -147,7 +244,9 @@ def get_runtime_config() -> dict:
         },
         "embeddings": {
             "provider": "openai",
-            "model": EMBEDDINGS_MODEL
+            "model": EMBEDDINGS_MODEL,
+            # Autodetect-Erweiterung
+            "detected_dim": embeddings_detected_dim,
         },
         "prompts": {
             "evaluate_path": EVAL_SYSTEM_PROMPT_PATH,
@@ -169,8 +268,15 @@ def get_runtime_config() -> dict:
         },
         "hints": {
             "unused_env": unused_env_hints,
+            # Nützlicher Hinweis bei Dimensions-Mismatch
+            **(
+                {"vector_dim_mismatch": True}
+                if (q_matches_dim is False)
+                else {}
+            ),
         },
     }
+    return cfg
 
 
 def log_runtime_config() -> None:

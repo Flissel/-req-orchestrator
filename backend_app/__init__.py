@@ -6,7 +6,7 @@ from flask_cors import CORS
 
 from . import settings
 from .db import init_db
-from .api import api_bp
+from .api_lx_fixed import api_bp
 from .batch import batch_bp
 
 

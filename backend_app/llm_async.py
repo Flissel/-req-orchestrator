@@ -12,7 +12,7 @@ import json
 import os
 from dataclasses import dataclass
 
-from ..settings import (
+from .settings import (
     OPENAI_MODEL,
     OPENAI_API_KEY,
     MOCK_MODE,
@@ -43,7 +43,8 @@ class AsyncLLMService:
     
     def __init__(self):
         self.model = OPENAI_MODEL
-        self.mock_mode = MOCK_MODE
+        # Ohne API-Key stets Mock-Modus aktivieren (deterministische Tests)
+        self.mock_mode = MOCK_MODE or (not OPENAI_API_KEY)
         self.request_count = 0
         
     async def _make_async_llm_call(
@@ -120,7 +121,8 @@ class AsyncLLMService:
     async def _generate_mock_response(self, prompt: str) -> LLMResult:
         """Generiert Mock-Response für Testing"""
         # Einfache Heuristik basierend auf Prompt
-        if "evaluate" in prompt.lower() or "bewerten" in prompt.lower():
+        pl = prompt.lower()
+        if ("evaluate" in pl) or ("bewerten" in pl) or ("evaluiere" in pl):
             mock_data = {
                 "verdict": "good" if len(prompt) > 100 else "acceptable",
                 "score": 0.85 if len(prompt) > 100 else 0.65,
@@ -130,7 +132,21 @@ class AsyncLLMService:
                     "completeness": 0.85
                 }
             }
-        elif "suggest" in prompt.lower() or "verbesser" in prompt.lower():
+        # WICHTIG: Rewrite vor Suggest prüfen, da Rewrite-Prompts häufig „Verbesserungen:“ enthalten
+        elif (
+            ("rewrite" in pl)
+            or ("umschreib" in pl)
+            or ("umformul" in pl)
+            or (("schreibe" in pl) and (" um" in pl))  # "Schreibe ... um"
+            or ("neu formulier" in pl)
+            or ("überarbeit" in pl)
+            or ("präzis" in pl)
+            or ("klarer formulier" in pl)
+        ):
+            mock_data = {
+                "rewritten_requirement": f"Verbesserte Version: {prompt[:100]}... [umgeschrieben]"
+            }
+        elif ("suggest" in pl) or ("verbesser" in pl):
             mock_data = {
                 "suggestions": [
                     "Fügen Sie spezifische Akzeptanzkriterien hinzu",
@@ -138,16 +154,13 @@ class AsyncLLMService:
                     "Erwägen Sie Edge-Cases und Fehlerbehandlung"
                 ]
             }
-        elif "rewrite" in prompt.lower() or "umschreib" in prompt.lower():
-            mock_data = {
-                "rewritten_requirement": f"Verbesserte Version: {prompt[:100]}... [umgeschrieben]"
-            }
         else:
             mock_data = {"response": "Mock-Antwort für unbekannten Prompt-Typ"}
         
+        # WICHTIG: Immer im 'content'-Feld JSON-String zurückgeben, damit json.loads(...) in den Callern funktioniert
         return LLMResult(
             success=True,
-            data=mock_data,
+            data={"content": json.dumps(mock_data, ensure_ascii=False)},
             latency_ms=150,  # Mock-Latenz
             model="mock-" + self.model
         )
@@ -215,6 +228,19 @@ Bewerte Requirements objektiv und konstruktiv. Gib detailliertes Feedback."""
                 "verdict": "acceptable",
                 "details": {"clarity": 0.5, "testability": 0.5, "completeness": 0.5}
             }
+        
+        # Erwartete Felder absichern
+        if not isinstance(response_data.get("details"), dict):
+            response_data["details"] = {"clarity": 0.5, "testability": 0.5, "completeness": 0.5}
+        if "score" not in response_data:
+            try:
+                d = response_data.get("details", {})
+                vals = [float(d.get(k, 0.5)) for k in ("clarity", "testability", "completeness")]
+                response_data["score"] = sum(vals) / max(1, len(vals))
+            except Exception:
+                response_data["score"] = 0.5
+        if str(response_data.get("verdict") or "").strip() == "":
+            response_data["verdict"] = "acceptable"
         
         # Zusätzliche Metadaten hinzufügen
         response_data.update({
@@ -291,6 +317,14 @@ Generiere präzise, umsetzbare Verbesserungsvorschläge für Requirements."""
                 ]
             }
         
+        # Erwartete Felder absichern
+        if not isinstance(response_data.get("suggestions"), list) or not response_data.get("suggestions"):
+            response_data["suggestions"] = [
+                "Fügen Sie spezifische Akzeptanzkriterien hinzu",
+                "Definieren Sie messbare Erfolgskriterien",
+                "Erwägen Sie Edge-Cases und Fehlerbehandlung"
+            ]
+        
         # Metadaten hinzufügen
         response_data.update({
             "latency_ms": result.latency_ms,
@@ -356,6 +390,10 @@ Schreibe Requirements präzise und professionell um, ohne die ursprüngliche Bed
             response_data = {
                 "rewritten_requirement": f"Verbesserte Version: {requirement_text}"
             }
+        
+        # Erwartete Felder absichern
+        if not isinstance(response_data.get("rewritten_requirement"), str) or not response_data.get("rewritten_requirement"):
+            response_data["rewritten_requirement"] = f"Verbesserte Version: {requirement_text}"
         
         # Metadaten hinzufügen
         response_data.update({

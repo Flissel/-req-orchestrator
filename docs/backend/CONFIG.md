@@ -143,3 +143,118 @@ docker compose up -d --build
 
 Hinweis
 - Bei langen LLM-Zeiten ggf. MOCK_MODE=true für schnelle Tests verwenden.
+
+# Backend-Konfiguration
+
+## Neue/erweiterte ENV-Variablen
+
+Diese Variablen ergänzen die bestehende Konfiguration und wurden im Zuge der v2‑Migration und des Vector/RAG‑Hardenings eingeführt.
+
+- EMBEDDINGS_AUTOPROBE
+  - Typ: boolean (1/true/yes/on)
+  - Default: false
+  - Wirkung: Wenn aktiv und OPENAI_API_KEY vorhanden ist, wird beim Runtime‑Snapshot eine 1‑Element‑Probe gegen das Embeddings‑Modell durchgeführt, um die effektive Vektordimension zu ermitteln. Fallback bleibt die statische Dimension aus dem Embeddings‑Modul.
+  - Quelle/Implementierung: [python.get_runtime_config()](../../backend_app/settings.py:108)
+
+- QDRANT_AUTODETECT
+  - Typ: boolean (1/true/yes/on)
+  - Default: true
+  - Wirkung: Ermittelt in der Runtime‑Konfiguration effective_url, Collection‑Existenz und (falls vorhanden) die konfigurierte Collection‑Dimension. Fehler werden non‑fatal als error‑Feld im vector‑Block ausgegeben.
+  - Quelle/Implementierung: [python.get_runtime_config()](../../backend_app/settings.py:108)
+
+- QDRANT_AUTOCREATE
+  - Typ: boolean (1/true/yes/on)
+  - Default: false
+  - Wirkung: Wenn aktiv, wird die Collection bei fehlender Existenz (oder Dim‑Mismatch) automatisch (re)erstellt. Achtung: „recreate“ ist destruktiv (Drop + Create). Verwenden Sie dies nur in nicht‑produktiven Umgebungen oder mit ausdrücklicher Freigabe.
+  - Alternativ/Tooling: CLI‑Skript [dev/qdrant_migrate.py](../../dev/qdrant_migrate.py) für Dry‑Run/Auto‑Create/Recreate.
+  - Quelle/Implementierung: [python.get_runtime_config()](../../backend_app/settings.py:108), [python.reset_collection()](../../backend_app/vector_store.py:197)
+
+- FEATURE_FLAG_USE_V2
+  - Typ: boolean (1/true/yes/on)
+  - Default: false
+  - Wirkung: Canary/Cutover‑Flag – wenn gesetzt, markiert alle Requests als „v2“. Dient im aktuellen Hybrid‑Setup der Observability (Header/Cookies/Logs), nicht dem harten Routing‑Umschalter.
+  - Observability: Response‑Header X‑Variant, X‑Variant‑Reason; Cookie „variant“. Logging enthält variant/variantReason.
+  - Quelle/Implementierung: [python.add_request_id_header()](../../backend_app_v2/main.py:46)
+
+- CANARY_PERCENT
+  - Typ: integer (0..100)
+  - Default: 0
+  - Wirkung: Prozentualer Anteil (sticky via SHA‑256(Request‑Id) Bucket), der als „v2“ markiert wird, sofern FEATURE_FLAG_USE_V2=false ist. 0 = aus, 100 = alle.
+  - Observability wie oben; nur Markierung/Telemetry, kein hartes Umschalten.
+  - Quelle/Implementierung: [python.add_request_id_header()](../../backend_app_v2/main.py:46)
+
+### Beispiel (.env)
+
+```dotenv
+# Embeddings/Vector
+EMBEDDINGS_MODEL=text-embedding-3-small
+EMBEDDINGS_AUTOPROBE=false
+
+QDRANT_URL=http://host.docker.internal
+QDRANT_PORT=6333
+QDRANT_COLLECTION=requirements_v1
+QDRANT_AUTODETECT=true
+QDRANT_AUTOCREATE=false
+
+# Canary/Cutover (Observability)
+FEATURE_FLAG_USE_V2=false
+CANARY_PERCENT=0
+```
+
+### Hinweise
+
+- Runtime‑Snapshot (/api/runtime-config) zeigt die erkannten Werte im Block vector/embeddings an:
+  - vector: { effective_url, exists, detected_dim (Collection), matches_dim, auto_created, error? }
+  - embeddings: { model, detected_dim }
+- Für destruktive Operationen (Reset/Recreate) wird empfohlen, das Tool [dev/qdrant_migrate.py](../../dev/qdrant_migrate.py) zu nutzen (Dry‑Run/Bestätigungspfad).
+
+---
+
+## 8) Test-/CI-Umgebungen
+
+### DISABLE_GRPC (Tests/Lokal)
+
+- Zweck: Überspringt den gRPC/AutoGen Lifespan‑Startup in der FastAPI‑App, damit Unit/Parity‑Tests ohne Netzwerk-/Worker‑Abhängigkeiten laufen.
+- ENV:
+  - `DISABLE_GRPC=true|1|yes`
+- Implementierung: Guard im Lifespan von [fastapi_main.lifespan()](../../fastapi_main.py:353)
+- Empfohlen für:
+  - pytest lokal/CI, Smoke‑Tests ohne Worker
+- Beispiel:
+  - Windows (cmd): `set DISABLE_GRPC=true && pytest -q`
+  - Linux/macOS: `DISABLE_GRPC=true pytest -q`
+
+### Empfohlene CI‑ENV (deterministisch, ohne externe Dienste)
+
+Diese Variablen minimieren externe Abhängigkeiten in CI‑Läufen:
+
+```yaml
+env:
+  DISABLE_GRPC: "true"
+  MOCK_MODE: "true"
+  OPENAI_API_KEY: ""
+  QDRANT_URL: "http://localhost"
+  QDRANT_PORT: "6333"
+  QDRANT_AUTODETECT: "false"
+  QDRANT_AUTOCREATE: "false"
+  CANARY_PERCENT: "0"
+  FEATURE_FLAG_USE_V2: "false"
+```
+
+- Beispiel GitHub Actions Schritt (mit Coverage‑Gate ≥ 80%):
+  ```yaml
+  - name: Pytest
+    env:
+      DISABLE_GRPC: "true"
+      MOCK_MODE: "true"
+      OPENAI_API_KEY: ""
+      QDRANT_URL: "http://localhost"
+      QDRANT_PORT: "6333"
+      QDRANT_AUTODETECT: "false"
+      QDRANT_AUTOCREATE: "false"
+      CANARY_PERCENT: "0"
+      FEATURE_FLAG_USE_V2: "false"
+    run: |
+      pytest -q
+      coverage report --rcfile=pyproject.toml --fail-under=80 --show-missing
+  ```

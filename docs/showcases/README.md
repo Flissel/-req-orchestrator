@@ -166,7 +166,7 @@ Endpunkte
 - Health/List: [backend_app.api.vector_health()](../../backend_app/api.py:1149), [backend_app.api.vector_collections()](../../backend_app/api.py:1140)
 
 Qdrant-Client
-- [backend_app.vector_store.get_qdrant_client()](../../backend_app/vector_store.py:41) mit Port-Fallback (6333/6335)
+- [backend_app.vector_store.get_qdrant_client()](../../backend_app/vector_store.py:41) mit Port-Fallback (6333/6401)
 
 
 ----------------------------------------------------------------
