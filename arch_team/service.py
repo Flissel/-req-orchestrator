@@ -622,6 +622,529 @@ def kg_search_semantic():
         return jsonify({"error": "internal_error", "message": str(e)}), 500
 
 
+# ============================================================================
+# RAG Endpoints (Semantic Analysis, Duplicate Detection, Coverage)
+# ============================================================================
+
+@app.route("/api/rag/duplicates", methods=["POST"])
+def rag_find_duplicates():
+    """
+    Find semantic duplicate requirements using embeddings.
+
+    Request (JSON):
+      {
+        "requirements": [{"req_id": "...", "text": "...", ...}, ...],
+        "similarity_threshold": 0.90,  // optional, default 0.90
+        "method": "embedding"  // optional, default "embedding"
+      }
+
+    Response:
+      {
+        "success": true,
+        "duplicate_groups": [
+          {
+            "group_id": "dup_1",
+            "requirements": [
+              {"req_id": "REQ-001", "text": "...", "similarity": 1.0},
+              {"req_id": "REQ-005", "text": "...", "similarity": 0.94}
+            ],
+            "avg_similarity": 0.97
+          }
+        ],
+        "stats": {
+          "total_requirements": 25,
+          "unique_requirements": 23,
+          "duplicate_groups": 2,
+          "total_duplicates": 2
+        }
+      }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        requirements = body.get("requirements") or []
+        threshold = float(body.get("similarity_threshold", 0.90))
+        method = body.get("method", "embedding")
+
+        if not isinstance(requirements, list):
+            return jsonify({
+                "success": False,
+                "error": "requirements must be a list",
+                "duplicate_groups": [],
+                "stats": {"total_requirements": 0}
+            }), 400
+
+        if not requirements:
+            return jsonify({
+                "success": True,
+                "duplicate_groups": [],
+                "stats": {
+                    "total_requirements": 0,
+                    "unique_requirements": 0,
+                    "duplicate_groups": 0,
+                    "total_duplicates": 0
+                }
+            })
+
+        # Use Qdrant for semantic duplicate detection
+        client = QdrantKGClient()
+
+        # Build similarity matrix
+        req_texts = [r.get("text", "") for r in requirements]
+        pairs = []  # List of (i, j, similarity)
+
+        for i, req1 in enumerate(req_texts):
+            if not req1.strip():
+                continue
+
+            try:
+                # Search for similar requirements
+                similar = client.search_nodes(req1, top_k=len(req_texts))
+
+                for item in similar:
+                    score = item.get("score", 0.0)
+                    payload = item.get("payload", {})
+                    req2_text = payload.get("text", "")
+
+                    # Find index in original list
+                    try:
+                        j = req_texts.index(req2_text)
+                    except ValueError:
+                        continue
+
+                    # Skip self-comparison
+                    if i >= j:
+                        continue
+
+                    if score >= threshold:
+                        pairs.append((i, j, score))
+
+            except Exception as e:
+                logger.warning(f"[RAG] Duplicate search failed for req {i}: {e}")
+                continue
+
+        # Group duplicates using Union-Find
+        parent = list(range(len(requirements)))
+
+        def find(x):
+            if parent[x] != x:
+                parent[x] = find(parent[x])
+            return parent[x]
+
+        def union(x, y):
+            px, py = find(x), find(y)
+            if px != py:
+                parent[px] = py
+
+        # Build groups
+        for i, j, _ in pairs:
+            union(i, j)
+
+        # Collect groups
+        groups_dict = {}
+        for i in range(len(requirements)):
+            root = find(i)
+            if root not in groups_dict:
+                groups_dict[root] = []
+            groups_dict[root].append(i)
+
+        # Filter groups with duplicates (size > 1)
+        duplicate_groups = []
+        group_counter = 1
+
+        for indices in groups_dict.values():
+            if len(indices) > 1:
+                # Calculate similarities within group
+                group_reqs = []
+                similarities = []
+
+                for idx in indices:
+                    req = requirements[idx]
+                    # Find max similarity to other members
+                    max_sim = 1.0 if len(indices) == 1 else 0.0
+                    for i, j, sim in pairs:
+                        if (i == idx and j in indices) or (j == idx and i in indices):
+                            max_sim = max(max_sim, sim)
+
+                    group_reqs.append({
+                        "req_id": req.get("req_id", f"REQ-{idx}"),
+                        "text": req.get("text", ""),
+                        "similarity": max_sim
+                    })
+                    similarities.append(max_sim)
+
+                avg_sim = sum(similarities) / len(similarities) if similarities else 0.0
+
+                duplicate_groups.append({
+                    "group_id": f"dup_{group_counter}",
+                    "requirements": group_reqs,
+                    "avg_similarity": avg_sim
+                })
+                group_counter += 1
+
+        # Calculate stats
+        total_duplicates = sum(len(g["requirements"]) - 1 for g in duplicate_groups)
+        unique_requirements = len(requirements) - total_duplicates
+
+        return jsonify({
+            "success": True,
+            "duplicate_groups": duplicate_groups,
+            "stats": {
+                "total_requirements": len(requirements),
+                "unique_requirements": unique_requirements,
+                "duplicate_groups": len(duplicate_groups),
+                "total_duplicates": total_duplicates
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"[RAG] Duplicate detection failed: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "duplicate_groups": [],
+            "stats": {"total_requirements": len(requirements) if requirements else 0}
+        }), 500
+
+
+@app.route("/api/rag/search", methods=["POST"])
+def rag_semantic_search():
+    """
+    Semantic search for requirements similar to query.
+
+    Request (JSON):
+      {
+        "query": "authentication and security",
+        "requirements": [...],  // optional, if provided searches in this list
+        "top_k": 10,  // optional, default 10
+        "min_score": 0.7,  // optional, default 0.7
+        "use_qdrant": true  // optional, default true
+      }
+
+    Response:
+      {
+        "results": [
+          {
+            "req_id": "REQ-001",
+            "text": "System must authenticate users",
+            "score": 0.92,
+            "source": "requirements.docx",
+            "metadata": {...}
+          }
+        ]
+      }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        query = body.get("query", "").strip()
+        requirements = body.get("requirements")
+        top_k = int(body.get("top_k", 10))
+        min_score = float(body.get("min_score", 0.7))
+        use_qdrant = body.get("use_qdrant", True)
+
+        if not query:
+            return jsonify({"results": []}), 400
+
+        client = QdrantKGClient()
+
+        if requirements:
+            # Search in provided list
+            results = []
+
+            for req in requirements:
+                req_text = req.get("text", "")
+                if not req_text.strip():
+                    continue
+
+                try:
+                    # Use semantic similarity
+                    similar = client.search_nodes(req_text, top_k=1)
+
+                    if similar:
+                        score = similar[0].get("score", 0.0)
+
+                        if score >= min_score:
+                            results.append({
+                                "req_id": req.get("req_id", ""),
+                                "text": req_text,
+                                "score": score,
+                                "source": req.get("source", ""),
+                                "metadata": req.get("metadata", {})
+                            })
+
+                except Exception as e:
+                    logger.warning(f"[RAG] Search failed for requirement: {e}")
+                    continue
+
+            # Sort by score descending
+            results.sort(key=lambda x: x["score"], reverse=True)
+            results = results[:top_k]
+
+            return jsonify({"results": results})
+
+        elif use_qdrant:
+            # Search in Qdrant
+            try:
+                similar = client.search_nodes(query, top_k=top_k)
+
+                results = []
+                for item in similar:
+                    score = item.get("score", 0.0)
+
+                    if score >= min_score:
+                        payload = item.get("payload", {})
+                        results.append({
+                            "req_id": payload.get("node_id", ""),
+                            "text": payload.get("text", payload.get("name", "")),
+                            "score": score,
+                            "source": payload.get("source", ""),
+                            "metadata": payload
+                        })
+
+                return jsonify({"results": results})
+
+            except Exception as e:
+                logger.error(f"[RAG] Qdrant search failed: {e}")
+                return jsonify({"results": []}), 500
+
+        else:
+            return jsonify({"results": []}), 400
+
+    except Exception as e:
+        logger.error(f"[RAG] Semantic search failed: {e}")
+        return jsonify({"error": str(e), "results": []}), 500
+
+
+@app.route("/api/rag/related", methods=["POST"])
+def rag_get_related():
+    """
+    Find requirements related to a specific requirement.
+
+    Request (JSON):
+      {
+        "requirement_id": "REQ-001",
+        "requirements": [...],
+        "top_k": 5,  // optional, default 5
+        "relationship_types": ["depends", "similar"]  // optional
+      }
+
+    Response:
+      {
+        "related": [
+          {
+            "req_id": "REQ-003",
+            "text": "System must validate OAuth tokens",
+            "relationship_type": "depends",
+            "score": 0.88,
+            "explanation": "REQ-001 authentication depends on token validation"
+          }
+        ]
+      }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        requirement_id = body.get("requirement_id", "").strip()
+        requirements = body.get("requirements") or []
+        top_k = int(body.get("top_k", 5))
+        relationship_types = body.get("relationship_types") or ["depends", "conflicts", "similar", "implements"]
+
+        if not requirement_id or not requirements:
+            return jsonify({"related": []}), 400
+
+        # Find the source requirement
+        source_req = None
+        for req in requirements:
+            if req.get("req_id") == requirement_id:
+                source_req = req
+                break
+
+        if not source_req:
+            return jsonify({"related": []}), 404
+
+        source_text = source_req.get("text", "")
+
+        # Use semantic search to find similar requirements
+        client = QdrantKGClient()
+        related = []
+
+        try:
+            similar = client.search_nodes(source_text, top_k=top_k * 2)
+
+            for item in similar:
+                payload = item.get("payload", {})
+                req_id = payload.get("node_id", "")
+
+                # Skip self
+                if req_id == requirement_id:
+                    continue
+
+                score = item.get("score", 0.0)
+                req_text = payload.get("text", payload.get("name", ""))
+
+                # Determine relationship type based on score and text analysis
+                relationship_type = "similar"
+                explanation = f"Semantically similar (score: {score:.2f})"
+
+                if score >= 0.95:
+                    relationship_type = "similar"
+                    explanation = f"Very similar requirement (score: {score:.2f})"
+                elif "depend" in source_text.lower() or "require" in source_text.lower():
+                    relationship_type = "depends"
+                    explanation = f"Potential dependency relationship (score: {score:.2f})"
+                elif "not" in source_text.lower() or "conflict" in source_text.lower():
+                    relationship_type = "conflicts"
+                    explanation = f"Potential conflict (score: {score:.2f})"
+
+                # Filter by requested types
+                if relationship_type in relationship_types:
+                    related.append({
+                        "req_id": req_id,
+                        "text": req_text,
+                        "relationship_type": relationship_type,
+                        "score": score,
+                        "explanation": explanation
+                    })
+
+                if len(related) >= top_k:
+                    break
+
+        except Exception as e:
+            logger.error(f"[RAG] Related requirements search failed: {e}")
+
+        return jsonify({"related": related})
+
+    except Exception as e:
+        logger.error(f"[RAG] Get related failed: {e}")
+        return jsonify({"error": str(e), "related": []}), 500
+
+
+@app.route("/api/rag/coverage", methods=["POST"])
+def rag_analyze_coverage():
+    """
+    Analyze requirement coverage across categories.
+
+    Request (JSON):
+      {
+        "requirements": [...],
+        "categories": ["functional", "security", "performance"]  // optional
+      }
+
+    Response:
+      {
+        "success": true,
+        "coverage": {
+          "functional": {
+            "count": 15,
+            "percentage": 60.0,
+            "subcategories": {"authentication": 5, "data": 10}
+          },
+          "security": {"count": 5, "percentage": 20.0},
+          ...
+        },
+        "gaps": [
+          {
+            "category": "performance",
+            "severity": "medium",
+            "description": "Only 12% coverage in performance requirements",
+            "recommendation": "Add performance benchmarks and SLAs"
+          }
+        ],
+        "stats": {
+          "total_requirements": 25,
+          "categorized": 23,
+          "uncategorized": 2
+        }
+      }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        requirements = body.get("requirements") or []
+        categories = body.get("categories") or ["functional", "non-functional", "security", "performance", "usability"]
+
+        if not requirements:
+            return jsonify({
+                "success": False,
+                "error": "No requirements provided",
+                "coverage": {},
+                "gaps": [],
+                "stats": {"total_requirements": 0}
+            }), 400
+
+        # Categorize requirements using simple keyword matching
+        coverage_data = {cat: {"count": 0, "percentage": 0.0, "subcategories": {}} for cat in categories}
+        uncategorized = []
+
+        # Category keywords
+        category_keywords = {
+            "functional": ["must", "shall", "should", "function", "feature", "capability"],
+            "non-functional": ["performance", "scalability", "reliability", "maintainability"],
+            "security": ["security", "auth", "encrypt", "access", "permission", "secure"],
+            "performance": ["performance", "speed", "latency", "response time", "throughput"],
+            "usability": ["usability", "user", "interface", "experience", "ui", "ux"]
+        }
+
+        for req in requirements:
+            text = req.get("text", "").lower()
+            categorized = False
+
+            for cat in categories:
+                if cat in category_keywords:
+                    keywords = category_keywords[cat]
+                    if any(kw in text for kw in keywords):
+                        coverage_data[cat]["count"] += 1
+                        categorized = True
+                        break
+
+            if not categorized:
+                uncategorized.append(req.get("req_id", ""))
+
+        # Calculate percentages
+        total = len(requirements)
+        for cat in categories:
+            count = coverage_data[cat]["count"]
+            coverage_data[cat]["percentage"] = (count / total * 100) if total > 0 else 0.0
+
+        # Identify gaps
+        gaps = []
+        for cat in categories:
+            percentage = coverage_data[cat]["percentage"]
+
+            if percentage < 10:
+                gaps.append({
+                    "category": cat,
+                    "severity": "critical",
+                    "description": f"Only {percentage:.1f}% coverage in {cat} requirements",
+                    "recommendation": f"Add more {cat} requirements to ensure comprehensive coverage"
+                })
+            elif percentage < 20:
+                gaps.append({
+                    "category": cat,
+                    "severity": "medium",
+                    "description": f"Low coverage ({percentage:.1f}%) in {cat} requirements",
+                    "recommendation": f"Consider expanding {cat} requirements"
+                })
+
+        return jsonify({
+            "success": True,
+            "coverage": coverage_data,
+            "gaps": gaps,
+            "stats": {
+                "total_requirements": total,
+                "categorized": total - len(uncategorized),
+                "uncategorized": len(uncategorized)
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"[RAG] Coverage analysis failed: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "coverage": {},
+            "gaps": [],
+            "stats": {"total_requirements": 0}
+        }), 500
+
+
 @app.route("/api/clarification/stream")
 def clarification_stream():
     """
