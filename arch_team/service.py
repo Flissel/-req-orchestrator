@@ -51,6 +51,10 @@ load_dotenv()
 # {session_id: Queue}
 clarification_streams: Dict[str, Queue] = {}
 
+# Global registry for SSE workflow message streams
+# {session_id: Queue}
+workflow_streams: Dict[str, Queue] = {}
+
 
 def _truthy(s: str | None) -> bool:
     if not s:
@@ -1183,6 +1187,50 @@ def clarification_stream():
         finally:
             clarification_streams.pop(session_id, None)
             print(f"[SSE] Cleaned up session {session_id}")
+
+    return Response(event_stream(), mimetype="text/event-stream")
+
+
+@app.route("/api/workflow/stream")
+def workflow_stream():
+    """
+    Server-Sent Events (SSE) stream for real-time workflow messages.
+
+    Frontend connects once and receives agent messages as they occur during workflow.
+    Query params:
+      - session_id: Unique session identifier (e.g., correlation_id)
+
+    Event format:
+      data: {"type": "agent_message", "agent": "Orchestrator", "message": "...", "timestamp": "..."}
+      data: {"type": "workflow_status", "status": "running|completed|failed"}
+      data: {"type": "workflow_result", "result": {...}}
+    """
+    session_id = request.args.get("session_id")
+    if not session_id:
+        return jsonify({"error": "session_id required"}), 400
+
+    # Create queue for this session
+    q = Queue()
+    workflow_streams[session_id] = q
+
+    def event_stream():
+        try:
+            print(f"[Workflow SSE] Client connected for session {session_id}")
+            # Send initial connection event
+            yield f"data: {json.dumps({'type': 'connected', 'session_id': session_id})}\n\n"
+
+            # Stream events from queue
+            while True:
+                msg = q.get()  # Blocks until message available
+                if msg is None:  # Shutdown signal
+                    break
+                print(f"[Workflow SSE] Sending to {session_id}: {msg.get('type', 'unknown')}")
+                yield f"data: {json.dumps(msg)}\n\n"
+        except GeneratorExit:
+            print(f"[Workflow SSE] Client disconnected for session {session_id}")
+        finally:
+            workflow_streams.pop(session_id, None)
+            print(f"[Workflow SSE] Cleaned up session {session_id}")
 
     return Response(event_stream(), mimetype="text/event-stream")
 

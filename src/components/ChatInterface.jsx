@@ -118,6 +118,51 @@ function ChatInterface({ sessionId, onWorkflowComplete }) {
     }
   }, [isWorkflowRunning, workflowId])
 
+  // Listen for workflow messages via SSE
+  useEffect(() => {
+    if (!sessionId) return
+
+    const workflowSource = new EventSource(`${API_BASE}/api/workflow/stream?session_id=${sessionId}`)
+
+    workflowSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+
+        if (data.type === 'connected') {
+          console.log('[Chat] Workflow SSE connected:', data.session_id)
+        } else if (data.type === 'agent_message') {
+          addAgentMessage(data.agent, data.message)
+        } else if (data.type === 'workflow_status') {
+          if (data.status === 'running') {
+            setIsWorkflowRunning(true)
+            addSystemMessage('🔄 Workflow gestartet')
+          } else if (data.status === 'completed') {
+            setIsWorkflowRunning(false)
+            addSystemMessage('✅ Workflow abgeschlossen')
+          } else if (data.status === 'failed') {
+            setIsWorkflowRunning(false)
+            addSystemMessage(`❌ Workflow fehlgeschlagen: ${data.error || 'Unbekannter Fehler'}`)
+          }
+        } else if (data.type === 'workflow_result') {
+          if (onWorkflowComplete) {
+            onWorkflowComplete(data.result)
+          }
+        }
+      } catch (err) {
+        console.error('[Chat] Workflow SSE parse error:', err)
+      }
+    }
+
+    workflowSource.onerror = (err) => {
+      console.error('[Chat] Workflow SSE error:', err)
+      workflowSource.close()
+    }
+
+    return () => {
+      workflowSource.close()
+    }
+  }, [sessionId, onWorkflowComplete])
+
   // Listen for clarification questions from SSE
   useEffect(() => {
     if (!sessionId) return
@@ -129,7 +174,7 @@ function ChatInterface({ sessionId, onWorkflowComplete }) {
         const data = JSON.parse(event.data)
 
         if (data.type === 'connected') {
-          console.log('[Chat] SSE connected:', data.session_id)
+          console.log('[Chat] Clarification SSE connected:', data.session_id)
         } else if (data.type === 'question') {
           addAgentMessage('UserClarification', `❓ ${data.question}`)
 
@@ -138,12 +183,12 @@ function ChatInterface({ sessionId, onWorkflowComplete }) {
           }
         }
       } catch (err) {
-        console.error('[Chat] SSE parse error:', err)
+        console.error('[Chat] Clarification SSE parse error:', err)
       }
     }
 
     eventSource.onerror = (err) => {
-      console.error('[Chat] SSE error:', err)
+      console.error('[Chat] Clarification SSE error:', err)
       eventSource.close()
     }
 
