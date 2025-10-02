@@ -92,93 +92,62 @@ function App() {
       }
 
       updateAgentStatus('all', 'active', 'Verarbeitung läuft...')
-      setStatus({ message: 'Mining gestartet...', type: 'warn' })
-      addLog('Starte Mining-Prozess')
-
-      updateAgentStatus('chunk-miner', 'active', 'Verarbeitet Dokumente...')
-      addLog(`Chunk Miner Agent aktiviert (${files.length} Datei(en))`)
-      addLog(`Chunk-Größe: ${chunkSize || 800} Tokens, Überlappung: ${chunkOverlap || 200} Tokens`)
+      setStatus({ message: 'Starte Master Workflow...', type: 'warn' })
+      addLog('🚀 Starte Master Society of Mind Workflow')
 
       const formData = new FormData()
       files.forEach(file => {
         formData.append('files', file)
       })
 
+      // Add session ID for SSE streaming
+      formData.append('correlation_id', sessionId)
+
       if (model && model !== 'gpt-4o-mini') {
         formData.append('model', model)
       }
 
-      if (neighborRefs) {
-        formData.append('neighbor_refs', '1')
-      }
-
-      // Add custom chunk parameters if provided
-      if (chunkSize && chunkSize !== 800) {
+      // Add custom chunk parameters
+      if (chunkSize) {
         formData.append('chunk_size', chunkSize.toString())
       }
 
-      if (chunkOverlap && chunkOverlap !== 200) {
+      if (chunkOverlap) {
         formData.append('chunk_overlap', chunkOverlap.toString())
       }
 
-      addLog('Sende Anfrage an /api/mining/upload...')
+      // Add LLM KG option
+      if (useLlm !== undefined) {
+        formData.append('use_llm_kg', useLlm ? 'true' : 'false')
+      }
 
-      const uploadResponse = await fetch(`${API_BASE}/api/mining/upload`, {
+      addLog(`Sende Anfrage an Master Workflow (Session: ${sessionId})...`)
+      addLog('💬 Agent-Konversation erscheint im Chat unten')
+
+      const response = await fetch(`${API_BASE}/api/arch_team/process`, {
         method: 'POST',
         body: formData
       })
 
-      const uploadResult = await uploadResponse.json()
+      const result = await response.json()
 
-      if (!uploadResponse.ok || !uploadResult.success) {
-        throw new Error(uploadResult.message || 'Upload fehlgeschlagen')
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || result.message || 'Workflow fehlgeschlagen')
       }
 
-      const minedItems = uploadResult.items || []
-      addLog(`✅ Mining erfolgreich: ${minedItems.length} Requirements extrahiert`)
-      updateAgentStatus('chunk-miner', 'completed', `${minedItems.length} DTOs erzeugt`)
+      addLog(`✅ Master Workflow abgeschlossen`)
 
-      setRequirements(minedItems)
-
-      if (minedItems.length > 0) {
-        updateAgentStatus('kg', 'active', 'Erstellt Knowledge Graph...')
-        addLog('Starte Knowledge Graph Erstellung...')
-
-        const kgResponse = await fetch(`${API_BASE}/api/kg/build`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items: minedItems,
-            options: {
-              persist: 'qdrant',
-              use_llm: useLlm || false,
-              llm_fallback: true,
-              persist_async: true
-            }
-          })
-        })
-
-        const kgResult = await kgResponse.json()
-
-        if (!kgResponse.ok || !kgResult.success) {
-          throw new Error(kgResult.message || 'KG Build fehlgeschlagen')
-        }
-
-        const nodes = kgResult.nodes || []
-        const edges = kgResult.edges || []
-
-        setKgData({ nodes, edges })
-
-        addLog(`✅ Knowledge Graph erstellt: ${nodes.length} Knoten, ${edges.length} Kanten`)
-        updateAgentStatus('kg', 'completed', `${nodes.length} Knoten, ${edges.length} Kanten`)
+      // Extract results if available
+      if (result.result) {
+        addLog('📊 Verarbeite Workflow-Ergebnisse...')
+        // Results will be updated via SSE and onWorkflowComplete callback
       }
 
-      updateAgentStatus('all', 'completed', 'Abgeschlossen')
+      updateAgentStatus('all', 'completed', 'Workflow abgeschlossen')
       setStatus({
-        message: `Mining erfolgreich: ${minedItems.length} Requirements`,
+        message: 'Master Workflow erfolgreich abgeschlossen',
         type: 'ok'
       })
-      addLog('✅ Vollständiger Prozess abgeschlossen', 'success')
 
     } catch (error) {
       updateAgentStatus('all', 'error', 'Fehler aufgetreten')
