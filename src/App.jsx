@@ -6,6 +6,7 @@ import Requirements from './components/Requirements'
 import KnowledgeGraph from './components/KnowledgeGraph'
 import ClarificationModal from './components/ClarificationModal'
 import ValidationTest from './components/ValidationTest'
+import ChatInterface from './components/ChatInterface'
 
 const API_BASE = window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
@@ -241,6 +242,20 @@ function App() {
       <ClarificationModal
         sessionId={sessionId}
         enabled={true}
+      />
+
+      {/* Chat Interface for Master Workflow */}
+      <ChatInterface
+        sessionId={sessionId}
+        onWorkflowComplete={(result) => {
+          console.log('[App] Workflow completed:', result)
+          if (result.requirements) {
+            setRequirements(result.requirements)
+          }
+          if (result.kg_data) {
+            setKgData(result.kg_data)
+          }
+        }}
       />
     </div>
   )
