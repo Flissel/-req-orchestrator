@@ -33,6 +33,10 @@ from arch_team.agents.chunk_miner import ChunkMinerAgent
 # KG-Abstraktion (Qdrant)
 from arch_team.agents.kg_agent import KGAbstractionAgent
 from arch_team.memory.qdrant_kg import QdrantKGClient
+
+# Validation Services (backend_app_v2)
+from backend_app_v2.services import EvaluationService, RequestContext, ServiceError
+from backend_app.llm import llm_suggest, llm_rewrite
 # Projektverzeichnisse
 PROJECT_DIR = Path(__file__).resolve().parent.parent  # .../test (Projektwurzel)
 FRONTEND_DIR = PROJECT_DIR / "frontend"               # .../test/frontend
@@ -328,6 +332,288 @@ def kg_neighbors():
         })
     except Exception as e:
         return jsonify({"success": False, "message": f"KG neighbors failed: {e}"}), 500
+
+
+@app.route("/api/v2/evaluate/single", methods=["POST"])
+def evaluate_single():
+    """
+    Service-Layer: Single requirement evaluation via EvaluationService.
+
+    Request (JSON):
+      {
+        "text": "requirement text",
+        "criteria_keys": ["clarity", "testability"],  // optional
+        "threshold": 0.7,  // optional
+        "context": {}  // optional
+      }
+
+    Response:
+      {
+        "requirementText": "...",
+        "evaluation": [{"criterion": "clarity", "score": 0.8, "passed": true, "feedback": "..."}],
+        "score": 0.75,
+        "verdict": "pass"
+      }
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        text = body.get("text", "").strip()
+
+        if not text:
+            return jsonify({"error": "invalid_request", "message": "text is required"}), 400
+
+        ctx = RequestContext(request_id=request.headers.get("X-Request-Id"))
+        svc = EvaluationService()
+
+        result = svc.evaluate_single(
+            text,
+            context=body.get("context") or {},
+            criteria_keys=body.get("criteria_keys"),
+            threshold=body.get("threshold"),
+            ctx=ctx
+        )
+
+        return jsonify(result)
+
+    except ServiceError as se:
+        return jsonify({"error": se.code, "message": se.message, "details": se.details}), 400
+    except Exception as e:
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
+
+
+@app.route("/api/v2/evaluate/batch", methods=["POST"])
+def evaluate_batch():
+    """
+    Service-Layer: Batch evaluation via EvaluationService.
+
+    Request (JSON):
+      {
+        "items": ["req1", "req2", ...],
+        "criteria_keys": ["clarity"],  // optional
+        "threshold": 0.7,  // optional
+        "context": {}  // optional
+      }
+
+    Response:
+      [
+        {
+          "id": "item-1",
+          "originalText": "...",
+          "evaluation": [...],
+          "score": 0.75,
+          "verdict": "pass"
+        },
+        ...
+      ]
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        items = body.get("items") or []
+
+        if not isinstance(items, list):
+            return jsonify({"error": "invalid_request", "message": "items must be a list"}), 400
+
+        ctx = RequestContext(request_id=request.headers.get("X-Request-Id"))
+        svc = EvaluationService()
+
+        result = svc.evaluate_batch(
+            items,
+            context=body.get("context") or {},
+            criteria_keys=body.get("criteria_keys"),
+            threshold=body.get("threshold"),
+            ctx=ctx
+        )
+
+        return jsonify(result)
+
+    except ServiceError as se:
+        return jsonify({"error": se.code, "message": se.message, "details": se.details}), 400
+    except Exception as e:
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
+
+
+@app.route("/api/v1/validate/batch", methods=["POST"])
+def validate_batch_rewrite():
+    """
+    Validate and rewrite requirements.
+
+    Request (JSON):
+      ["req1", "req2", ...] or {"items": ["req1", "req2", ...]}
+
+    Response:
+      [
+        {
+          "id": 1,
+          "originalText": "...",
+          "correctedText": "...",
+          "status": "accepted" | "rejected",
+          "evaluation": [...],
+          "score": 0.75,
+          "verdict": "pass"
+        },
+        ...
+      ]
+    """
+    try:
+        payload = request.get_json(silent=True) or []
+
+        if isinstance(payload, dict):
+            items = payload.get("items") or []
+        else:
+            items = payload
+
+        if not isinstance(items, list):
+            return jsonify({"error": "invalid_request", "message": "items must be a list"}), 400
+
+        # Evaluate batch
+        ctx = RequestContext(request_id=request.headers.get("X-Request-Id"))
+        svc = EvaluationService()
+        eval_results = svc.evaluate_batch(items, ctx=ctx)
+
+        # Rewrite each requirement
+        results = []
+        for idx, (original, eval_result) in enumerate(zip(items, eval_results), 1):
+            try:
+                rewritten = llm_rewrite(original, {})
+            except Exception:
+                rewritten = original
+
+            results.append({
+                "id": idx,
+                "originalText": original,
+                "correctedText": rewritten if rewritten else original,
+                "status": "accepted" if eval_result.get("verdict") == "pass" else "rejected",
+                "evaluation": eval_result.get("evaluation", []),
+                "score": eval_result.get("score", 0.0),
+                "verdict": eval_result.get("verdict", "fail")
+            })
+
+        return jsonify(results)
+
+    except Exception as e:
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
+
+
+@app.route("/api/v1/validate/suggest", methods=["POST"])
+def validate_suggest():
+    """
+    Generate improvement suggestions for requirements.
+
+    Request (JSON):
+      ["req1", "req2", ...] or {"items": ["req1", "req2", ...]}
+
+    Response:
+      {
+        "items": {
+          "REQ_1": {"suggestions": [{"issue": "...", "fix": "..."}]},
+          "REQ_2": {"suggestions": [...]},
+          ...
+        }
+      }
+    """
+    try:
+        payload = request.get_json(silent=True) or []
+
+        if isinstance(payload, dict):
+            items = payload.get("items") or []
+        else:
+            items = payload
+
+        if not isinstance(items, list):
+            return jsonify({"error": "invalid_request", "message": "items must be a list"}), 400
+
+        # Generate suggestions for each requirement
+        result_map = {}
+        for idx, text in enumerate(items, 1):
+            req_id = f"REQ_{idx}"
+            try:
+                suggestions = llm_suggest(text, {}) or []
+                result_map[req_id] = {"suggestions": suggestions}
+            except Exception as e:
+                result_map[req_id] = {"suggestions": [], "error": str(e)}
+
+        return jsonify({"items": result_map})
+
+    except Exception as e:
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
+
+
+@app.route("/api/kg/search/semantic", methods=["POST"])
+def kg_search_semantic():
+    """
+    Semantic duplicate detection using Qdrant.
+
+    Request (JSON):
+      {
+        "requirements": ["req1", "req2", ...],
+        "similarity_threshold": 0.90  // optional, default 0.90
+      }
+
+    Response:
+      [
+        {
+          "req1_index": 0,
+          "req2_index": 2,
+          "req1_text": "...",
+          "req2_text": "...",
+          "similarity": 0.95,
+          "is_duplicate": true
+        },
+        ...
+      ]
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        requirements = body.get("requirements") or []
+        threshold = float(body.get("similarity_threshold", 0.90))
+
+        if not isinstance(requirements, list):
+            return jsonify({"error": "invalid_request", "message": "requirements must be a list"}), 400
+
+        # Use Qdrant to find semantic duplicates
+        client = QdrantKGClient()
+        duplicates = []
+
+        # For each requirement, search for similar ones
+        for i, req1 in enumerate(requirements):
+            try:
+                # Search for similar nodes
+                similar = client.search_nodes(req1, top_k=len(requirements))
+
+                for item in similar:
+                    score = item.get("score", 0.0)
+                    payload = item.get("payload", {})
+                    req2_text = payload.get("text", "")
+
+                    # Find index in original list
+                    try:
+                        j = requirements.index(req2_text)
+                    except ValueError:
+                        # Not in original list, skip
+                        continue
+
+                    # Skip self-comparison and already reported pairs
+                    if i >= j:
+                        continue
+
+                    if score >= threshold:
+                        duplicates.append({
+                            "req1_index": i,
+                            "req2_index": j,
+                            "req1_text": req1,
+                            "req2_text": req2_text,
+                            "similarity": score,
+                            "is_duplicate": True
+                        })
+
+            except Exception as e:
+                print(f"[kg] semantic search failed for req {i}: {e}")
+                continue
+
+        return jsonify(duplicates)
+
+    except Exception as e:
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
 
 
 @app.route("/")

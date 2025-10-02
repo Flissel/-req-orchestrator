@@ -39,6 +39,9 @@ from backend_app.vector_store import (
     search as _vs_search,
     fetch_window_by_source_and_index as _vs_fetch_window_by_source_and_index,
 )
+# DB Functions
+from backend_app.db import get_db as _get_db, load_criteria as _db_load_criteria
+
 # Optional vorhanden (DDL/Migrationen)
 try:
     from backend_app.db import ensure_schema_migrations as _db_ensure_schema
@@ -215,7 +218,8 @@ class PersistenceAdapter(PersistencePort):
 
     def load_criteria(self, *, ctx: Optional[RequestContext] = None) -> List[Mapping[str, Any]]:
         try:
-            rows = _db_load_criteria()
+            conn = _get_db()
+            rows = _db_load_criteria(conn)
             return list(rows or [])
         except Exception as e:
             raise ServiceError("db_load_criteria_failed", "Failed to load criteria", details={"request_id": safe_request_id(ctx), "error": str(e)})

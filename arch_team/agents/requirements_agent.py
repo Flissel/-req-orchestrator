@@ -62,9 +62,14 @@ def _init_model_client(model_name: Optional[str] = None) -> OpenAIChatCompletion
     adapter = OpenAIAdapter()
     model = model_name or adapter.default_model
 
+    # Get API key from environment (same as OpenAIAdapter does)
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY not set")
+
     return OpenAIChatCompletionClient(
         model=model,
-        api_key=adapter.api_key,
+        api_key=api_key,
         # Additional config from adapter if needed
     )
 
@@ -194,7 +199,7 @@ class RequirementsValidationAgent:
 
         logger.info("Initializing RequirementsValidationAgent with Society of Mind")
         self._initialized = True
-        print("[RequirementsAgent] Initialized ✓")
+        print("[RequirementsAgent] Initialized OK")
 
     async def validate_requirements(
         self,
@@ -315,9 +320,9 @@ class RequirementsValidationAgent:
 
         # Run validation
         print(f"\n{'='*60}")
-        print(f"🎭 Society of Mind: Requirements Validation")
-        print(f"📋 Requirements: {len(requirements)}")
-        print(f"📊 Threshold: {threshold}")
+        print(f"Society of Mind: Requirements Validation")
+        print(f"Requirements: {len(requirements)}")
+        print(f"Threshold: {threshold}")
         print(f"{'='*60}\n")
 
         logger.info(f"Starting validation for {len(requirements)} requirements")
@@ -333,22 +338,22 @@ class RequirementsValidationAgent:
                     content = str(message.content)
 
                     if source == "RequirementsOperator":
-                        print(f"\n🔧 RequirementsOperator:")
+                        print(f"\n[RequirementsOperator]:")
                         print(f"   {content[:300]}{'...' if len(content) > 300 else ''}")
 
                     elif source == "UserClarificationAgent":
-                        print(f"\n❓ UserClarificationAgent:")
+                        print(f"\n[UserClarificationAgent]:")
                         print(f"   {content[:300]}{'...' if len(content) > 300 else ''}")
 
                     elif source == "QAValidator":
-                        print(f"\n✓ QAValidator:")
+                        print(f"\n[QAValidator]:")
                         print(f"   {content[:300]}{'...' if len(content) > 300 else ''}")
 
                     # Check for tool calls
                     if hasattr(message, 'content') and isinstance(message.content, list):
                         for item in message.content:
                             if hasattr(item, 'name'):  # Tool call
-                                print(f"   🛠️  Tool: {item.name}")
+                                print(f"   [Tool]: {item.name}")
 
         except Exception as e:
             logger.error(f"Validation failed: {e}")
@@ -359,7 +364,7 @@ class RequirementsValidationAgent:
             }
 
         print(f"\n{'='*60}")
-        print(f"✅ Validation completed")
+        print(f"[COMPLETED] Validation completed")
         print(f"{'='*60}\n")
 
         # Extract results from conversation
