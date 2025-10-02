@@ -34,6 +34,28 @@ from arch_team.agents.prompts.user_clarification_prompt import PROMPT as user_cl
 logger = logging.getLogger("arch_team.master_agent")
 
 
+def _send_to_workflow_stream(correlation_id: Optional[str], message_type: str, **kwargs):
+    """Send message to workflow stream for frontend display."""
+    if not correlation_id:
+        return
+
+    try:
+        from arch_team.service import workflow_streams
+        from datetime import datetime
+
+        queue = workflow_streams.get(correlation_id)
+        if queue:
+            message = {
+                "type": message_type,
+                "timestamp": datetime.now().isoformat(),
+                **kwargs
+            }
+            queue.put(message)
+            logger.debug(f"[Stream] Sent {message_type}: {kwargs}")
+    except Exception as e:
+        logger.error(f"Error sending to workflow stream: {e}")
+
+
 def _create_ask_user_tool(correlation_id: Optional[str] = None):
     """
     Create ask_user tool for UserClarificationAgent with SSE broadcasting.
@@ -341,13 +363,51 @@ Execute all phases and signal WORKFLOW_COMPLETE when done.
 
     logger.info(f"Task description:\n{task}")
 
-    # Run workflow
+    # Run workflow with streaming
     try:
         from autogen_agentchat.messages import TextMessage
 
-        result = await master.run(task=task)
+        # Send workflow start status
+        _send_to_workflow_stream(
+            correlation_id,
+            "workflow_status",
+            status="running"
+        )
+
+        # Use run_stream to get messages in real-time
+        result = None
+        async for message in master.run_stream(task=task):
+            # Stream each agent message to frontend
+            if hasattr(message, 'source') and hasattr(message, 'content'):
+                _send_to_workflow_stream(
+                    correlation_id,
+                    "agent_message",
+                    agent=message.source,
+                    message=str(message.content)
+                )
+
+            # Keep last message as result
+            result = message
 
         logger.info("Workflow completed successfully")
+
+        # Send completion status
+        _send_to_workflow_stream(
+            correlation_id,
+            "workflow_status",
+            status="completed"
+        )
+
+        # Send final result
+        _send_to_workflow_stream(
+            correlation_id,
+            "workflow_result",
+            result={
+                "success": True,
+                "workflow_status": "completed",
+                "final_message": str(result) if result else "Workflow completed"
+            }
+        )
 
         return {
             "success": True,
@@ -357,6 +417,15 @@ Execute all phases and signal WORKFLOW_COMPLETE when done.
 
     except Exception as e:
         logger.error(f"Workflow failed: {e}", exc_info=True)
+
+        # Send failure status
+        _send_to_workflow_stream(
+            correlation_id,
+            "workflow_status",
+            status="failed",
+            error=str(e)
+        )
+
         return {
             "success": False,
             "workflow_status": "failed",
