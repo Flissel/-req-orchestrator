@@ -5,7 +5,12 @@
       "Bash(npm run dev:*)",
       "Bash(git add:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nfeat: add React frontend for arch_team requirements mining\n\n- Add modern React UI with Vite build system\n- Implement ChunkMiner and KG agent integration\n- Add interactive Knowledge Graph visualization (Cytoscape.js)\n- Include file upload with preview\n- Add real-time agent status monitoring\n- Create comprehensive CLAUDE.md documentation\n- Add sample requirements data (Moiré Mouse Tracking)\n- Update vite.config.js with API proxy to port 8000\n\nComponents:\n- Configuration.jsx: File upload, model selection, settings\n- KnowledgeGraph.jsx: Interactive graph with export\n- Requirements.jsx: Requirements list view\n- AgentStatus.jsx: Real-time agent monitoring\n- App.jsx: Main orchestration and state management\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(curl:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []

@@ -5,6 +5,7 @@ import Configuration from './components/Configuration'
 import Requirements from './components/Requirements'
 import KnowledgeGraph from './components/KnowledgeGraph'
 import ClarificationModal from './components/ClarificationModal'
+import ValidationTest from './components/ValidationTest'
 
 const API_BASE = window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
@@ -202,6 +203,7 @@ function App() {
       </header>
 
       <AgentStatus agents={agents} />
+      <ValidationTest sessionId={sessionId} />
 
       <div className="main-grid">
         <div className="left-panel">

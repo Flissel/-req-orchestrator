@@ -664,6 +664,63 @@ def clarification_stream():
     return Response(event_stream(), mimetype="text/event-stream")
 
 
+@app.route("/api/validation/run", methods=["POST"])
+def validation_run():
+    """
+    Run Society of Mind requirements validation with user clarification support.
+
+    Request (JSON):
+      {
+        "requirements": ["req1", "req2", ...],
+        "correlation_id": "session-123",  # Same as frontend sessionId
+        "criteria_keys": ["clarity", "testability"],  # optional
+        "threshold": 0.7  # optional
+      }
+
+    This triggers the Society of Mind validation which may ask clarification questions via SSE.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        requirements = body.get("requirements", [])
+        correlation_id = body.get("correlation_id")
+        criteria_keys = body.get("criteria_keys")
+        threshold = body.get("threshold", 0.7)
+
+        if not requirements:
+            return jsonify({"error": "requirements required"}), 400
+        if not correlation_id:
+            return jsonify({"error": "correlation_id required"}), 400
+
+        print(f"[Validation] Starting validation for {len(requirements)} requirements (session: {correlation_id})")
+
+        # Import and run validation (async)
+        import asyncio
+        from arch_team.agents.requirements_agent import validate_requirements
+
+        # Run validation in new event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
+            result = loop.run_until_complete(
+                validate_requirements(
+                    requirements,
+                    criteria_keys=criteria_keys,
+                    threshold=threshold,
+                    correlation_id=correlation_id
+                )
+            )
+            return jsonify(result)
+        finally:
+            loop.close()
+
+    except Exception as e:
+        print(f"[Validation] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "validation_failed", "message": str(e)}), 500
+
+
 @app.route("/api/clarification/answer", methods=["POST"])
 def clarification_answer():
     """
@@ -707,6 +764,99 @@ def clarification_answer():
         return jsonify({"error": "internal_error", "message": str(e)}), 500
 
 
+@app.route("/api/arch_team/process", methods=["POST"])
+def arch_team_process():
+    """
+    Master Society of Mind endpoint for complete arch_team workflow.
+
+    Executes all phases:
+    1. ChunkMiner: Extract requirements from uploaded files
+    2. KG Agent: Build Knowledge Graph
+    3. Validator: Evaluate and improve requirements
+    4. RAG: Detect duplicates and cluster requirements
+    5. QA: Final quality review
+    6. UserClarification: Ask user if needed
+
+    Request (multipart/form-data):
+      - files: List of files to process (.md, .txt, .pdf, .docx)
+      - correlation_id: Session ID for user clarification (required)
+      - model: LLM model (optional, default: gpt-4o-mini)
+      - chunk_size: Chunk size in tokens (optional, default: 800)
+      - chunk_overlap: Chunk overlap (optional, default: 200)
+      - use_llm_kg: Use LLM for KG extraction (optional, default: true)
+      - validation_threshold: Quality threshold (optional, default: 0.7)
+
+    Response (JSON):
+      {
+        "success": bool,
+        "workflow_status": "completed|failed",
+        "result": {...}  # Complete workflow results
+      }
+    """
+    try:
+        # Parse multipart form data
+        files = request.files.getlist('files')
+        correlation_id = request.form.get('correlation_id')
+        model = request.form.get('model', 'gpt-4o-mini')
+        chunk_size = int(request.form.get('chunk_size', 800))
+        chunk_overlap = int(request.form.get('chunk_overlap', 200))
+        use_llm_kg = request.form.get('use_llm_kg', 'true').lower() in ('true', '1', 'yes', 'on')
+        validation_threshold = float(request.form.get('validation_threshold', 0.7))
+
+        if not files:
+            return jsonify({"error": "files required"}), 400
+        if not correlation_id:
+            return jsonify({"error": "correlation_id required"}), 400
+
+        print(f"[MasterWorkflow] Starting with {len(files)} file(s) (session: {correlation_id})")
+
+        # Save uploaded files temporarily
+        import tempfile
+        temp_dir = Path(tempfile.mkdtemp(prefix="arch_team_"))
+        file_paths = []
+
+        for file in files:
+            file_path = temp_dir / file.filename
+            file.save(str(file_path))
+            file_paths.append(str(file_path))
+            print(f"[MasterWorkflow] Saved: {file.filename}")
+
+        # Import and run master workflow (async)
+        import asyncio
+        from arch_team.agents.master_agent import run_master_workflow
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        result = loop.run_until_complete(
+            run_master_workflow(
+                files=file_paths,
+                correlation_id=correlation_id,
+                model=model,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                use_llm_kg=use_llm_kg,
+                validation_threshold=validation_threshold
+            )
+        )
+
+        # Cleanup temp files
+        import shutil
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"[MasterWorkflow] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "workflow_status": "failed",
+            "error": str(e)
+        }), 500
+
+
 @app.route("/")
 def index():
     # Leite auf die Demo-Seite weiter, falls vorhanden
@@ -745,4 +895,5 @@ if __name__ == "__main__":
     # Hinweis: Für Produktion eher über WSGI/ASGI-Server starten (gunicorn/uvicorn).
     print(f"[service] FRONTEND_DIR={FRONTEND_DIR.resolve()}")
     print("[service] Try: http://localhost:%d/frontend/mining_demo.html" % port)
-    app.run(host="0.0.0.0", port=port, debug=True)
+    print("[service] Starting without debug mode (no watchdog restarts)")
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
