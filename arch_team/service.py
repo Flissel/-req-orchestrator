@@ -22,8 +22,10 @@ import mimetypes
 from pathlib import Path
 from typing import List, Dict, Any
 import threading
+import json
+from queue import Queue
 
-from flask import Flask, request, jsonify, send_from_directory, redirect
+from flask import Flask, request, jsonify, send_from_directory, redirect, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -44,6 +46,10 @@ FRONTEND_DIR = PROJECT_DIR / "frontend"               # .../test/frontend
 app = Flask(__name__, static_folder=None)
 CORS(app)
 load_dotenv()
+
+# Global registry for SSE clarification streams
+# {session_id: Queue}
+clarification_streams: Dict[str, Queue] = {}
 
 
 def _truthy(s: str | None) -> bool:
@@ -613,6 +619,91 @@ def kg_search_semantic():
         return jsonify(duplicates)
 
     except Exception as e:
+        return jsonify({"error": "internal_error", "message": str(e)}), 500
+
+
+@app.route("/api/clarification/stream")
+def clarification_stream():
+    """
+    Server-Sent Events (SSE) stream for real-time clarification questions.
+
+    Frontend connects once and receives questions as they are asked by agents.
+    Query params:
+      - session_id: Unique session identifier (e.g., correlation_id)
+
+    Event format:
+      data: {"type": "question", "question_id": "...", "question": "...", "suggested_answers": [...]}
+    """
+    session_id = request.args.get("session_id")
+    if not session_id:
+        return jsonify({"error": "session_id required"}), 400
+
+    # Create queue for this session
+    q = Queue()
+    clarification_streams[session_id] = q
+
+    def event_stream():
+        try:
+            print(f"[SSE] Client connected for session {session_id}")
+            # Send initial connection event
+            yield f"data: {json.dumps({'type': 'connected', 'session_id': session_id})}\n\n"
+
+            # Stream events from queue
+            while True:
+                msg = q.get()  # Blocks until message available
+                if msg is None:  # Shutdown signal
+                    break
+                print(f"[SSE] Sending to {session_id}: {msg}")
+                yield f"data: {json.dumps(msg)}\n\n"
+        except GeneratorExit:
+            print(f"[SSE] Client disconnected for session {session_id}")
+        finally:
+            clarification_streams.pop(session_id, None)
+            print(f"[SSE] Cleaned up session {session_id}")
+
+    return Response(event_stream(), mimetype="text/event-stream")
+
+
+@app.route("/api/clarification/answer", methods=["POST"])
+def clarification_answer():
+    """
+    Receive user's answer to a clarification question.
+
+    Request (JSON):
+      {
+        "correlation_id": "session-123",  # Same as session_id
+        "answer": "user's answer text"
+      }
+
+    This writes the answer to a file that the ask_user tool is polling for.
+    """
+    try:
+        body = request.get_json(silent=True) or {}
+        correlation_id = body.get("correlation_id", "").strip()
+        answer = body.get("answer", "").strip()
+
+        if not correlation_id:
+            return jsonify({"error": "correlation_id required"}), 400
+        if not answer:
+            return jsonify({"error": "answer required"}), 400
+
+        # Write answer to file (same mechanism as ask_user tool expects)
+        tmp_dir = PROJECT_DIR / "data" / "tmp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+
+        response_file = tmp_dir / f"clarification_{correlation_id}.txt"
+        response_file.write_text(answer, encoding='utf-8')
+
+        print(f"[Clarification] Answer received for {correlation_id}: {answer[:50]}...")
+
+        return jsonify({
+            "success": True,
+            "correlation_id": correlation_id,
+            "message": "Answer received"
+        })
+
+    except Exception as e:
+        print(f"[Clarification] Error saving answer: {e}")
         return jsonify({"error": "internal_error", "message": str(e)}), 500
 
 

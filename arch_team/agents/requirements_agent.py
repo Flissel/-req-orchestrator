@@ -22,6 +22,7 @@ import asyncio
 import os
 import time
 import uuid
+import requests
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -90,7 +91,7 @@ def _create_ask_user_tool(correlation_id: Optional[str] = None) -> FunctionTool:
 
     async def ask_user_impl(question: str, suggested_answers: Optional[List[str]] = None) -> str:
         """
-        Ask the user a clarification question via GUI/file polling.
+        Ask the user a clarification question via GUI/file polling + SSE.
 
         Args:
             question: The question to ask (in German)
@@ -104,14 +105,34 @@ def _create_ask_user_tool(correlation_id: Optional[str] = None) -> FunctionTool:
 
         # Print to console for visibility
         print(f"\n{'='*60}")
-        print(f"❓ USER QUESTION (ID: {question_id}):")
+        print(f"USER QUESTION (ID: {question_id}):")
         print(f"   {question}")
         if suggested_answers:
             print(f"   Vorschläge: {suggested_answers}")
         print(f"{'='*60}\n")
 
-        # TODO: Broadcast to GUI via EventBus (future enhancement)
-        # For now, rely on file-based polling
+        # Broadcast to GUI via SSE (if correlation_id exists, session is active)
+        if correlation_id:
+            try:
+                # Get access to the clarification_streams registry from service.py
+                # We do this via direct import (since service.py is in same process)
+                import sys
+                service_module = sys.modules.get('arch_team.service')
+                if service_module and hasattr(service_module, 'clarification_streams'):
+                    streams = service_module.clarification_streams
+                    if correlation_id in streams:
+                        # Send question event to SSE stream
+                        streams[correlation_id].put({
+                            "type": "question",
+                            "question_id": question_id,
+                            "question": question,
+                            "suggested_answers": suggested_answers or []
+                        })
+                        logger.info(f"Sent question via SSE to session {correlation_id}")
+                        print(f"[SSE] Question sent to frontend (session: {correlation_id})")
+            except Exception as e:
+                logger.warning(f"Failed to broadcast via SSE: {e}")
+                print(f"[SSE] Warning: Could not broadcast to frontend: {e}")
 
         try:
             # Determine response file path

@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import './App.css'
 import AgentStatus from './components/AgentStatus'
 import Configuration from './components/Configuration'
 import Requirements from './components/Requirements'
 import KnowledgeGraph from './components/KnowledgeGraph'
+import ClarificationModal from './components/ClarificationModal'
 
 const API_BASE = window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
@@ -21,6 +22,14 @@ function App() {
   const [status, setStatus] = useState({ message: 'Bereit', type: 'info' })
   const [selectedFiles, setSelectedFiles] = useState([])
   const [filePreview, setFilePreview] = useState({ name: '', content: '' })
+  const [sessionId, setSessionId] = useState(null)
+
+  // Generate unique session ID on mount
+  useEffect(() => {
+    const id = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    setSessionId(id)
+    console.log(`[App] Session ID generated: ${id}`)
+  }, [])
 
   const updateAgentStatus = (agent, status, message) => {
     if (agent === 'all') {
@@ -225,6 +234,12 @@ function App() {
       </div>
 
       <Requirements requirements={requirements} />
+
+      {/* User Clarification Modal (SSE-based) */}
+      <ClarificationModal
+        sessionId={sessionId}
+        enabled={true}
+      />
     </div>
   )
 }
