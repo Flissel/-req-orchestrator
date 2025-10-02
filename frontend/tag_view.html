@@ -3,185 +3,600 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>TAG Viewer – LangExtract</title>
-  <link rel="stylesheet" href="/tag/dist/tag/css/tag.min.css" />
+  <title>LangExtract Document Annotation Viewer</title>
   <style>
-    :root { --bg:#0b0e14; --fg:#e6e6e6; --muted:#9aa5b1; --accent:#4cc9f0; --card:#11151c; }
+    :root { --bg:#0b0e14; --fg:#e6e6e6; --muted:#9aa5b1; --accent:#4cc9f0; --card:#11151c; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444; }
     html,body { height:100%; margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,Segoe UI,Roboto,Inter,Arial,sans-serif; }
-    .toolbar { display:flex; align-items:center; gap:8px; padding:10px 12px; background:#0f1320; border-bottom:1px solid #1f2937; position:sticky; top:0; z-index:10; }
-    .btn { background:var(--accent); color:#061018; border:0; padding:8px 12px; border-radius:10px; font-weight:600; cursor:pointer; }
+    
+    /* Toolbar */
+    .toolbar { display:flex; align-items:center; gap:8px; padding:10px 12px; background:#0f1320; border-bottom:1px solid #1f2937; position:sticky; top:0; z-index:10; flex-wrap:wrap; }
+    .btn { background:var(--accent); color:#061018; border:0; padding:8px 12px; border-radius:10px; font-weight:600; cursor:pointer; font-size:13px; }
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+    .btn.success { background:var(--ok); }
     .muted { color:var(--muted); font-size:13px; }
-    #container { height: calc(100vh - 56px); overflow:auto; padding:8px; }
-    #tagHost { background:#0b0e14; border:1px solid #1f2937; min-height: calc(100vh - 120px); }
-    textarea { width:100%; height:120px; background:#0b0e14; color:var(--fg); border:1px solid #1f2937; border-radius:8px; padding:8px; font-family:ui-monospace,Consolas,monospace; }
+    
+    /* Upload */
+    .upload-section { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    input[type="file"] { color:var(--muted); font-size:13px; }
+    
+    /* Config */
+    .config-section { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    select { background:var(--card); border:1px solid #1f2937; color:var(--fg); padding:6px 10px; border-radius:8px; font-size:13px; }
+    label { display:flex; align-items:center; gap:4px; font-size:13px; }
+    
+    /* Main Container */
+    #container { height: calc(100vh - 120px); overflow:auto; padding:8px; display:grid; grid-template-columns:1fr 2fr; gap:12px; }
+    @media (max-width: 1000px) { #container { grid-template-columns:1fr; } }
+    
+    /* Sidebar */
+    .sidebar { background:var(--card); border:1px solid #1f2937; border-radius:12px; padding:12px; overflow:auto; }
+    .sidebar h3 { margin:0 0 12px; font-size:16px; }
+    .sidebar-section { margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid #1f2937; }
+    .sidebar-section:last-child { border-bottom:none; }
+    .stat-item { display:flex; justify-content:space-between; padding:6px 0; font-size:13px; }
+    .stat-label { color:var(--muted); }
+    .stat-value { font-weight:600; color:var(--accent); }
+    
+    /* Extraktionsliste */
+    .extractions-list { max-height:300px; overflow:auto; }
+    .extraction-item { background:#0f1320; border:1px solid #1f2937; border-radius:8px; padding:8px; margin-bottom:6px; font-size:12px; cursor:pointer; transition:all 0.2s; }
+    .extraction-item:hover { border-color:var(--accent); transform:translateX(2px); }
+    .extraction-item.active { border-color:var(--accent); background:#161b2a; box-shadow:0 0 0 2px rgba(76,201,240,0.2); }
+    .extraction-class { color:var(--accent); font-weight:600; margin-bottom:4px; font-size:11px; text-transform:uppercase; }
+    .extraction-text { color:var(--fg); line-height:1.4; }
+    
+    /* Annotierter Text Viewer */
+    .text-viewer { background:var(--card); border:1px solid #1f2937; border-radius:12px; padding:16px; overflow:auto; height:100%; }
+    .text-viewer h3 { margin:0 0 16px; font-size:16px; }
+    .annotated-text { line-height:2.2; font-size:14px; font-family:ui-sans-serif,system-ui,sans-serif; position:relative; }
+    
+    /* Annotationen - Multi-Layer Support */
+    .annotation-wrapper { position:relative; display:inline; }
+    .annotation { position:relative; padding:2px 4px; margin:0 1px; border-radius:4px; cursor:pointer; transition:all 0.2s; display:inline; }
+    .annotation:hover { transform:translateY(-1px); box-shadow:0 2px 8px rgba(0,0,0,0.3); z-index:50; }
+    .annotation.active { box-shadow:0 0 0 2px rgba(255,255,255,0.4); transform:scale(1.02); z-index:51; }
+    
+    /* Multi-Layer Badge */
+    .layer-badge { position:absolute; top:-8px; right:-8px; background:#ef4444; color:#fff; border-radius:10px; padding:2px 6px; font-size:9px; font-weight:700; z-index:10; pointer-events:none; box-shadow:0 2px 4px rgba(0,0,0,0.4); }
+    
+    /* Farbschema */
+    .annotation.requirement { background:rgba(56,189,248,0.3); border-bottom:2px solid #38bdf8; color:#d1e8ff; }
+    .annotation.constraint { background:rgba(239,68,68,0.3); border-bottom:2px solid #ef4444; color:#ffd1d1; }
+    .annotation.actor { background:rgba(167,139,250,0.3); border-bottom:2px solid #a78bfa; color:#e9d5ff; }
+    .annotation.capability { background:rgba(34,197,94,0.3); border-bottom:2px solid #22c55e; color:#d1fae5; }
+    .annotation.entity { background:rgba(251,146,60,0.3); border-bottom:2px solid #fb923c; color:#fed7aa; }
+    .annotation.tag { background:rgba(96,165,250,0.3); border-bottom:2px solid #60a5fa; color:#bfdbfe; }
+    .annotation.acceptance_criterion { background:rgba(244,114,182,0.3); border-bottom:2px solid #f472b6; color:#fce7f3; }
+    .annotation.relation { background:rgba(251,191,36,0.3); border-bottom:2px solid #fbbf24; color:#fef3c7; }
+    .annotation.default { background:rgba(156,163,175,0.3); border-bottom:2px solid #9ca3af; color:#e5e7eb; }
+    
+    /* Multi-Layer Hover Panel */
+    .layers-panel { position:absolute; bottom:100%; left:50%; transform:translateX(-50%); background:#1f2937; border:2px solid #374151; border-radius:8px; padding:8px; min-width:280px; max-width:400px; pointer-events:none; opacity:0; transition:opacity 0.2s; z-index:1000; margin-bottom:8px; box-shadow:0 4px 12px rgba(0,0,0,0.5); }
+    .annotation-wrapper:hover .layers-panel { opacity:1; }
+    .layers-panel::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:6px solid transparent; border-top-color:#374151; }
+    
+    .layer-item { background:#0f1320; border:1px solid #374151; border-radius:4px; padding:6px 8px; margin-bottom:6px; }
+    .layer-item:last-child { margin-bottom:0; }
+    .layer-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+    .layer-class { font-weight:600; font-size:11px; text-transform:uppercase; }
+    .layer-text { font-size:12px; color:#d1d5db; line-height:1.4; max-height:60px; overflow:auto; }
+    
+    /* Class-specific colors in panel */
+    .layer-item.requirement .layer-class { color:#38bdf8; }
+    .layer-item.constraint .layer-class { color:#ef4444; }
+    .layer-item.actor .layer-class { color:#a78bfa; }
+    .layer-item.capability .layer-class { color:#22c55e; }
+    .layer-item.entity .layer-class { color:#fb923c; }
+    .layer-item.tag .layer-class { color:#60a5fa; }
+    
+    /* Legende */
+    .legend { display:flex; flex-wrap:wrap; gap:8px; padding:12px; background:#0f1320; border-radius:8px; margin-bottom:12px; }
+    .legend-item { display:flex; align-items:center; gap:6px; font-size:12px; }
+    .legend-color { width:20px; height:12px; border-radius:3px; }
+    
+    /* Debug */
+    textarea { width:100%; height:120px; background:#0b0e14; color:var(--fg); border:1px solid #1f2937; border-radius:8px; padding:8px; font-family:ui-monospace,Consolas,monospace; font-size:11px; }
+    details { margin-top:12px; }
+    summary { cursor:pointer; padding:8px; background:#0f1320; border-radius:8px; font-size:13px; }
   </style>
-  <script src="/tag/dist/tag/js/tag.min.js"></script>
 </head>
 <body>
   <div class="toolbar">
-    <button class="btn" id="btnFit">Fit</button>
-    <button class="btn" id="btnReload">Neu rendern</button>
-    <span class="muted" id="status">Bereit – auf Daten warten…</span>
+    <div class="upload-section">
+      <label for="files"><strong>Dokument:</strong></label>
+      <input id="files" type="file" accept=".md,.markdown,.txt,.pdf,.docx,.json" multiple />
+      <button class="btn" id="btnProcess">Extrahieren & Visualisieren</button>
+      <button class="btn success" id="btnSample">Beispiel laden</button>
+    </div>
+    
+    <div class="config-section">
+      <label>
+        <input id="chkStructured" type="checkbox" checked />
+        Strukturiert
+      </label>
+      <label>
+        <input id="chkNeighbors" type="checkbox" />
+        Nachbarn (±1)
+      </label>
+      <label>Config:
+        <select id="configId">
+          <option value="default">default</option>
+        </select>
+      </label>
+    </div>
+    
+    <div style="flex:1"></div>
+    <span class="muted" id="status">Bereit – Dokument hochladen oder Beispiel laden…</span>
   </div>
+
   <div id="container">
-    <div id="tagHost"></div>
-    <details style="margin-top:10px;">
-      <summary>Debug Eingabedaten (Odin JSON)</summary>
-      <textarea id="debugJson" readonly></textarea>
-    </details>
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <h3>Dokumentinfo</h3>
+        <div class="stat-item">
+          <span class="stat-label">Datei:</span>
+          <span class="stat-value" id="statFile">–</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Chunks:</span>
+          <span class="stat-value" id="statChunks">–</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Extraktionen:</span>
+          <span class="stat-value" id="statExtractions">–</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Überlappungen:</span>
+          <span class="stat-value" id="statOverlaps">–</span>
+        </div>
+      </div>
+      
+      <div class="sidebar-section">
+        <h3>Extraktionen <span id="extractionCount" style="color:var(--muted);font-size:12px;">(0)</span></h3>
+        <div id="extractionsList" class="extractions-list"></div>
+      </div>
+      
+      <details>
+        <summary>Debug JSON</summary>
+        <textarea id="debugJson" readonly></textarea>
+      </details>
+    </div>
+    
+    <!-- Annotierter Text Viewer -->
+    <div class="text-viewer">
+      <h3>Annotierter Text</h3>
+      <div class="legend" id="legend" style="display:none;"></div>
+      <div id="annotatedText" class="annotated-text">
+        <p style="color:var(--muted);text-align:center;padding:40px 20px;">
+          Keine Daten geladen. Bitte laden Sie ein Dokument hoch oder klicken Sie auf "Beispiel laden".
+        </p>
+      </div>
+    </div>
   </div>
 
   <script>
-    // Utility: TitleCase
+    const API_BASE = window.API_BASE || 'http://localhost:8087';
+    let __lastLxPreview = [];
+    let __lastSourceText = '';
+    
     function titleCase(s){ try{ s=String(s||""); return s.slice(0,1).toUpperCase()+s.slice(1).toLowerCase(); }catch(e){ return s; } }
-
-    // Split in tokens with offsets
-    function tokenizeWithOffsets(text){
-      const tokens = []; const re = /\S+/g; let m;
-      while((m = re.exec(text))){ tokens.push({text: m[0], start: m.index, end: m.index + m[0].length}); }
-      return tokens;
-    }
-
-    // Find first occurrence of span in text, starting search from hintPos (best effort)
-    function findSpan(text, span, hintPos){
-      if(!span) return null;
-      const start = Math.max(0, hintPos|0);
-      let idx = text.indexOf(span, start);
-      if(idx < 0) idx = text.indexOf(span); // fallback
-      if(idx < 0) return null;
-      return { start: idx, end: idx + span.length };
-    }
-
-    // Map char interval to token interval
-    function charToTokenInterval(tokens, st, en){
-      if(!tokens.length) return {start:0,end:0};
-      let a = 0, b = tokens.length;
-      for(let i=0;i<tokens.length;i++){ if(tokens[i].end > st){ a = i; break; } }
-      for(let i=tokens.length-1;i>=0;i--){ if(tokens[i].start < en){ b = i+1; break; } }
-      if(b < a) b = a+1;
-      return { start: a, end: b };
-    }
-
-    // Konvertiere lxPreview -> minimales Odin JSON (ein Dokument, eine "Sentence" aus gesamtem Text)
-    function lxPreviewToOdin(lxPreview){
-      const items = Array.isArray(lxPreview) ? lxPreview.filter(e => e && typeof e.extraction_text === 'string' && e.extraction_text.trim()) : [];
-      const docText = items.map(e => e.extraction_text.trim()).join(" ");
-      const tokens = tokenizeWithOffsets(docText);
-
-      const mentions = [];
-      let cursor = 0;
-      const docId = String(Date.now());
-      let mid = 0;
-      for(const e of items){
-        const spanTxt = e.extraction_text.trim();
-        const span = findSpan(docText, spanTxt, cursor) || findSpan(docText, spanTxt, 0);
-        if(!span) continue;
-        cursor = span.end;
-        const ti = charToTokenInterval(tokens, span.start, span.end);
-        mentions.push({
-          type: "TextBoundMention",
-          id: `T:${++mid}`,
-          text: spanTxt,
-          labels: [ titleCase(e.extraction_class || "Entity") ],
-          tokenInterval: { start: ti.start, end: ti.end },
-          characterStartOffset: span.start,
-          characterEndOffset: span.end,
-          sentence: 0,
-          document: docId,
-          keep: true,
-          foundBy: "lx-preview"
-        });
-      }
-
-      // Odin JSON (vereinfachte Struktur)
-      return {
-        documents: [
-          {
-            id: docId,
-            text: docText,
-            sentences: [
-              {
-                words: tokens.map(t => t.text),
-                startOffsets: tokens.map(t => t.start),
-                endOffsets: tokens.map(t => t.end)
-              }
-            ],
-            mentions
-          }
-        ]
-      };
-    }
-
-    let __lastOdin = null;
-    let __lastTag = null;
-
     function setStatus(msg){ try{ document.getElementById('status').textContent = msg; }catch(e){} }
-
-    function renderTAG(odin){
-      try{
-        __lastOdin = odin;
-        const host = document.getElementById('tagHost');
-        host.innerHTML = ""; // reset container
-        __lastTag = TAG.tag({
-          container: "tagHost",
-          data: odin,
-          format: "odin",
-          options: { showTopArgLabels: true }
+    
+    function escapeHtml(str) {
+      return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+    
+    function updateStats(data) {
+      try {
+        document.getElementById('statFile').textContent = data.fileName || '–';
+        document.getElementById('statChunks').textContent = data.chunks || '–';
+        document.getElementById('statExtractions').textContent = data.extractions || '–';
+        if (data.overlaps !== undefined) {
+          document.getElementById('statOverlaps').textContent = data.overlaps || '0';
+        }
+      } catch(e) {}
+    }
+    
+    function renderExtractionsList(lxPreview) {
+      const container = document.getElementById('extractionsList');
+      const countEl = document.getElementById('extractionCount');
+      if (!container) return;
+      
+      container.innerHTML = '';
+      countEl.textContent = `(${lxPreview.length})`;
+      
+      lxPreview.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = 'extraction-item';
+        div.dataset.index = idx;
+        div.innerHTML = `
+          <div class="extraction-class">${titleCase(item.extraction_class || 'Entity')}</div>
+          <div class="extraction-text">${escapeHtml((item.extraction_text || '').substring(0, 100))}${item.extraction_text?.length > 100 ? '...' : ''}</div>
+        `;
+        
+        div.addEventListener('click', () => {
+          document.querySelectorAll('.extraction-item').forEach(el => el.classList.remove('active'));
+          div.classList.add('active');
+          highlightAnnotation(idx);
         });
-        try{
-          document.getElementById('debugJson').value = JSON.stringify(odin, null, 2);
-        }catch(e){}
-        setStatus("Gerendert (" + (odin?.documents?.[0]?.mentions?.length || 0) + " Mentions).");
-        // Rückmeldung an Öffner
-        try { if (window.opener) window.opener.postMessage({ type: 'TAG_VIEW_RENDERED', mentions: (odin?.documents?.[0]?.mentions?.length || 0) }, '*'); } catch(e){}
-      }catch(err){
+        
+        container.appendChild(div);
+      });
+    }
+    
+    function highlightAnnotation(idx) {
+      document.querySelectorAll('.annotation').forEach(el => el.classList.remove('active'));
+      const anno = document.querySelector(`.annotation[data-index="${idx}"]`);
+      if (anno) {
+        anno.classList.add('active');
+        anno.scrollIntoView({ behavior:'smooth', block:'center' });
+      }
+    }
+    
+    // Detect overlaps
+    function detectOverlaps(sorted) {
+      const overlaps = [];
+      for (let i = 0; i < sorted.length; i++) {
+        const curr = sorted[i];
+        const currStart = curr.char_interval?.start_pos || 0;
+        const currEnd = curr.char_interval?.end_pos || currStart;
+        const overlapping = [i];
+        
+        for (let j = 0; j < sorted.length; j++) {
+          if (i === j) continue;
+          const other = sorted[j];
+          const otherStart = other.char_interval?.start_pos || 0;
+          const otherEnd = other.char_interval?.end_pos || otherStart;
+          
+          // Check if ranges overlap
+          if (!(currEnd <= otherStart || currStart >= otherEnd)) {
+            overlapping.push(j);
+          }
+        }
+        
+        if (overlapping.length > 1) {
+          const key = overlapping.sort().join(',');
+          if (!overlaps.some(o => o.key === key)) {
+            overlaps.push({ key, indices: overlapping, start: currStart, end: currEnd });
+          }
+        }
+      }
+      return overlaps;
+    }
+    
+    function renderAnnotatedText(sourceText, lxPreview) {
+      const container = document.getElementById('annotatedText');
+      const legendEl = document.getElementById('legend');
+      if (!container) return;
+      
+      const sorted = lxPreview.slice().sort((a, b) => {
+        const aPos = a.char_interval?.start_pos || 0;
+        const bPos = b.char_interval?.start_pos || 0;
+        return aPos - bPos;
+      });
+      
+      // Detect overlapping annotations
+      const overlaps = detectOverlaps(sorted);
+      const overlapMap = new Map(); // position -> indices[]
+      overlaps.forEach(o => {
+        overlapMap.set(o.start, o.indices);
+      });
+      
+      updateStats({ overlaps: overlaps.length });
+      
+      const classes = new Set();
+      sorted.forEach(e => classes.add((e.extraction_class || 'default').toLowerCase()));
+      
+      const legendItems = Array.from(classes).map(cls => {
+        const colors = {
+          requirement: '#38bdf8', constraint: '#ef4444', actor: '#a78bfa',
+          capability: '#22c55e', entity: '#fb923c', tag: '#60a5fa',
+          acceptance_criterion: '#f472b6', relation: '#fbbf24', default: '#9ca3af'
+        };
+        return `
+          <div class="legend-item">
+            <div class="legend-color" style="background:${colors[cls] || colors.default}"></div>
+            <span>${titleCase(cls)}</span>
+          </div>
+        `;
+      }).join('');
+      legendEl.innerHTML = legendItems;
+      legendEl.style.display = legendItems ? 'flex' : 'none';
+      
+      let html = '';
+      let lastPos = 0;
+      const processedPositions = new Set();
+      
+      sorted.forEach((item, idx) => {
+        const start = item.char_interval?.start_pos || 0;
+        const end = item.char_interval?.end_pos || start;
+        
+        if (processedPositions.has(start)) return; // Skip if position already processed as overlap
+        
+        const cls = (item.extraction_class || 'default').toLowerCase().replace(/_/g, '_');
+        const text = sourceText.substring(start, end);
+        
+        // Check if this position has overlaps
+        const overlappingIndices = overlapMap.get(start);
+        const hasOverlaps = overlappingIndices && overlappingIndices.length > 1;
+        
+        // Text vor Annotation
+        if (start > lastPos) {
+          html += escapeHtml(sourceText.substring(lastPos, start));
+        }
+        
+        if (hasOverlaps) {
+          // Multi-layer annotation
+          processedPositions.add(start);
+          const layers = overlappingIndices.map(i => sorted[i]);
+          const primaryLayer = layers[0];
+          const primaryCls = (primaryLayer.extraction_class || 'default').toLowerCase();
+          
+          // Build layers panel
+          const layersHtml = layers.map((layer, layerIdx) => {
+            const lCls = (layer.extraction_class || 'default').toLowerCase();
+            return `
+              <div class="layer-item ${lCls}">
+                <div class="layer-header">
+                  <span class="layer-class">${titleCase(layer.extraction_class || 'Entity')}</span>
+                  <span style="color:var(--muted);font-size:10px;">Layer ${layerIdx + 1}/${layers.length}</span>
+                </div>
+                <div class="layer-text">${escapeHtml(layer.extraction_text || '')}</div>
+              </div>
+            `;
+          }).join('');
+          
+          html += `<span class="annotation-wrapper">
+            <span class="annotation ${primaryCls}" data-index="${idx}">
+              ${escapeHtml(text)}
+              <span class="layer-badge">${layers.length}</span>
+            </span>
+            <div class="layers-panel">
+              ${layersHtml}
+            </div>
+          </span>`;
+          
+          lastPos = end;
+        } else {
+          // Single annotation
+          const tooltip = `${titleCase(item.extraction_class || 'Entity')}`;
+          html += `<span class="annotation ${cls}" data-index="${idx}" title="${escapeHtml(tooltip)}">
+            ${escapeHtml(text)}
+          </span>`;
+          
+          lastPos = end;
+        }
+      });
+      
+      if (lastPos < sourceText.length) {
+        html += escapeHtml(sourceText.substring(lastPos));
+      }
+      
+      container.innerHTML = html || '<p style="color:var(--muted);text-align:center;padding:40px 20px;">Keine Annotationen gefunden.</p>';
+      
+      // Event listeners
+      document.querySelectorAll('.annotation').forEach((el) => {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          document.querySelectorAll('.annotation').forEach(a => a.classList.remove('active'));
+          el.classList.add('active');
+          
+          const dataIdx = el.dataset.index;
+          document.querySelectorAll('.extraction-item').forEach(item => item.classList.remove('active'));
+          const listItem = document.querySelector(`.extraction-item[data-index="${dataIdx}"]`);
+          if (listItem) {
+            listItem.classList.add('active');
+            listItem.scrollIntoView({ behavior:'smooth', block:'center' });
+          }
+        });
+      });
+    }
+    
+    async function processFiles() {
+      const fileInput = document.getElementById('files');
+      const files = fileInput?.files;
+      
+      if (!files || files.length === 0) {
+        setStatus('Bitte mindestens eine Datei auswählen.');
+        return;
+      }
+      
+      try {
+        setStatus('Extrahiere Daten…');
+        
+        const fd = new FormData();
+        for (const f of files) fd.append('files', f, f.name);
+        
+        if (document.getElementById('chkStructured')?.checked) fd.set('structured', '1');
+        if (document.getElementById('chkNeighbors')?.checked) fd.set('neighbor_refs', '1');
+        fd.set('chunkMode', 'paragraph');
+        fd.set('preserveSources', '1');
+        
+        const configId = document.getElementById('configId')?.value;
+        if (configId) fd.set('configId', configId);
+        
+        const resp = await fetch(`${API_BASE}/api/v1/lx/extract`, {
+          method: 'POST',
+          body: fd
+        });
+        
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+        
+        const data = await resp.json();
+        
+        if (!data || !Array.isArray(data.lxPreview)) {
+          throw new Error('Keine Extraktionsdaten erhalten.');
+        }
+        
+        __lastLxPreview = data.lxPreview;
+        __lastSourceText = data.sourceText || '';
+        
+        updateStats({
+          fileName: files[0].name,
+          chunks: data.chunks || data.lxPreview.length,
+          extractions: data.lxPreview.length
+        });
+        
+        renderExtractionsList(data.lxPreview);
+        renderAnnotatedText(__lastSourceText, data.lxPreview);
+        
+        try { document.getElementById('debugJson').value = JSON.stringify(data, null, 2); } catch(e){}
+        
+        setStatus(`Erfolgreich: ${data.lxPreview.length} Extraktionen visualisiert.`);
+        
+      } catch(err) {
         console.error(err);
-        setStatus("Fehler beim Rendern: " + err);
+        setStatus(`Fehler: ${err.message}`);
+      }
+    }
+    
+    async function loadSample() {
+      try {
+        setStatus('Lade Beispieldokument…');
+        
+        const resp = await fetch('./sample_requirements.md');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        
+        const blob = await resp.blob();
+        const file = new File([blob], 'sample_requirements.md', { type: 'text/markdown' });
+        
+        const fd = new FormData();
+        fd.append('files', file, file.name);
+        fd.set('structured', '1');
+        fd.set('chunkMode', 'paragraph');
+        fd.set('preserveSources', '1');
+        
+        const resp2 = await fetch(`${API_BASE}/api/v1/lx/extract`, {
+          method: 'POST',
+          body: fd
+        });
+        
+        if (!resp2.ok) throw new Error(`HTTP ${resp2.status}`);
+        
+        const data = await resp2.json();
+        
+        if (!data || !Array.isArray(data.lxPreview)) {
+          throw new Error('Keine Extraktionsdaten erhalten.');
+        }
+        
+        __lastLxPreview = data.lxPreview;
+        __lastSourceText = data.sourceText || '';
+        
+        updateStats({
+          fileName: 'sample_requirements.md',
+          chunks: data.chunks || data.lxPreview.length,
+          extractions: data.lxPreview.length
+        });
+        
+        renderExtractionsList(data.lxPreview);
+        renderAnnotatedText(__lastSourceText, data.lxPreview);
+        
+        try { document.getElementById('debugJson').value = JSON.stringify(data, null, 2); } catch(e){}
+        
+        setStatus(`Beispiel geladen: ${data.lxPreview.length} Extraktionen.`);
+        
+      } catch(err) {
+        console.error(err);
+        setStatus(`Fehler: ${err.message}`);
       }
     }
 
-    // Message Listener: erwartet { type: 'TAG_VIEW_LOAD', lxPreview: [...] }
     window.addEventListener('message', (ev) => {
       try {
-        // Erlaube localhost <-> 127.0.0.1, solange Protokoll/Port übereinstimmen
         const a = new URL(ev.origin);
         const b = new URL(location.href);
         const sameProtocol = a.protocol === b.protocol;
         const samePort = (a.port || (a.protocol === 'https:' ? '443' : '80')) === (b.port || (b.protocol === 'https:' ? '443' : '80'));
-        if (!(sameProtocol && samePort)) {
-          // andere Origin (z. B. anderer Port) ignorieren
-          return;
-        }
-      } catch (_) {
-        // Falls URL-PARSING fehlschlägt, nicht hart abbrechen
-      }
+        if (!(sameProtocol && samePort)) return;
+      } catch (_) {}
+      
       const data = ev.data || {};
       if (data && data.type === 'TAG_VIEW_LOAD' && Array.isArray(data.lxPreview)) {
-        try { window.__debug_last_event = { receivedAt: Date.now(), count: data.lxPreview.length }; } catch {}
-        setStatus("Daten empfangen – rendere TAG… (" + (data.lxPreview.length || 0) + " items)");
-        const odin = lxPreviewToOdin(data.lxPreview);
-        renderTAG(odin);
+        setStatus("Daten empfangen… (" + (data.lxPreview.length || 0) + " items)");
+        
+        __lastLxPreview = data.lxPreview;
+        __lastSourceText = data.sourceText || '';
+        
+        updateStats({
+          fileName: 'via postMessage',
+          chunks: '–',
+          extractions: data.lxPreview.length
+        });
+        
+        renderExtractionsList(data.lxPreview);
+        renderAnnotatedText(__lastSourceText, data.lxPreview);
+        
+        try { if (window.opener) window.opener.postMessage({ type: 'TAG_VIEW_RENDERED', mentions: data.lxPreview.length }, '*'); } catch(e){}
       }
     });
 
-    // Handshake: dem Öffner mitteilen, dass der Viewer bereit ist
     (function announceReady(){
       try { if (window.opener) window.opener.postMessage({ type: 'TAG_VIEW_READY' }, '*'); } catch(e){}
-      // vorsichtshalber mehrfach ankündigen (langsamer Load in manchen Browsern)
       let c = 0; const t = setInterval(() => {
         try { if (window.opener) window.opener.postMessage({ type: 'TAG_VIEW_READY' }, '*'); } catch(e){}
         c++; if (c >= 10) clearInterval(t);
       }, 300);
     })();
 
-    // Toolbar
-    document.getElementById('btnReload')?.addEventListener('click', () => { if(__lastOdin) renderTAG(__lastOdin); });
-    document.getElementById('btnFit')?.addEventListener('click', () => {
-      try{
-        // Manche TAG Builds exposen fit(); falls nicht vorhanden, neu rendern
-        if (__lastTag && typeof __lastTag.fit === 'function') __lastTag.fit();
-      }catch(e){}
-    });
+    setTimeout(() => {
+      try { if (window.opener) window.opener.postMessage({ type: 'TAG_VIEW_NEED_DATA' }, '*'); } catch(e){}
+    }, 1500);
+
+    (function pullFromOpener(){
+      let tries = 0;
+      function tryRenderFromOpener(){
+        try{
+          if (!window.opener) return false;
+          const arr = window.opener.__last_lx_preview;
+          const src = window.opener.__last_source_text || '';
+          if (!Array.isArray(arr) || arr.length === 0) return false;
+          
+          __lastLxPreview = arr;
+          __lastSourceText = src;
+          
+          updateStats({
+            fileName: 'from opener',
+            chunks: '–',
+            extractions: arr.length
+          });
+          
+          renderExtractionsList(arr);
+          renderAnnotatedText(src, arr);
+          return true;
+        }catch(e){ return false; }
+      }
+      const t = setInterval(() => {
+        if (tryRenderFromOpener()) { clearInterval(t); return; }
+        tries++;
+        if (tries >= 80) { clearInterval(t); }
+      }, 500);
+    })();
+
+    document.getElementById('btnProcess')?.addEventListener('click', () => processFiles());
+    document.getElementById('btnSample')?.addEventListener('click', () => loadSample());
+    
+    async function loadConfigList() {
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/lx/config/list`);
+        const data = await resp.json();
+        const items = data?.items || ['default'];
+        const select = document.getElementById('configId');
+        if (select) {
+          select.innerHTML = '';
+          items.forEach(id => {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = id;
+            select.appendChild(opt);
+          });
+        }
+      } catch(e) {
+        console.warn('Config-Liste laden fehlgeschlagen:', e);
+      }
+    }
+    
+    loadConfigList();
   </script>
  </body>
  </html>

@@ -46,18 +46,34 @@ function App() {
     setSelectedFiles(files)
     if (files && files.length > 0) {
       const file = files[0]
-      try {
-        const text = await file.text()
-        setFilePreview({ name: file.name, content: text.slice(0, 5000) })
-      } catch (err) {
-        setFilePreview({ name: file.name, content: 'Vorschau nicht verfügbar' })
+      const fileName = file.name.toLowerCase()
+
+      // Check if file is binary format
+      const isBinary = fileName.endsWith('.docx') ||
+                       fileName.endsWith('.pdf') ||
+                       fileName.endsWith('.doc') ||
+                       fileName.endsWith('.xlsx')
+
+      if (isBinary) {
+        const sizeKB = (file.size / 1024).toFixed(2)
+        setFilePreview({
+          name: file.name,
+          content: `📄 Binäre Datei\n\nTyp: ${file.type || 'Unbekannt'}\nGröße: ${sizeKB} KB\n\n✓ Datei bereit für Mining\n\nHinweis: Vorschau ist nur für Textdateien (.md, .txt) verfügbar.\nDie Datei wird beim Mining automatisch verarbeitet.`
+        })
+      } else {
+        try {
+          const text = await file.text()
+          setFilePreview({ name: file.name, content: text.slice(0, 5000) })
+        } catch (err) {
+          setFilePreview({ name: file.name, content: 'Vorschau nicht verfügbar' })
+        }
       }
     }
   }, [])
 
   const handleStartMining = async (config) => {
     try {
-      const { files, model, neighborRefs, useLlm } = config
+      const { files, model, neighborRefs, useLlm, chunkSize, chunkOverlap } = config
 
       if (!files || files.length === 0) {
         setStatus({ message: 'Bitte wählen Sie mindestens eine Datei aus.', type: 'err' })
@@ -70,6 +86,7 @@ function App() {
 
       updateAgentStatus('chunk-miner', 'active', 'Verarbeitet Dokumente...')
       addLog(`Chunk Miner Agent aktiviert (${files.length} Datei(en))`)
+      addLog(`Chunk-Größe: ${chunkSize || 800} Tokens, Überlappung: ${chunkOverlap || 200} Tokens`)
 
       const formData = new FormData()
       files.forEach(file => {
@@ -82,6 +99,15 @@ function App() {
 
       if (neighborRefs) {
         formData.append('neighbor_refs', '1')
+      }
+
+      // Add custom chunk parameters if provided
+      if (chunkSize && chunkSize !== 800) {
+        formData.append('chunk_size', chunkSize.toString())
+      }
+
+      if (chunkOverlap && chunkOverlap !== 200) {
+        formData.append('chunk_overlap', chunkOverlap.toString())
       }
 
       addLog('Sende Anfrage an /api/mining/upload...')

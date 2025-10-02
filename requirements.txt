@@ -1,6 +1,5 @@
 Flask==3.0.3
-# OpenAI ist optional; für Legacy-API wird 0.28.x genutzt (ChatCompletion)
-openai==0.28.1
+openai==2.0.0
 Flask-Cors==4.0.1
 python-dotenv==1.0.1
 # --- FastAPI Stack (für Tests/Backend v2) ---

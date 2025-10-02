@@ -283,10 +283,14 @@ class ChunkMinerAgent(AgentBase):
         *,
         model: Optional[str] = None,
         neighbor_refs: bool = False,
+        chunk_options: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Wie mine_files_or_texts(), sammelt jedoch alle erzeugten DTOs und gibt sie als Liste zurück
         anstatt sie an den ReqWorker zu senden.
+
+        Args:
+            chunk_options: Optional dict mit 'max_tokens', 'min_tokens', 'overlap_tokens'
         """
         normalized = _coerce_files_or_texts(files_or_texts)
         raw_records: List[Dict[str, Any]] = []
@@ -301,7 +305,9 @@ class ChunkMinerAgent(AgentBase):
             logger.info("ChunkMiner: keine extrahierten Rohtexte – Abbruch")
             return []
 
-        payloads = chunk_payloads(raw_records)
+        # Verwende chunk_options wenn vorhanden
+        chunk_kwargs = chunk_options or {}
+        payloads = chunk_payloads(raw_records, **chunk_kwargs)
         # Fallback: Wenn Nachbarschaft aktiviert ist aber nur 1 Chunk entstanden ist,
         # erzwinge feinere Chunking-Parameter, um mindestens 2 Chunks zu ermöglichen.
         if neighbor_refs and len(payloads) < 2:

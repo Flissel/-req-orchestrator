@@ -6,6 +6,8 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
   const [neighborRefs, setNeighborRefs] = useState(true)
   const [useLlm, setUseLlm] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [chunkSize, setChunkSize] = useState(800)
+  const [chunkOverlap, setChunkOverlap] = useState(200)
 
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files)
@@ -38,7 +40,9 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
       files,
       model,
       neighborRefs,
-      useLlm
+      useLlm,
+      chunkSize,
+      chunkOverlap
     })
   }
 
@@ -99,6 +103,34 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
 
       {showAdvanced && (
         <div className="advanced-options">
+          <div className="form-group">
+            <label htmlFor="chunkSize">📏 Chunk-Größe (Tokens):</label>
+            <input
+              type="number"
+              id="chunkSize"
+              min="200"
+              max="2000"
+              step="100"
+              value={chunkSize}
+              onChange={(e) => setChunkSize(parseInt(e.target.value))}
+            />
+            <small className="hint">Standard: 800 | Größer = mehr Kontext pro Chunk</small>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="chunkOverlap">🔄 Chunk-Überlappung (Tokens):</label>
+            <input
+              type="number"
+              id="chunkOverlap"
+              min="0"
+              max="500"
+              step="50"
+              value={chunkOverlap}
+              onChange={(e) => setChunkOverlap(parseInt(e.target.value))}
+            />
+            <small className="hint">Standard: 200 | Überlappung zwischen Chunks</small>
+          </div>
+
           <div className="form-group">
             <label className="checkbox-label">
               <input

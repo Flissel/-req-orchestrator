@@ -81,6 +81,22 @@ def mining_upload():
         neighbor_refs = _truthy(request.form.get("neighbor_refs")) or _truthy(request.args.get("neighbor_refs"))
         model = (request.form.get("model") or request.args.get("model") or "").strip() or None
 
+        # Chunk-Parameter (optional)
+        chunk_size = request.form.get("chunk_size") or request.args.get("chunk_size")
+        chunk_overlap = request.form.get("chunk_overlap") or request.args.get("chunk_overlap")
+
+        chunk_options = {}
+        if chunk_size:
+            try:
+                chunk_options['max_tokens'] = int(chunk_size)
+            except ValueError:
+                pass
+        if chunk_overlap:
+            try:
+                chunk_options['overlap_tokens'] = int(chunk_overlap)
+            except ValueError:
+                pass
+
         # In Agent-Records normalisieren
         records: List[Dict[str, Any]] = []
         for fs in files:
@@ -95,7 +111,12 @@ def mining_upload():
 
         # Agent ausführen (sammelt DTOs, sendet sie nicht an ReqWorker)
         agent = ChunkMinerAgent(source="web", default_model=os.environ.get("MODEL_NAME"))
-        items = agent.mine_files_or_texts_collect(records, model=model, neighbor_refs=neighbor_refs)
+        items = agent.mine_files_or_texts_collect(
+            records,
+            model=model,
+            neighbor_refs=neighbor_refs,
+            chunk_options=chunk_options
+        )
 
         return jsonify({
             "success": True,

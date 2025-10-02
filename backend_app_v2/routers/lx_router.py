@@ -226,6 +226,7 @@ async def lx_extract_v2(
                 "saveId": save_id,
                 "configId": configId or "default",
                 "chunks": len(payloads),
+                "sourceText": "\n\n".join(texts) if texts else "",
             },
             status_code=200,
         )

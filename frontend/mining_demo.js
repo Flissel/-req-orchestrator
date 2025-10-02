@@ -253,8 +253,7 @@
   function setPreview(name, text) {
     if (!previewMeta || !previewText || !previewBox) return;
     const maxPreview = 20000;
-    const raw = String(text || "");
-    const shown = raw.length > maxPreview ? (raw.slice(0, maxPreview) + "\n\n… [gekürzt]") : raw;
+    const shown = text.length > maxPreview ? (text.slice(0, maxPreview) + "\n\n… [gekürzt]") : text;
     const looksJson = /^\s*[\[{]/.test(shown);
     if (looksJson) {
       try {
@@ -263,12 +262,12 @@
         previewRawEscaped = escapeHtml(JSON.stringify(parsed, null, 2));
       } catch (_) {
         const escaped = escapeHtml(shown);
-        previewRawEscaped = escapeHtml(raw);
+        previewRawEscaped = escapeHtml(text);
         previewText.innerHTML = escaped;
       }
     } else {
     const escaped = escapeHtml(shown);
-      previewRawEscaped = escapeHtml(raw);
+      previewRawEscaped = escapeHtml(text);
     previewText.innerHTML = escaped;
     }
     previewMeta.textContent = name ? `Datei: ${name}` : "Keine Datei geladen.";
@@ -366,7 +365,7 @@
 
     resultsEl.appendChild(frag);
     // Merke die letzte Liste global für Speichern
-    try { window.__last_mined_items = items; } catch(e) {}
+    try { window.__last_mined_items = items; } catch(e){}
   }
 
   async function postForm(fd) {
@@ -667,10 +666,14 @@
   const lxResultsMsg = { type: "LX_MINE_RESULTS", lxPreview: []}; const lxReportsMsg = { type: "LX_REPORT_RESULTS", lxPreview: [] };
   // Öffnet den Vollbild‑TAG‑Viewer in neuem Tab und sendet lxPreview via postMessage
   let __tag_win = null;
+  let __tag_ready = false;
+  let __last_lx_preview = [];
   function ensureTagWindow() {
     try {
       if (!__tag_win || __tag_win.closed) {
-        __tag_win = window.open("/tag_view.html", "_blank", "noopener");
+        const url = (location && location.origin ? location.origin : "") + "/tag_view.html";
+        // WICHTIG: ohne 'noopener', damit window.opener im Viewer gesetzt ist (Handshake)
+        __tag_win = window.open(url, "_blank");
       }
     } catch (e) {
       console.warn("ensureTagWindow failed:", e);
@@ -680,21 +683,28 @@
   function openTagView(lxPreview) {
     try {
       if (!Array.isArray(lxPreview) || !lxPreview.length) return;
+      __last_lx_preview = lxPreview.slice(); // letzte Vorschau puffern
+      try { localStorage.setItem("tag:last_lx_preview", JSON.stringify(__last_lx_preview)); } catch(_){}
       ensureTagWindow();
       const payload = { type: "TAG_VIEW_LOAD", lxPreview: lxPreview };
-      // leicht verzögert senden, bis der Viewer geladen ist
-      const tries = 10;
+      // Erst nach READY senden, aber zusätzlich mit Retry absichern
+      const maxTries = 60; // ~12s bei 200ms Intervall
       let n = 0;
       const t = setInterval(() => {
         try {
           if (!__tag_win || __tag_win.closed) { clearInterval(t); return; }
-          // targetOrigin bewusst locker, Viewer prüft Port/Protokoll
+          if (__tag_ready) {
+            __tag_win.postMessage(payload, "*");
+            clearInterval(t);
+            return;
+          }
+          // Bis READY eintrifft, dennoch periodisch senden (best-effort)
           __tag_win.postMessage(payload, "*");
           n++;
-          if (n >= tries) clearInterval(t);
+          if (n >= maxTries) clearInterval(t);
         } catch (_) {
           n++;
-          if (n >= tries) clearInterval(t);
+          if (n >= maxTries) clearInterval(t);
         }
       }, 200);
     } catch (e) {
@@ -856,6 +866,8 @@
         return;
       }
 
+      let aggregated = [];
+      let allPreview = [];
       btn.disabled = true;
       setStatus("Mining läuft…", "warn");
       clearResults();
@@ -912,17 +924,15 @@
             { mode: passParagraph ? 'paragraph' : 'token', chunkMin: 4000, chunkMax: 4000, chunkOverlap: 300 },
             { mode: 'token', chunkMin: 1500, chunkMax: 1500, chunkOverlap: 200 }
           ]);
-      let aggregated = [];
-      let allPreview = [];
-      for (let i = 0; i < configs.length; i++) {
+      for (const passConfig of configs) {
         const passFd = new FormData();
         for (const f of files) passFd.append("files", f, f.name);
         passFd.set("structured", "1");
-        passFd.set("chunkMode", configs[i].mode);
+        passFd.set("chunkMode", passConfig.mode);
         passFd.set("preserveSources", "1");
-        passFd.set("chunkMin", String(configs[i].chunkMin));
-        passFd.set("chunkMax", String(configs[i].chunkMax));
-        passFd.set("chunkOverlap", String(configs[i].chunkOverlap));
+        passFd.set("chunkMin", String(passConfig.chunkMin));
+        passFd.set("chunkMax", String(passConfig.chunkMax));
+        passFd.set("chunkOverlap", String(passConfig.chunkOverlap));
         if (neighborsInput && neighborsInput.checked) passFd.set("neighbor_refs", "1");
         if (currentConfigId) passFd.set("configId", currentConfigId);
         if (useGoldFewshot && useGoldFewshot.checked) passFd.set("useGoldAsFewshot", "1");
@@ -932,11 +942,12 @@
         if (fastModeChk && fastModeChk.checked) passFd.set("fast", "1");
         const tval2 = (tempInput && tempInput.value) ? tempInput.value : "";
         if (tval2) passFd.set("temperature", String(tval2));
-        const data = await postForm(passFd);
-        if (data && Array.isArray(data.lxPreview)) {
-          const items = itemsFromLx(data.lxPreview);
-          aggregated = aggregated.concat(items);
-          allPreview = allPreview.concat(data.lxPreview);
+        const passResp = await postForm(passFd);
+        if (passResp && Array.isArray(passResp.lxPreview)) {
+          aggregated = aggregated.concat(passResp.lxPreview);
+          allPreview = allPreview.concat((passResp.lxPreview || []).map(p => ({ ...p, chunkIndex: p.chunkIndex || passResp.structured_chunks, sourceFile: p.sourceFile || passResp.file_name })));
+        } else {
+          setStatus("Pass Fehler oder leer.", "err"); // Messages were robust since renaming WIT_API = API_BASE
         }
       }
       // Dedupe: first by id then by normalized text
@@ -949,10 +960,11 @@
         renderItems(sortItemsByCharPos(deduped));
         // Build KG from full merged lxPreview to include entities/edges
         try {
-          buildKGFromLx(sortLxPreviewByPos(allPreview));
-        } catch (e) { console.warn('KG build failed', e); }
-        // Öffne automatisch den TAG‑Viewer mit der kombinierten Vorschau
-        try { openTagView(sortLxPreviewByPos(allPreview)); } catch (e) { console.warn("TAG viewer open failed", e); }
+          const sortedPreview = sortLxPreviewByPos(allPreview);
+          __last_lx_preview = sortedPreview.slice();
+          try { localStorage.setItem("tag:last_lx_preview", JSON.stringify(__last_lx_preview)); } catch(_){}
+          openTagView(sortedPreview);
+        } catch (e) { console.warn("TAG viewer open failed", e); }
       } else {
         setStatus("Keine Requirements extrahiert.", "warn");
       }
@@ -1007,7 +1019,12 @@
         try { renderItems(itemsFromLx(data.lxPreview)); } catch (e) { console.warn(e); }
         buildKGFromLx(data.lxPreview);
         // Öffne automatisch den TAG‑Viewer für die Sample‑Vorschau
-        try { openTagView(sortLxPreviewByPos(data.lxPreview)); } catch (_) {}
+        try {
+          const sortedPreview = sortLxPreviewByPos(data.lxPreview);
+          __last_lx_preview = sortedPreview.slice();
+          try { localStorage.setItem("tag:last_lx_preview", JSON.stringify(__last_lx_preview)); } catch(_){}
+          openTagView(sortedPreview);
+        } catch (_) {}
       } else {
         await mineFallback();
       }
@@ -1130,6 +1147,32 @@
       requirementText: it.requirementText || it.title || "",
       context: it.context || {}
     })));
+  });
+
+  // TAG Viewer Handshake: READY/RENDERED/NEED_DATA Events verarbeiten
+  window.addEventListener("message", (ev) => {
+    try {
+      const d = ev && ev.data;
+      if (!d || !d.type) return;
+      if (d.type === "TAG_VIEW_READY") {
+        __tag_ready = true;
+        setStatus("TAG Viewer bereit.", "ok");
+        // Persistiere letzte Vorschau für den Viewer-Fallback
+        if (Array.isArray(__last_lx_preview) && __last_lx_preview.length) {
+          try { localStorage.setItem("tag:last_lx_preview", JSON.stringify(__last_lx_preview)); } catch(_){}
+          try { __tag_win && __tag_win.postMessage({ type: "TAG_VIEW_LOAD", lxPreview: __last_lx_preview }, "*"); } catch(_){}
+        }
+      } else if (d.type === "TAG_VIEW_RENDERED") {
+        const m = (typeof d.mentions === "number") ? d.mentions : "?";
+        setStatus(`TAG Viewer gerendert (${m} Mentions).`, "ok");
+      } else if (d.type === "TAG_VIEW_NEED_DATA") {
+        // Proaktiv nachreichen und persistieren
+        if (Array.isArray(__last_lx_preview) && __last_lx_preview.length) {
+          try { localStorage.setItem("tag:last_lx_preview", JSON.stringify(__last_lx_preview)); } catch(_){}
+          try { __tag_win && __tag_win.postMessage({ type: "TAG_VIEW_LOAD", lxPreview: __last_lx_preview }, "*"); } catch(_){}
+        }
+      }
+    } catch (_) {}
   });
 
   // Initial config list fetch

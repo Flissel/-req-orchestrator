@@ -499,3 +499,4 @@ python -m arch_team.autogen_rac
 - Routes reference: `docs/backend/ROUTES.md`
 - FastAPI migration: `README_FASTAPI.md`
 - Backend v2 (LangExtract fixes): `backend_app_v2/README.md`
+- merk dir den stand wir machen einen kurzen ausflug
