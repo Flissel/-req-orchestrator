@@ -1,7 +1,8 @@
 # arch_team Usage Analysis Report
 
 **Generated:** 2025-11-06
-**Purpose:** Identify unused files in arch_team directory and analyze external dependencies
+**Updated:** 2025-11-06 (added backend_app_fastapi analysis)
+**Purpose:** Identify unused files in arch_team directory, analyze external dependencies, and audit root directory usage
 
 ---
 
@@ -11,6 +12,8 @@
 - **Unused files identified:** 14 files (24% of codebase)
 - **Potentially unused (dev/experimental):** 4 files
 - **External root directory dependencies:** 2 (backend_app, backend_app_v2)
+- **Abandoned root directory:** backend_app_fastapi/ (early prototype, superseded)
+- **arch_team tools connect to:** backend_app_v2:8087 (validation) + arch_team/service:8000 (mining/RAG/KG)
 
 ---
 
@@ -297,6 +300,76 @@ External Dependencies:
 
 ---
 
+## 9. backend_app_fastapi/ Directory Analysis
+
+### Contents
+
+**Single file:** `backend_app_fastapi/api_fast.py` (191 lines)
+
+**Intended Purpose:** FastAPI port/backup of Flask endpoints from `backend_app/api.py`
+
+**Intended Port:** 8084
+```bash
+uvicorn backend_app_fastapi.api_fast:app --host 0.0.0.0 --port 8084
+```
+
+**Endpoints provided:**
+- `GET /health` - Health check
+- `GET /api/runtime-config` - Runtime configuration
+- `GET /api/v1/criteria` - List evaluation criteria
+- `POST /api/v1/evaluations` - Evaluate single requirement (with LLM)
+
+### Status: UNUSED ❌
+
+**Evidence:**
+1. ❌ Not referenced anywhere in the codebase
+2. ❌ Not documented in CLAUDE.md or README files
+3. ❌ No Docker/startup scripts for port 8084
+4. ❌ No arch_team tools use these endpoints
+5. ✓ Superseded by backend_app_v2/ (port 8087)
+
+### Why arch_team Doesn't Use It
+
+**arch_team tools connect to different services:**
+
+| Tool Module | API Base | Port | Endpoints Used |
+|-------------|----------|------|----------------|
+| validation_tools.py | backend_app_v2 | 8087 | `/api/v2/evaluate/single`<br>`/api/v1/validate/batch`<br>`/api/v1/validate/suggest` |
+| mining_tools.py | arch_team/service | 8000 | `/api/mining/upload` |
+| rag_tools.py | arch_team/service | 8000 | `/api/rag/duplicates`<br>`/api/rag/search`<br>`/api/rag/cluster` |
+| kg_tools.py | arch_team/service | 8000 | `/api/kg/build`<br>`/api/kg/search/nodes`<br>`/api/kg/neighbors` |
+
+**backend_app_fastapi provides:**
+- Only `/api/v1/evaluations` (NOT `/api/v2/evaluate/single` that validation_tools needs)
+- No batch validation
+- No suggestions API
+- No mining/RAG/KG endpoints
+
+### Comparison to Active Services
+
+| Feature | backend_app_fastapi (8084) | backend_app_v2 (8087) | arch_team/service (8000) |
+|---------|---------------------------|----------------------|-------------------------|
+| Status | ❌ Unused | ✓ Active | ✓ Active |
+| Documentation | None | Full in CLAUDE.md | Full in CLAUDE.md |
+| Validation | Single only | Batch + streaming | N/A |
+| LangExtract | No | Yes | N/A |
+| RAG | No | Yes | Yes (via tools) |
+| Mining | No | No | Yes |
+| KG | No | No | Yes |
+| Used by arch_team | No | Yes | Yes |
+
+### Recommendation
+
+**backend_app_fastapi/** appears to be an **early/abandoned FastAPI prototype** that was replaced by the more comprehensive **backend_app_v2/** implementation.
+
+**Action:** Safe to delete
+- Zero references in codebase
+- Zero documentation
+- All functionality superseded
+- No production usage
+
+---
+
 ## Files to Keep
 
 **Production (26 files):**
@@ -329,8 +402,25 @@ These scripts can be run again to verify cleanup progress.
 
 ## Conclusion
 
+### arch_team Cleanup
+
 The arch_team module has **24% unused code** that can be safely removed:
 - 10 core unused files
 - 4 dev/experimental files
 
-The module depends on 2 root directories (backend_app, backend_app_v2) and maintains two parallel workflow systems (Master Agent + EventBus). Cleanup of unused files will improve maintainability without affecting production functionality.
+The module depends on 2 root directories (backend_app, backend_app_v2) and maintains two parallel workflow systems (Master Agent + EventBus).
+
+### backend_app_fastapi/ Removal
+
+The **backend_app_fastapi/** directory (1 file, 191 lines) is an abandoned prototype that can be safely deleted:
+- Zero references in codebase
+- Not used by arch_team agents
+- All functionality superseded by backend_app_v2/
+- No documentation or startup scripts
+
+### Summary
+
+**Total cleanup opportunity:**
+- 14 files in arch_team/ (24% of module)
+- 1 directory (backend_app_fastapi/) at root level
+- Cleanup will improve maintainability without affecting production functionality
