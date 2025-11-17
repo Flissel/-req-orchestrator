@@ -18,7 +18,7 @@ from autogen_core import DefaultTopicId
 from autogen_ext.runtimes.grpc import GrpcWorkerAgentRuntime
 
 # Test Imports
-from backend_app.agents import (
+from backend.core.agents import (
     RequirementsEvaluatorAgent,
     RequirementsSuggestionAgent,
     RequirementsRewriteAgent,
@@ -27,8 +27,8 @@ from backend_app.agents import (
     SuggestionResult,
     RewriteResult
 )
-from backend_app.db_async import get_db_async, save_evaluation_async
-from backend_app.llm_async import llm_evaluate_async, llm_suggest_async, llm_rewrite_async
+from backend.core.db_async import get_db_async, save_evaluation_async
+from backend.core.llm_async import llm_evaluate_async, llm_suggest_async, llm_rewrite_async
 from fastapi_main import app
 
 # Test Configuration

@@ -25,8 +25,8 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 from .ports import EmbeddingsPort, PersistencePort, RequestContext, ServiceError, LLMPort, safe_request_id
 from .adapters import EmbeddingsAdapter, PersistenceAdapter
 from .adapters import LLMAdapter
-from backend_app import utils as _utils
-from backend_app import settings as _settings
+from backend.core import utils as _utils
+from backend.core import settings as _settings
 
 
 class EvaluationService:

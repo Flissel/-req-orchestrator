@@ -11,7 +11,7 @@ from ..model.openai_adapter import OpenAIAdapter
 from .req_worker import ReqWorkerAgent
 
 # Reuse ingestion helpers directly to avoid Qdrant dependency during mining
-from backend_app.ingest import extract_texts, chunk_payloads  # noqa: E402
+from backend.core.ingest import extract_texts, chunk_payloads  # noqa: E402
 
 logger = get_logger("agents.chunk_miner")
 

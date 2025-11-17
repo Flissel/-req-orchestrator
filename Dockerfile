@@ -39,7 +39,7 @@ CMD ["sh","-lc","exec gunicorn -b 0.0.0.0:8081 wsgi:app --timeout 300 --workers 
 # -------- Production: FastAPI (Uvicorn) --------
 FROM base AS production-fastapi
 ENV API_HOST=0.0.0.0 \
-    API_PORT=8000 \
+    API_PORT=8087 \
     SQLITE_PATH=/app/data/app.db
 # Runtime-Dependencies aus deps_fastapi übernehmen
 COPY --from=deps_fastapi /usr/local /usr/local
@@ -50,11 +50,11 @@ RUN useradd --create-home --shell /bin/bash app \
  && mkdir -p /app/data \
  && chown -R app:app /app/data
 USER app
-EXPOSE 8000
+EXPOSE 8087
 HEALTHCHECK --interval=30s --timeout=5s --retries=5 \
-  CMD curl -sf http://localhost:8000/health || exit 1
-# Start (Uvicorn mit FastAPI v2 App)
-CMD ["uvicorn","backend_app_v2.main:fastapi_app","--host","0.0.0.0","--port","8000","--workers","4"]
+  CMD curl -sf http://localhost:8087/health || exit 1
+# Start (Uvicorn with consolidated backend)
+CMD ["uvicorn","backend.main:fastapi_app","--host","0.0.0.0","--port","8087","--workers","4"]
 
 # -------- Worker (optional, gRPC/Agents) --------
 FROM base AS worker

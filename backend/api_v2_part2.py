@@ -15,12 +15,12 @@ from flask import jsonify, request
 from .api_v2 import api_bp, build_chunks_absatz, _lx_default_config, _normalize_lx_result
 
 # Reuse Backend-Bausteine innerhalb v2
-from backend_app import settings
-from backend_app.ingest import extract_texts, chunk_payloads
-from backend_app.embeddings import build_embeddings, get_embeddings_dim
-from backend_app.vector_store import get_qdrant_client, upsert_points
+from backend.core import settings
+from backend.core.ingest import extract_texts, chunk_payloads
+from backend.core.embeddings import build_embeddings, get_embeddings_dim
+from backend.core.vector_store import get_qdrant_client, upsert_points
 # ÄNDERN: Zusatz‑Importe für Reset/Search (Qdrant)
-from backend_app.vector_store import reset_collection as vs_reset_collection, search as vs_search
+from backend.core.vector_store import reset_collection as vs_reset_collection, search as vs_search
 
 # Optional: LangExtract global import (verhindert NameError bei fehlender Lib)
 try:
@@ -30,7 +30,7 @@ except Exception:  # pragma: no cover
 
 # Logging helper
 try:
-    from backend_app.logging_ext import _json_log as json_log
+    from backend.core.logging_ext import _json_log as json_log
 except Exception:  # pragma: no cover
     def json_log(logger, level, event, **fields):  # type: ignore
         try:
@@ -1548,7 +1548,7 @@ def lx_evaluate():
         if use_embeddings and pred_texts and gold_strs:
             try:
                 # reuse embedding model used in ingest
-                from backend_app.embeddings import build_embeddings as _be
+                from backend.core.embeddings import build_embeddings as _be
                 pred_vecs = _be(pred_texts, model=getattr(settings, "EMBEDDINGS_MODEL", "text-embedding-3-small"))
                 gold_vecs = _be(gold_strs, model=getattr(settings, "EMBEDDINGS_MODEL", "text-embedding-3-small"))
             except Exception:
@@ -2338,7 +2338,7 @@ def lx_config_preview_v2():
         cfg = _lx_load_config(cid)
         schema = None
         try:
-            from backend_app.rag import StructuredRequirement
+            from backend.core.rag import StructuredRequirement
             schema = StructuredRequirement.schema()
         except Exception:
             # Fallback: Kein Schema verfügbar, aber Config liefern

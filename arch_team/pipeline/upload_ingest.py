@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Sequence, Union
 from ..runtime.logging import get_logger
 
 # Reuse existing helpers from the project
-from backend_app.ingest import extract_texts, chunk_payloads
-from backend_app.embeddings import build_embeddings, get_embeddings_dim
+from backend.core.ingest import extract_texts, chunk_payloads
+from backend.core.embeddings import build_embeddings, get_embeddings_dim
 
 logger = get_logger("pipeline.upload_ingest")
 

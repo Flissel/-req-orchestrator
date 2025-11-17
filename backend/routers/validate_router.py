@@ -9,18 +9,18 @@ import concurrent.futures as futures
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from backend_app.batch import (
+from backend.core.batch import (
     process_evaluations,
     process_rewrites,
     process_suggestions,
     ensure_evaluation_exists,
 )
-from backend_app.db import get_db, load_criteria
-from backend_app.llm import llm_rewrite, llm_suggest
-from backend_app import settings
-from backend_app_v2 import schemas
-from backend_app_v2.schemas import ValidateItemResult, ValidateSuggestResponse, EvaluateSingleRequest, EvaluateSingleResponse, EvaluateBatchRequestV2, EvaluateBatchItem, ErrorResponse
-from backend_app_v2.services import EvaluationService, RequestContext, ServiceError
+from backend.core.db import get_db, load_criteria
+from backend.core.llm import llm_rewrite, llm_suggest
+from backend.core import settings
+from backend import schemas
+from backend.schemas import ValidateItemResult, ValidateSuggestResponse, EvaluateSingleRequest, EvaluateSingleResponse, EvaluateBatchRequestV2, EvaluateBatchItem, ErrorResponse
+from backend.services import EvaluationService, RequestContext, ServiceError
 
 router = APIRouter(tags=["validate"])
 

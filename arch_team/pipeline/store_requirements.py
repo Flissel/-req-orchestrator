@@ -5,7 +5,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ..runtime.logging import get_logger
-from backend_app.embeddings import build_embeddings, get_embeddings_dim
+from backend.core.embeddings import build_embeddings, get_embeddings_dim
 
 logger = get_logger("pipeline.store_requirements")
 

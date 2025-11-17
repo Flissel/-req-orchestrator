@@ -34,8 +34,8 @@ from .vector_store import (
 from .memory import MemoryStore
 from .rag import StructuredRequirement
 
-from backend_app_v2.services import EvaluationService, RequestContext, ServiceError  # type: ignore
-from backend_app_v2.services.adapters import LLMAdapter  # type: ignore
+from backend.services import EvaluationService, RequestContext, ServiceError  # type: ignore
+from backend.services.adapters import LLMAdapter  # type: ignore
 
 api_bp = Blueprint("api", __name__)
 
@@ -217,8 +217,8 @@ def process_requirement_parallel(requirement_text: str, criteria_keys: List[str]
 # -----------------------
 # v1 Validate – dünne Wrapper auf Service-Layer (Parität)
 # -----------------------
-from backend_app_v2.services import EvaluationService, RequestContext, ServiceError  # type: ignore
-from backend_app_v2.services.adapters import LLMAdapter  # type: ignore
+from backend.services import EvaluationService, RequestContext, ServiceError  # type: ignore
+from backend.services.adapters import LLMAdapter  # type: ignore
 from flask import stream_with_context  # Streaming-Helfer aus Flask
 
 def _request_ctx() -> RequestContext:

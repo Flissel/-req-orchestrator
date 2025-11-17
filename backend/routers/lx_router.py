@@ -10,12 +10,12 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 
-from backend_app import settings
-from backend_app.ingest import extract_texts, chunk_payloads
+from backend.core import settings
+from backend.core.ingest import extract_texts, chunk_payloads
 # Absatzbasiertes Chunking (v2-Hilfsfunktion)
-from backend_app_v2.api_v2 import build_chunks_absatz
+from backend.api_v2 import build_chunks_absatz
 # Reuse v2-Helfer – wir verwenden die bereits etablierte Normalisierung/Speicherlogik
-from backend_app_v2.api_v2_part2 import (
+from backend.api_v2_part2 import (
     _lx_load_config,
     _lx_examples_to_sdk,
     _lx_preview_from_payloads,
@@ -37,7 +37,7 @@ def lx_config_preview_v2(id: Optional[str] = None) -> JSONResponse:
         schema = None
         try:
             # Optionales Schema (falls verfügbar)
-            from backend_app.rag import StructuredRequirement  # type: ignore
+            from backend.core.rag import StructuredRequirement  # type: ignore
             schema = StructuredRequirement.schema()
         except Exception:
             schema = None

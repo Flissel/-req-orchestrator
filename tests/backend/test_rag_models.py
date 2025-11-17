@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from backend_app.rag import StructuredRequirement, EvaluationItem, SuggestionItem
+from backend.core.rag import StructuredRequirement, EvaluationItem, SuggestionItem
 
 
 def test_from_validate_item_alias_corrected_text():

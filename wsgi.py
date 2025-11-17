@@ -5,7 +5,7 @@ Exportiert die Variable 'app' aus backend_app.
 """
 
 import os
-from backend_app import app as app  # Gunicorn Entry: wsgi:app
+from backend.core import app as app  # Gunicorn Entry: wsgi:app
 
 if __name__ == "__main__":
     # Optionaler Direktstart (Entwicklung)

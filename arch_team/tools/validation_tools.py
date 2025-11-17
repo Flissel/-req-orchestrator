@@ -19,7 +19,7 @@ from ..runtime.logging import get_logger
 logger = get_logger("tools.validation")
 
 # API Base URL (from arch_team.service or backend_app_v2)
-API_BASE = os.environ.get("VALIDATION_API_BASE", "http://localhost:8087")
+API_BASE = os.environ.get("VALIDATION_API_BASE", "http://localhost:8000")
 
 
 def evaluate_requirement(
@@ -49,7 +49,7 @@ def evaluate_requirement(
         url = f"{API_BASE}/api/v2/evaluate/single"
         payload = {
             "text": requirement_text,
-            "criteria_keys": criteria_keys or ["clarity", "testability", "measurability"]
+            "criteria_keys": criteria_keys  # Let backend use its DEFAULT_CRITERIA_KEYS (all 10)
         }
 
         logger.info(f"Evaluating requirement via {url}")
@@ -273,3 +273,6 @@ VALIDATION_TOOLS = [
     suggest_improvements,
     detect_duplicates,
 ]
+
+# Alias for lowercase import compatibility
+validation_tools = VALIDATION_TOOLS

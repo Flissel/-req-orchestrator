@@ -26,7 +26,7 @@ import json
 import logging
 import hashlib  # für sticky Variant-Berechnung
 # Import für Runtime-Config
-from backend_app.settings import get_runtime_config as get_runtime_config_v1
+from backend.core.settings import get_runtime_config as get_runtime_config_v1
 
 # Erstelle FastAPI-App als Wrapper
 fastapi_app = FastAPI(

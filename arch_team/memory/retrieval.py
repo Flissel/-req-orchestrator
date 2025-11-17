@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from ..runtime.logging import get_logger
 
 # Wir nutzen vorhandene Embedding-Helfer
-from backend_app.embeddings import build_embeddings, get_embeddings_dim
+from backend.core.embeddings import build_embeddings, get_embeddings_dim
 
 logger = get_logger("memory.retrieval")
 

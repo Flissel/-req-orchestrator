@@ -37,8 +37,8 @@ from arch_team.agents.kg_agent import KGAbstractionAgent
 from arch_team.memory.qdrant_kg import QdrantKGClient
 
 # Validation Services (backend_app_v2)
-from backend_app_v2.services import EvaluationService, RequestContext, ServiceError
-from backend_app.llm import llm_suggest, llm_rewrite
+from backend.core_v2.services import EvaluationService, RequestContext, ServiceError
+from backend.core.llm import llm_suggest, llm_rewrite
 # Projektverzeichnisse
 PROJECT_DIR = Path(__file__).resolve().parent.parent  # .../test (Projektwurzel)
 FRONTEND_DIR = PROJECT_DIR / "frontend"               # .../test/frontend

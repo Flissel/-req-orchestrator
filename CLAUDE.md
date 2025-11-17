@@ -8,10 +8,13 @@ This is a **Requirements Engineering System** combining Flask (legacy) and FastA
 
 ### Core Components
 
-**Backend (Dual Stack)**
-- **Flask (legacy)**: `backend_app/` - original API with validation, batch processing, RAG
-- **FastAPI (v2)**: `backend_app_v2/` - enhanced version with LangExtract fixes, routers for LX/structure/gold/validate/vector/corrections/batch
-- **Hybrid Entry**: `backend_app_v2/main.py` mounts Flask via WSGIMiddleware under FastAPI, unified on port 8087
+**Backend (Consolidated)**
+- **Unified Backend**: `backend/` - Production-ready FastAPI+Flask hybrid on port **8087**
+  - `backend/core/` - Shared business logic (db, llm, vector_store, embeddings, etc.)
+  - `backend/services/` - Service layer (evaluation, batch, corrections, vector, RAG)
+  - `backend/routers/` - FastAPI routers (LX, structure, gold, validate, vector, corrections, batch)
+  - `backend/legacy/` - Original Flask code (for reference, will be phased out)
+- **Hybrid Entry**: `backend/main.py` mounts Flask via WSGIMiddleware, provides backward compatibility
 
 **Multi-Agent System**
 - `arch_team/` - AutoGen-based agent orchestration for requirements analysis
@@ -23,7 +26,7 @@ This is a **Requirements Engineering System** combining Flask (legacy) and FastA
 - TAG Viewer: `dev/external/TextAnnotationGraphs/` for annotation visualization
 
 **Data Layer**
-- SQLite: evaluation/suggestion/rewriting persistence (schema in `backend_app/db.py`)
+- SQLite: evaluation/suggestion/rewriting persistence (schema in `backend/core/db.py`)
 - Qdrant: vector store for RAG (Docker Compose setup in `docker-compose.qdrant.yml`)
 
 ## Common Development Commands
@@ -38,7 +41,7 @@ python wsgi.py
 
 **Start FastAPI v2 backend (recommended)**
 ```bash
-python -m uvicorn backend_app_v2.main:fastapi_app --host 0.0.0.0 --port 8087 --reload
+python -m uvicorn backend.main:fastapi_app --host 0.0.0.0 --port 8087 --reload
 # Access at http://localhost:8087
 # OpenAPI docs: http://localhost:8087/docs
 ```
@@ -102,7 +105,7 @@ pytest tests/backend/test_rag_models.py::test_specific_function -v
 2. Canary/Feature flag logic determines variant (v1/v2) - currently v2 at 100%
 3. FastAPI routers handle `/api/v1/lx/*`, `/api/v1/structure/*`, etc.
 4. Flask WSGI mount handles legacy routes like `/api/v1/evaluations`
-5. Services layer (`backend_app_v2/services/`) encapsulates business logic
+5. Services layer (`backend/services/`) encapsulates business logic
 6. Persistence via SQLite (`backend_app/db.py`) or Qdrant vector store
 
 ### Validation Pipeline
@@ -110,11 +113,11 @@ pytest tests/backend/test_rag_models.py::test_specific_function -v
 ```
 POST /api/v1/validate/batch
   ↓
-backend_app.api.validate_batch_optimized() [api.py:599]
+backend.core.api.validate_batch_optimized() [api.py:599]
   ↓
-backend_app.batch.ensure_evaluation_exists() [batch.py:28]
+backend.core.batch.ensure_evaluation_exists() [batch.py:28]
   ↓
-backend_app.llm.llm_evaluate() / llm_rewrite() / llm_suggest() [llm.py]
+backend.core.llm.llm_evaluate() / llm_rewrite() / llm_suggest() [llm.py]
   ↓
 Persist to SQLite (evaluation, evaluation_detail, suggestion tables)
   ↓
@@ -123,7 +126,7 @@ Return: {originalText, correctedText, evaluation[], score, verdict, suggestions?
 
 ### LangExtract (Requirements Mining)
 
-Located in `backend_app_v2/routers/lx_router.py` - extracts structured requirements from documents.
+Located in `backend/routers/lx_router.py` - extracts structured requirements from documents.
 
 **Key endpoints:**
 - `POST /api/v1/lx/extract` - mine requirements with chunking strategies
@@ -146,13 +149,13 @@ Located in `backend_app_v2/routers/lx_router.py` - extracts structured requireme
 ```
 POST /api/v1/files/ingest (multipart files)
   ↓
-backend_app.ingest.extract_texts() [ingest.py:230]
+backend.core.ingest.extract_texts() [ingest.py:230]
   ↓
-backend_app.ingest.chunk_payloads() [ingest.py:287]
+backend.core.ingest.chunk_payloads() [ingest.py:287]
   ↓
-backend_app.embeddings.build_embeddings() [embeddings.py:59]
+backend.core.embeddings.build_embeddings() [embeddings.py:59]
   ↓
-backend_app.vector_store.upsert_points() [vector_store.py:109]
+backend.core.vector_store.upsert_points() [vector_store.py:109]
   ↓
 Qdrant collection
 ```
@@ -186,7 +189,7 @@ cp .env.example .env
 # Edit .env - critical vars:
 # - OPENAI_API_KEY (leave empty for MOCK_MODE)
 # - OPENAI_MODEL (default: gpt-4o-mini)
-# - QDRANT_URL, QDRANT_PORT (default: http://host.docker.internal:6335)
+# - QDRANT_URL, QDRANT_PORT (default: http://host.docker.internal:6401)
 # - SQLITE_PATH (default: /app/data/app.db)
 ```
 
@@ -224,25 +227,25 @@ GET /livez         # Liveness probe
 ## Important Code Locations
 
 **App initialization:**
-- Flask: `backend_app.__init__.create_app()` [__init__.py:13]
-- FastAPI: `backend_app_v2.main.fastapi_app` [main.py:32]
+- Flask: `backend.core.__init__.create_app()` [__init__.py:13]
+- FastAPI: `backend.main.fastapi_app` [main.py:32]
 
 **Core validation:**
-- `backend_app.api.validate_batch_optimized()` [api.py:599]
-- `backend_app.batch.ensure_evaluation_exists()` [batch.py:28]
+- `backend.core.api.validate_batch_optimized()` [api.py:599]
+- `backend.core.batch.ensure_evaluation_exists()` [batch.py:28]
 
 **LLM integration:**
-- `backend_app.llm.llm_evaluate()` [llm.py:102]
-- `backend_app.llm.llm_suggest()` [llm.py:158]
-- `backend_app.llm.llm_apply_with_suggestions()` [llm.py:339]
+- `backend.core.llm.llm_evaluate()` [llm.py:102]
+- `backend.core.llm.llm_suggest()` [llm.py:158]
+- `backend.core.llm.llm_apply_with_suggestions()` [llm.py:339]
 
 **Database:**
-- Schema DDL: `backend_app.db.DDL` [db.py:11]
-- Migrations: `backend_app.db.ensure_schema_migrations()` [db.py:84]
+- Schema DDL: `backend.core.db.DDL` [db.py:11]
+- Migrations: `backend.core.db.ensure_schema_migrations()` [db.py:84]
 
 **Vector store:**
-- `backend_app.vector_store.get_qdrant_client()` [vector_store.py:41]
-- `backend_app.vector_store.search()` [vector_store.py:151]
+- `backend.core.vector_store.get_qdrant_client()` [vector_store.py:41]
+- `backend.core.vector_store.search()` [vector_store.py:151]
 
 **Frontend:**
 - Batch UI: `frontend/app_optimized.js`
@@ -399,7 +402,8 @@ ARCH_REFLECTION_ROUNDS=1             # 1=single pass, >1=reflection
 CHUNK_MINER_NEIGHBORS=1              # enable neighbor evidence
 
 # Qdrant (shared)
-QDRANT_URL=http://localhost:6333
+QDRANT_URL=http://localhost          # or http://host.docker.internal for Docker
+QDRANT_PORT=6401                     # docker-compose maps container 6333 to host 6401
 QDRANT_API_KEY=
 QDRANT_COLLECTION=requirements_v2    # for RAG retrieval
 # KG collections: kg_nodes_v1, kg_edges_v1, arch_trace (auto-created)
@@ -475,7 +479,7 @@ python -m arch_team.autogen_rac
 **LangExtract returns 0 extractions:**
 - Check chunking mode: use `chunkMode=paragraph` for better results
 - Verify prompt config: `GET /api/v1/lx/config/get?id=default`
-- Enable debug: check logs in `backend_app_v2/routers/lx_router.py`
+- Enable debug: check logs in `backend/routers/lx_router.py`
 
 **Qdrant connection fails:**
 - Port fallback: tries 6333 then 6401 (see `vector_store.py:41`)
@@ -483,12 +487,12 @@ python -m arch_team.autogen_rac
 - Standalone: `docker-compose -f docker-compose.qdrant.yml up`
 
 **CORS issues:**
-- Global preflight handler: `backend_app.__init__._global_api_preflight()` [__init__.py:37]
-- FastAPI CORS: configured in `backend_app_v2/main.py:38` (allow_origins=["*"])
+- Global preflight handler: `backend.core.__init__._global_api_preflight()` [__init__.py:37]
+- FastAPI CORS: configured in `backend/main.py:38` (allow_origins=["*"])
 
 **Mock mode (no API key):**
 - Set `MOCK_MODE=true` or leave `OPENAI_API_KEY` empty
-- Heuristic evaluation: `backend_app.llm._heuristic_mock_evaluation()` [llm.py:18]
+- Heuristic evaluation: `backend.core.llm._heuristic_mock_evaluation()` [llm.py:18]
 - Suggestions may be empty in mock mode
 
 ## Additional Documentation
@@ -498,5 +502,5 @@ python -m arch_team.autogen_rac
 - Backend details: `docs/backend/README.md`
 - Routes reference: `docs/backend/ROUTES.md`
 - FastAPI migration: `README_FASTAPI.md`
-- Backend v2 (LangExtract fixes): `backend_app_v2/README.md`
+- Backend v2 (LangExtract fixes): `backend/README.md`
 - merk dir den stand wir machen einen kurzen ausflug

@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 from .ports import RequestContext, ServiceError, safe_request_id
 
 # Legacy/Shared LLM-Implementierung
-from backend_app.llm import llm_apply_with_suggestions as _llm_apply_with_suggestions
+from backend.core.llm import llm_apply_with_suggestions as _llm_apply_with_suggestions
 
 
 class CorrectionsService:

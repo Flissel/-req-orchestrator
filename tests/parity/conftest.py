@@ -29,7 +29,7 @@ def clients(tmp_path) -> Tuple[Any, Any]:
 
     # DB initialisieren (DDL)
     try:
-        from backend_app.db import init_db
+        from backend.core.db import init_db
         init_db()
     except Exception:
         # Fallback: manche Setups haben init_db implizit via App-Fabrik
@@ -125,7 +125,7 @@ def clients(tmp_path) -> Tuple[Any, Any]:
 
     # FastAPI-App (v2) laden
     from fastapi.testclient import TestClient
-    from backend_app_v2.main import fastapi_app
+    from backend.core_v2.main import fastapi_app
     fastapi_client = TestClient(fastapi_app)
 
     return flask_client, fastapi_client
@@ -204,7 +204,7 @@ def patch_vector(monkeypatch) -> Callable[[], None]:
 
         # Ebenso: gebundene Namen im FastAPI-Vector-Router patchen
         try:
-            import backend_app_v2.routers.vector_router as vr  # noqa: F401
+            import backend.routers.vector_router as vr  # noqa: F401
             # Vector-Store gebundene Funktionen
             monkeypatch.setattr(vr, "vs_list_collections", _fake_list_collections, raising=False)
             monkeypatch.setattr(vr, "vs_health", _fake_healthcheck, raising=False)

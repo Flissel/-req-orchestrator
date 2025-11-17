@@ -11,7 +11,7 @@ from ..runtime.cot_postprocessor import extract_blocks
 from ..runtime.logging import get_logger
 from ..memory.retrieval import Retriever
 from ..memory.qdrant_trace_sink import QdrantTraceSink
-from backend_app.rag import StructuredRequirement  # DTO-Erzeugung
+from backend.core.rag import StructuredRequirement  # DTO-Erzeugung
 from ..workbench.workbench import Workbench
 
 logger = get_logger("agents.solver")

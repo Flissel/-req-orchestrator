@@ -24,7 +24,7 @@ from .ports import EmbeddingsPort, VectorStorePort, RequestContext, ServiceError
 from .adapters import EmbeddingsAdapter, VectorStoreAdapter
 
 # Defaults/Settings aus Legacy-Settings beziehen (nur Werte, keine Framework-Kopplung)
-from backend_app import settings as _settings
+from backend.core import settings as _settings
 
 
 class VectorService:

@@ -177,16 +177,16 @@ async def startup_checks():
     
     try:
         # AutoGen Import testen
-        from backend_app.agents import RequirementsEvaluatorAgent
+        from backend.core.agents import RequirementsEvaluatorAgent
         console.print("✅ AutoGen Agents verfügbar", style="green")
         
         # Database Check
-        from backend_app.db_async import get_db_async
+        from backend.core.db_async import get_db_async
         db = await get_db_async()
         console.print("✅ Database-Verbindung OK", style="green")
         
         # LLM Check
-        from backend_app.llm_async import test_llm_connection_async
+        from backend.core.llm_async import test_llm_connection_async
         llm_ok = await test_llm_connection_async()
         if llm_ok:
             console.print("✅ LLM-Verbindung OK", style="green")

@@ -7,9 +7,9 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
-from backend_app import settings
+from backend.core import settings
 # Service-Layer
-from backend_app_v2.services.vector_service import VectorService
+from backend.services.vector_service import VectorService
 
 # Initialisiere Service einmal (Adapter nutzen backend_app.* Implementierungen)
 _vector_service = VectorService()

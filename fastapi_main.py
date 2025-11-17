@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from autogen_ext.runtimes.grpc import GrpcWorkerAgentRuntimeHost, GrpcWorkerAgentRuntime
 from autogen_core import DefaultSubscription, DefaultTopicId
 
-from backend_app.agents import (
+from backend.core.agents import (
     RequirementsEvaluatorAgent,
     RequirementsSuggestionAgent, 
     RequirementsRewriteAgent,
@@ -37,9 +37,9 @@ from backend_app.agents import (
 )
 
 # Import bestehender Module (angepasst für async)
-from backend_app.db_async import get_db_async, load_criteria_async
-from backend_app.llm_async import llm_evaluate_async, llm_suggest_async, llm_rewrite_async
-from backend_app.utils import compute_verdict, sha256_text, weighted_score
+from backend.core.db_async import get_db_async, load_criteria_async
+from backend.core.llm_async import llm_evaluate_async, llm_suggest_async, llm_rewrite_async
+from backend.core.utils import compute_verdict, sha256_text, weighted_score
 
 logger = logging.getLogger(__name__)
 

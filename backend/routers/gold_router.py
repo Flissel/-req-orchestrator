@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from backend_app.embeddings import build_embeddings  # optional für embeddings-gestützte Evaluation
-from backend_app_v2.api_v2_part2 import (
+from backend.core.embeddings import build_embeddings  # optional für embeddings-gestützte Evaluation
+from backend.api_v2_part2 import (
     _lx_gold_dir,
     _lx_gold_path,
     _lx_results_dir,

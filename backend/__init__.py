@@ -7,10 +7,10 @@ LangExtract-Fixes implementiert
 from flask import Flask, request, send_from_directory, jsonify
 from flask_cors import CORS
 
-from backend_app import settings
-from backend_app.db import init_db
+from backend.core import settings
+from backend.core.db import init_db
 from .api_v2 import api_bp
-from backend_app.batch import batch_bp
+from backend.legacy.batch import batch_bp
 from pathlib import Path
 
 def create_app() -> Flask:
@@ -49,7 +49,7 @@ def create_app() -> Flask:
         return {n: _module_available(n) for n in names}
 
     # Logging/Middleware registrieren
-    from backend_app.logging_ext import setup_logging, register_request_logging, log_runtime_config_once
+    from backend.core.logging_ext import setup_logging, register_request_logging, log_runtime_config_once
     logger = setup_logging()
     register_request_logging(app, logger)
     log_runtime_config_once(logger)

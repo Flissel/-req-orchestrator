@@ -4,9 +4,9 @@ from __future__ import annotations
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from backend_app import settings
-from backend_app.utils import parse_requirements_md
-from backend_app.batch import (
+from backend.core import settings
+from backend.core.utils import parse_requirements_md
+from backend.core.batch import (
     process_evaluations,
     process_suggestions,
     process_rewrites,

@@ -14,17 +14,17 @@ import textwrap
 import re
 
 from flask import Blueprint, jsonify, request, g, make_response
-from backend_app.logging_ext import _json_log as json_log
+from backend.core.logging_ext import _json_log as json_log
 
-from backend_app import settings
-from backend_app.db import get_db, load_criteria, get_latest_rewrite_row_for_eval, get_latest_evaluation_by_checksum
-from backend_app.llm import llm_evaluate, llm_suggest, llm_rewrite, llm_apply_with_suggestions
-from backend_app.utils import compute_verdict, sha256_text, weighted_score, parse_requirements_md, chunked
+from backend.core import settings
+from backend.core.db import get_db, load_criteria, get_latest_rewrite_row_for_eval, get_latest_evaluation_by_checksum
+from backend.core.llm import llm_evaluate, llm_suggest, llm_rewrite, llm_apply_with_suggestions
+from backend.core.utils import compute_verdict, sha256_text, weighted_score, parse_requirements_md, chunked
 
 # RAG/Vector-Ingest
-from backend_app.ingest import extract_texts, chunk_payloads
-from backend_app.embeddings import build_embeddings, get_embeddings_dim
-from backend_app.vector_store import (
+from backend.core.ingest import extract_texts, chunk_payloads
+from backend.core.embeddings import build_embeddings, get_embeddings_dim
+from backend.core.vector_store import (
     get_qdrant_client,
     upsert_points,
     search as vs_search,
@@ -33,8 +33,8 @@ from backend_app.vector_store import (
     fetch_window_by_source_and_index,
     reset_collection as vs_reset_collection,
 )
-from backend_app.memory import MemoryStore
-from backend_app.rag import StructuredRequirement
+from backend.core.memory import MemoryStore
+from backend.core.rag import StructuredRequirement
 
 api_bp = Blueprint("api", __name__)
 

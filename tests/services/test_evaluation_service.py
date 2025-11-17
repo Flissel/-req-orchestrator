@@ -2,8 +2,8 @@
 import pytest
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
-from backend_app_v2.services.evaluation_service import EvaluationService
-from backend_app_v2.services.ports import RequestContext, ServiceError
+from backend.core_v2.services.evaluation_service import EvaluationService
+from backend.core_v2.services.ports import RequestContext, ServiceError
 
 
 class FakePersistence:

@@ -30,8 +30,8 @@ from .ports import (
 )
 
 # Bestehende Modul-Funktionen aus Legacy/Shared-Code
-from backend_app.embeddings import build_embeddings as _build_embeddings, get_embeddings_dim as _get_dim
-from backend_app.vector_store import (
+from backend.core.embeddings import build_embeddings as _build_embeddings, get_embeddings_dim as _get_dim
+from backend.core.vector_store import (
     list_collections as _vs_list_collections,
     healthcheck as _vs_health,
     reset_collection as _vs_reset_collection,
@@ -40,16 +40,16 @@ from backend_app.vector_store import (
     fetch_window_by_source_and_index as _vs_fetch_window_by_source_and_index,
 )
 # DB Functions
-from backend_app.db import get_db as _get_db, load_criteria as _db_load_criteria
+from backend.core.db import get_db as _get_db, load_criteria as _db_load_criteria
 
 # Optional vorhanden (DDL/Migrationen)
 try:
-    from backend_app.db import ensure_schema_migrations as _db_ensure_schema
+    from backend.core.db import ensure_schema_migrations as _db_ensure_schema
 except Exception:  # pragma: no cover
     _db_ensure_schema = None
 
 # LLM-Implementierungen (Legacy)
-from backend_app.llm import (
+from backend.core.llm import (
     llm_evaluate as _llm_evaluate,
     llm_suggest as _llm_suggest,
     llm_rewrite as _llm_rewrite,

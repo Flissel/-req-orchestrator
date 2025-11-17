@@ -6,15 +6,15 @@ from typing import Any, Dict, List, Tuple, Optional
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from backend_app.db import (
+from backend.core.db import (
     get_db,
     load_criteria,
     get_latest_rewrite_row_for_eval,
     get_latest_evaluation_by_checksum,
 )
-from backend_app.llm import llm_apply_with_suggestions
-from backend_app.utils import sha256_text
-from backend_app.batch import ensure_evaluation_exists
+from backend.core.llm import llm_apply_with_suggestions
+from backend.core.utils import sha256_text
+from backend.core.batch import ensure_evaluation_exists
 
 router = APIRouter(tags=["corrections"])
 
@@ -95,7 +95,7 @@ async def save_correction_text_v2(request: Request) -> JSONResponse:
         return JSONResponse(content={"error": "internal_error", "message": str(e)}, status_code=500)
 
 
-from backend_app.llm import llm_rewrite
+from backend.core.llm import llm_rewrite
 @router.post("/api/v1/corrections/apply")
 async def apply_corrections_v2(request: Request) -> JSONResponse:
     """

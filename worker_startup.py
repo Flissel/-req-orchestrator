@@ -19,7 +19,7 @@ sys.path.insert(0, str(project_root))
 from autogen_ext.runtimes.grpc import GrpcWorkerAgentRuntime
 from autogen_core import DefaultSubscription
 
-from backend_app.agents import (
+from backend.core.agents import (
     RequirementsEvaluatorAgent,
     RequirementsSuggestionAgent,
     RequirementsRewriteAgent,

@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 
-from backend_app.ingest import extract_texts
-from backend_app_v2.api_v2_part2 import (
+from backend.core.ingest import extract_texts
+from backend.api_v2_part2 import (
     _analyze_structure,
     _build_graph_from_components,
 )
