@@ -11,7 +11,7 @@ oder:
 
 ENV:
 - MODEL_NAME: Default Modellname (z. B. "gpt-4o-mini")
-- APP_PORT: Port (Default 8000)
+- ARCH_TEAM_PORT: Port (Default 8000) [replaces deprecated APP_PORT]
 - CHUNK_MINER_NEIGHBORS: "1|true|yes|on" um Nachbarschafts-Evidenz per Default zu aktivieren
 """
 from __future__ import annotations
@@ -23,11 +23,22 @@ from pathlib import Path
 from typing import List, Dict, Any
 import threading
 import json
-from queue import Queue
+import logging
+from queue import Queue, Empty
 
 from flask import Flask, request, jsonify, send_from_directory, redirect, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
+
+# Import centralized port configuration
+try:
+    from backend.core.ports import get_ports
+    _ports = get_ports()
+except ImportError:
+    _ports = None
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # Import des Mining-Agents
 from arch_team.agents.chunk_miner import ChunkMinerAgent
@@ -36,16 +47,34 @@ from arch_team.agents.chunk_miner import ChunkMinerAgent
 from arch_team.agents.kg_agent import KGAbstractionAgent
 from arch_team.memory.qdrant_kg import QdrantKGClient
 
-# Validation Services (backend_app_v2)
-from backend.core_v2.services import EvaluationService, RequestContext, ServiceError
+# Validation Services (consolidated backend)
+from backend.services import EvaluationService, RequestContext, ServiceError
 from backend.core.llm import llm_suggest, llm_rewrite
+
+# Manifest Integration
+from backend.services.manifest_integration import create_manifests_from_chunkminer
+from backend.core import db as _db
 # Projektverzeichnisse
 PROJECT_DIR = Path(__file__).resolve().parent.parent  # .../test (Projektwurzel)
 FRONTEND_DIR = PROJECT_DIR / "frontend"               # .../test/frontend
 
 app = Flask(__name__, static_folder=None)
 CORS(app)
-load_dotenv()
+# Load .env from project root explicitly
+# Use override=True to force loading even if empty env var exists
+load_dotenv(PROJECT_DIR / ".env", override=True)
+
+# Debug: Check if API key loaded correctly
+api_key_status = "SET" if os.environ.get("OPENAI_API_KEY") else "MISSING"
+print(f"[service.py] OPENAI_API_KEY status after load_dotenv: {api_key_status}")
+
+# Initialize database schema if needed (for validation endpoints)
+from backend.core.db import init_db
+try:
+    init_db()
+    print("[service.py] Database initialized successfully")
+except Exception as e:
+    print(f"[service.py] Database initialization warning: {e}")
 
 # Global registry for SSE clarification streams
 # {session_id: Queue}
@@ -68,6 +97,12 @@ def _file_to_record(fs) -> Dict[str, Any]:
     data = fs.read() or b""
     ct = fs.mimetype or mimetypes.guess_type(filename)[0] or ""
     return {"filename": filename, "data": data, "content_type": ct}
+
+
+@app.route("/health", methods=["GET"])
+def health_check():
+    """Basic health check endpoint for monitoring and testing."""
+    return jsonify({"status": "ok", "service": "arch_team"}), 200
 
 
 @app.route("/api/mining/upload", methods=["POST"])
@@ -132,10 +167,24 @@ def mining_upload():
             chunk_options=chunk_options
         )
 
+        # Create manifests in database
+        manifest_ids = []
+        try:
+            conn = _db.get_db()
+            try:
+                manifest_ids = create_manifests_from_chunkminer(conn, items)
+                logger.info(f"[mining] Created {len(manifest_ids)} manifests")
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.warning(f"[mining] Manifest creation failed: {e}")
+            # Continue anyway - manifests are optional
+
         return jsonify({
             "success": True,
             "count": len(items),
-            "items": items
+            "items": items,
+            "manifest_ids": manifest_ids
         })
 
     except Exception as e:
@@ -1175,13 +1224,17 @@ def clarification_stream():
             # Send initial connection event
             yield f"data: {json.dumps({'type': 'connected', 'session_id': session_id})}\n\n"
 
-            # Stream events from queue
+            # Stream events from queue with timeout
             while True:
-                msg = q.get()  # Blocks until message available
-                if msg is None:  # Shutdown signal
-                    break
-                print(f"[SSE] Sending to {session_id}: {msg}")
-                yield f"data: {json.dumps(msg)}\n\n"
+                try:
+                    msg = q.get(timeout=30)  # Timeout after 30 seconds
+                    if msg is None:  # Shutdown signal
+                        break
+                    print(f"[SSE] Sending to {session_id}: {msg}")
+                    yield f"data: {json.dumps(msg)}\n\n"
+                except Empty:
+                    # Send keepalive ping every 30 seconds
+                    yield f"data: {json.dumps({'type': 'ping'})}\n\n"
         except GeneratorExit:
             print(f"[SSE] Client disconnected for session {session_id}")
         finally:
@@ -1219,13 +1272,17 @@ def workflow_stream():
             # Send initial connection event
             yield f"data: {json.dumps({'type': 'connected', 'session_id': session_id})}\n\n"
 
-            # Stream events from queue
+            # Stream events from queue with timeout
             while True:
-                msg = q.get()  # Blocks until message available
-                if msg is None:  # Shutdown signal
-                    break
-                print(f"[Workflow SSE] Sending to {session_id}: {msg.get('type', 'unknown')}")
-                yield f"data: {json.dumps(msg)}\n\n"
+                try:
+                    msg = q.get(timeout=30)  # Timeout after 30 seconds
+                    if msg is None:  # Shutdown signal
+                        break
+                    print(f"[Workflow SSE] Sending to {session_id}: {msg.get('type', 'unknown')}")
+                    yield f"data: {json.dumps(msg)}\n\n"
+                except Empty:
+                    # Send keepalive ping every 30 seconds
+                    yield f"data: {json.dumps({'type': 'ping'})}\n\n"
         except GeneratorExit:
             print(f"[Workflow SSE] Client disconnected for session {session_id}")
         finally:
@@ -1364,13 +1421,34 @@ def arch_team_process():
         "result": {...}  # Complete workflow results
       }
     """
+    import sys
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
+    logger.error("[arch_team_process] === FUNCTION ENTERED ===")
+    sys.stderr.write("[arch_team_process] === FUNCTION ENTERED ===\n")
+    sys.stderr.flush()
+
     try:
         # Parse multipart form data
         files = request.files.getlist('files')
         correlation_id = request.form.get('correlation_id')
         model = request.form.get('model', 'gpt-4o-mini')
-        chunk_size = int(request.form.get('chunk_size', 800))
-        chunk_overlap = int(request.form.get('chunk_overlap', 200))
+
+        # Safely parse chunk_size with fallback
+        chunk_size_raw = request.form.get('chunk_size', '800')
+        try:
+            chunk_size = int(chunk_size_raw) if chunk_size_raw and chunk_size_raw != 'undefined' else 800
+        except ValueError:
+            chunk_size = 800
+
+        # Safely parse chunk_overlap with fallback
+        chunk_overlap_raw = request.form.get('chunk_overlap', '200')
+        try:
+            chunk_overlap = int(chunk_overlap_raw) if chunk_overlap_raw and chunk_overlap_raw != 'undefined' else 200
+        except ValueError:
+            chunk_overlap = 200
+
         use_llm_kg = request.form.get('use_llm_kg', 'true').lower() in ('true', '1', 'yes', 'on')
         validation_threshold = float(request.form.get('validation_threshold', 0.7))
 
@@ -1379,7 +1457,14 @@ def arch_team_process():
         if not correlation_id:
             return jsonify({"error": "correlation_id required"}), 400
 
-        print(f"[MasterWorkflow] Starting with {len(files)} file(s) (session: {correlation_id})")
+        import sys
+        sys.stderr.write(f"[MasterWorkflow] Starting with {len(files)} file(s) (session: {correlation_id})\n")
+        sys.stderr.flush()
+
+        # Debug: Check API key status before workflow
+        api_key_check = os.environ.get("OPENAI_API_KEY", "")
+        sys.stderr.write(f"[MasterWorkflow] OPENAI_API_KEY length before workflow: {len(api_key_check)}\n")
+        sys.stderr.flush()
 
         # Save uploaded files temporarily
         import tempfile
@@ -1418,13 +1503,23 @@ def arch_team_process():
         return jsonify(result)
 
     except Exception as e:
-        print(f"[MasterWorkflow] Error: {e}")
+        import sys
         import traceback
-        traceback.print_exc()
+        error_msg = f"[MasterWorkflow] Error: {e}"
+        traceback_str = traceback.format_exc()
+
+        # Log to multiple outputs to ensure visibility
+        print(error_msg)
+        print(traceback_str)
+        sys.stderr.write(f"{error_msg}\n")
+        sys.stderr.write(f"{traceback_str}\n")
+        sys.stderr.flush()
+
         return jsonify({
             "success": False,
             "workflow_status": "failed",
-            "error": str(e)
+            "error": str(e),
+            "traceback": traceback_str
         }), 500
 
 
@@ -1462,7 +1557,8 @@ def create_app() -> Flask:
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("APP_PORT", "8000"))
+    # Use centralized port configuration with legacy fallback
+    port = _ports.ARCH_TEAM_PORT if _ports else int(os.environ.get("ARCH_TEAM_PORT", os.environ.get("APP_PORT", "8000")))
     # Hinweis: Für Produktion eher über WSGI/ASGI-Server starten (gunicorn/uvicorn).
     print(f"[service] FRONTEND_DIR={FRONTEND_DIR.resolve()}")
     print("[service] Try: http://localhost:%d/frontend/mining_demo.html" % port)
