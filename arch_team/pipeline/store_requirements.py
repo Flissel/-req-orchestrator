@@ -7,6 +7,13 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from ..runtime.logging import get_logger
 from backend.core.embeddings import build_embeddings, get_embeddings_dim
 
+# Import centralized port configuration
+try:
+    from backend.core.ports import get_ports
+    _ports = get_ports()
+except ImportError:
+    _ports = None
+
 logger = get_logger("pipeline.store_requirements")
 
 
@@ -94,7 +101,8 @@ def store_isolated_requirements(items: List[Dict[str, Any]], *, collection: str 
 
     QdrantClient, qmodels = _lazy_import_qdrant()
 
-    qdrant_url = os.environ.get("QDRANT_URL") or "http://localhost:6333"
+    # Use centralized port configuration with legacy fallback
+    qdrant_url = _ports.QDRANT_FULL_URL if _ports else (os.environ.get("QDRANT_URL") or "http://localhost:6333")
     qdrant_api_key = os.environ.get("QDRANT_API_KEY") or None
     client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
 

@@ -86,9 +86,10 @@ def create_model_client(model_name: str, api_key: str, temperature: float):
 from . import autogen_tools as rac_tools
 
 # .env laden (optional/robust)
+# Use override=True to force loading even if empty env var exists
 try:
     from dotenv import load_dotenv  # type: ignore
-    load_dotenv()
+    load_dotenv(override=True)
 except Exception:
     pass
 

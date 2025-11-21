@@ -37,8 +37,18 @@ from pydantic import BaseModel, Field
 # Konfiguration
 # -------------------------------------------------------
 
+# Import centralized port configuration
+try:
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from backend.core.ports import get_ports
+    _ports = get_ports()
+except ImportError:
+    _ports = None
+
 BACKEND_BASE_URL = os.environ.get("BACKEND_BASE_URL", "http://backend:8081").rstrip("/")
-PORT = int(os.environ.get("PORT", "8090"))
+# Use centralized port configuration with legacy fallback
+PORT = _ports.AGENT_WORKER_PORT if _ports else int(os.environ.get("AGENT_WORKER_PORT", os.environ.get("PORT", "8090")))
 
 app = FastAPI(title="Agent Worker", version="0.1.0")
 

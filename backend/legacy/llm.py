@@ -295,7 +295,7 @@ def llm_suggest(requirement_text: str, context: Dict[str, Any]) -> List[Dict[str
                 "metrics": metrics,
                 "criteria": {
                     "atomic": True, "clarity": True, "concise": True, "consistent_language": True,
-                    "design_independent": True, "follows_template": True, "measurability": True,
+                    "design_independent": True, "measurability": True,
                     "purpose_independent": True, "testability": True, "unambiguous": True
                 },
                 "notes": notes or ""

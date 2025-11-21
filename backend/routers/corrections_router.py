@@ -14,7 +14,7 @@ from backend.core.db import (
 )
 from backend.core.llm import llm_apply_with_suggestions
 from backend.core.utils import sha256_text
-from backend.core.batch import ensure_evaluation_exists
+from backend.legacy.batch import ensure_evaluation_exists
 
 router = APIRouter(tags=["corrections"])
 

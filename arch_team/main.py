@@ -74,9 +74,10 @@ def run_chunk_miner_cli(paths: List[str], model: str | None, neighbor_refs: bool
 
 async def main() -> None:
     # ENV laden (optional)
+    # Use override=True to force loading even if empty env var exists
     if load_dotenv:
         try:
-            load_dotenv()
+            load_dotenv(override=True)
         except Exception:
             pass
 

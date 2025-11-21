@@ -8,6 +8,13 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..runtime.logging import get_logger
 from backend.core.embeddings import build_embeddings, get_embeddings_dim
 
+# Import centralized port configuration
+try:
+    from backend.core.ports import get_ports
+    _ports = get_ports()
+except ImportError:
+    _ports = None
+
 logger = get_logger("memory.qdrant_kg")
 
 
@@ -44,17 +51,22 @@ class QdrantKGClient:
         edges_collection: str = "kg_edges_v1",
         dim: Optional[int] = None,
     ) -> None:
-        # URL/Port-Zusammensetzung analog zu arch_team.memory.retrieval.Retriever
-        env_url = os.environ.get("QDRANT_URL")
-        env_port = os.environ.get("QDRANT_PORT")
+        # URL/Port-Zusammensetzung with centralized port configuration
         if qdrant_url:
             self.qdrant_url = qdrant_url
         else:
-            if env_url and env_port and "://" in env_url and ":" not in env_url.split("://", 1)[1]:
-                self.qdrant_url = f"{env_url}:{env_port}"
+            # Use centralized port configuration if available
+            if _ports:
+                self.qdrant_url = _ports.QDRANT_FULL_URL
             else:
-                # Fallback-HTTP-Port (falls Primary 6333 nicht erreichbar): 6401
-                self.qdrant_url = env_url or "http://localhost:6401"
+                # Legacy fallback
+                env_url = os.environ.get("QDRANT_URL")
+                env_port = os.environ.get("QDRANT_PORT")
+                if env_url and env_port and "://" in env_url and ":" not in env_url.split("://", 1)[1]:
+                    self.qdrant_url = f"{env_url}:{env_port}"
+                else:
+                    # Fallback-HTTP-Port (falls Primary 6333 nicht erreichbar): 6401
+                    self.qdrant_url = env_url or "http://localhost:6401"
 
         self.api_key = api_key or os.environ.get("QDRANT_API_KEY") or None
         self.nodes_collection = nodes_collection

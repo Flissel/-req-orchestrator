@@ -1,14 +1,114 @@
 [
-  { "key": "clarity",              "name": "Klarheit",             "description": "Ist die Anforderung eindeutig und verständlich",                            "weight": 0.10, "active": true },
-  { "key": "testability",          "name": "Testbarkeit",          "description": "Kann die Anforderung verifiziert werden",                                   "weight": 0.10, "active": true },
-  { "key": "measurability",        "name": "Messbarkeit",          "description": "Sind messbare Kriterien definiert",                                         "weight": 0.10, "active": true },
+  {
+    "key": "atomic",
+    "name": "Atomar",
+    "description": "Enthält die Anforderung genau eine Aussage",
+    "weight": 0.20,
+    "tier": "gating",
+    "threshold": 0.80,
+    "failFast": true,
+    "action": "Split into separate requirements for each concern",
+    "active": true
+  },
+  {
+    "key": "clarity",
+    "name": "Klarheit",
+    "description": "Ist die Anforderung eindeutig und verständlich",
+    "weight": 0.15,
+    "tier": "gating",
+    "threshold": 0.80,
+    "failFast": false,
+    "action": "Use user story format: As a [role], I want [action] so that [benefit]",
+    "active": true
+  },
+  {
+    "key": "testability",
+    "name": "Testbarkeit",
+    "description": "Kann die Anforderung verifiziert werden",
+    "weight": 0.15,
+    "tier": "gating",
+    "threshold": 0.80,
+    "failFast": false,
+    "action": "Add specific acceptance criteria that can be tested",
+    "active": true
+  },
 
-  { "key": "atomic",               "name": "Atomar",               "description": "Enthält die Anforderung genau eine Aussage",                                "weight": 0.10, "active": true },
-  { "key": "concise",              "name": "Konzis",               "description": "Ist die Anforderung knapp und ohne überflüssige Informationen formuliert", "weight": 0.10, "active": true },
-  { "key": "unambiguous",          "name": "Eindeutig",            "description": "Vermeidet mehrdeutige Begriffe und Interpretationsspielraum",               "weight": 0.10, "active": true },
-  { "key": "consistent_language",  "name": "Konsistente Sprache",  "description": "Ist die Sprache konsistent (Terminologie, Grammatik, Spracheinstellung)",    "weight": 0.10, "active": true },
+  {
+    "key": "design_independent",
+    "name": "Designunabhängig",
+    "description": "Vermeidet Implementierungsdetails",
+    "weight": 0.12,
+    "tier": "priority",
+    "threshold": 0.70,
+    "failFast": false,
+    "action": "Remove technology names and move implementation details to technical notes",
+    "active": true
+  },
+  {
+    "key": "unambiguous",
+    "name": "Eindeutig",
+    "description": "Vermeidet mehrdeutige Begriffe und Interpretationsspielraum",
+    "weight": 0.12,
+    "tier": "priority",
+    "threshold": 0.70,
+    "failFast": false,
+    "action": "Replace vague terms (quickly, easily, user-friendly) with specific metrics",
+    "active": true
+  },
 
-  { "key": "follows_template",     "name": "Template-konform",     "description": "Folgt die Anforderung dem vorgegebenen Template",                           "weight": 0.10, "active": true },
-  { "key": "design_independent",   "name": "Designunabhängig",     "description": "Vermeidet Implementierungsdetails",                                          "weight": 0.10, "active": true },
-  { "key": "purpose_independent",  "name": "Zweckunabhängig",      "description": "Beschreibt das Was statt das Warum/Wie",                                      "weight": 0.10, "active": true }
+  {
+    "key": "concise",
+    "name": "Konzis",
+    "description": "Ist die Anforderung knapp und ohne überflüssige Informationen formuliert",
+    "weight": 0.08,
+    "tier": "polish",
+    "threshold": 0.60,
+    "failFast": false,
+    "action": "Reduce to <50 words; move details to acceptance criteria section",
+    "active": true
+  },
+  {
+    "key": "consistent_language",
+    "name": "Konsistente Sprache",
+    "description": "Ist die Sprache konsistent (Terminologie, Grammatik, Spracheinstellung)",
+    "weight": 0.08,
+    "tier": "polish",
+    "threshold": 0.60,
+    "failFast": false,
+    "action": "Use project glossary terms consistently; pick one language",
+    "active": true
+  },
+  {
+    "key": "measurability",
+    "name": "Messbarkeit",
+    "description": "Sind messbare Kriterien definiert",
+    "weight": 0.05,
+    "tier": "polish",
+    "threshold": 0.60,
+    "failFast": false,
+    "action": "Add quantifiable metrics (time, percentage, count) where applicable",
+    "active": true
+  },
+  {
+    "key": "purpose_independent",
+    "name": "Zweckunabhängig",
+    "description": "Beschreibt das Was statt das Warum/Wie",
+    "weight": 0.05,
+    "tier": "polish",
+    "threshold": 0.60,
+    "failFast": false,
+    "action": "Move business goals to separate success metrics section",
+    "active": true
+  },
+  {
+    "key": "follows_template",
+    "name": "Template-Konform",
+    "description": "Folgt dem Standard-Anforderungsformat (Subject + modal verb + action)",
+    "weight": 0.00,
+    "tier": "polish",
+    "threshold": 0.60,
+    "failFast": false,
+    "action": "Use format: The [system/user] must/shall/should [action] [condition]",
+    "active": true
+  }
 ]

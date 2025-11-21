@@ -25,6 +25,7 @@ from backend.core.agents import (
     RequirementsRewriteAgent,
     RequirementsOrchestratorAgent,
     RequirementsMonitorAgent,
+    RequirementsAtomicityAgent,
     register_all_message_serializers
 )
 
@@ -139,7 +140,19 @@ class WorkerManager:
                 DefaultSubscription(agent_type=f"requirements_monitor_{self.worker_id}")
             )
             logger.info("Requirements Monitor Agent registriert")
-            
+
+        elif self.worker_type == 'atomicity':
+            # Atomicity Agent (checks and splits non-atomic requirements)
+            await RequirementsAtomicityAgent.register(
+                self.runtime,
+                f"requirements_atomicity_{self.worker_id}",
+                lambda: RequirementsAtomicityAgent(f"Docker_Atomicity_{self.worker_id}")
+            )
+            await self.runtime.add_subscription(
+                DefaultSubscription(agent_type=f"requirements_atomicity_{self.worker_id}")
+            )
+            logger.info("Requirements Atomicity Agent registriert")
+
         else:
             raise ValueError(f"Unbekannter Worker-Typ: {self.worker_type}")
     

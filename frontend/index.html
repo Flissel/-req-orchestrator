@@ -6,17 +6,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="./styles.css">
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <!-- Centralized API configuration -->
+  <script src="./config.js"></script>
   <script>
-    // Basis-URL für das Backend (kann bei Bedarf überschrieben werden)
-    // Frontend läuft auf 8081 (nginx), Backend laut docker-compose auf 5000.
-    // Cross-Origin ist erlaubt; app_optimized.js nutzt window.API_BASE bevorzugt.
-    window.API_BASE = window.API_BASE || "http://localhost:8087";
+    // Backward compatibility: set window.API_BASE from centralized config
+    // app_optimized.js will use window.API_BASE
+    window.API_BASE = window.API_CONFIG ? window.API_CONFIG.BACKEND_URL : "http://localhost:8087";
   </script>
 </head>
 <body>
   <header>
     <h1>Requirements Evaluator</h1>
-    <p>Backend: <span class="mono">http://localhost:8087</span> | Frontend läuft via Nginx (Port 8081)</p>
+    <p>Backend: <span class="mono" id="backend-url">...</span> | Frontend läuft via Nginx (Port 8081)</p>
+    <script>
+      // Display actual backend URL
+      document.getElementById('backend-url').textContent = window.API_BASE;
+    </script>
   </header>
 
   <main>

@@ -6,7 +6,8 @@ import json
 from dotenv import load_dotenv
 
 # Load from .env if present
-load_dotenv()
+# Use override=True to force loading even if empty env var exists
+load_dotenv(override=True)
 
 # Core API runtime
 API_HOST = os.environ.get("API_HOST", "0.0.0.0")

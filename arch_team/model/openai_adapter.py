@@ -36,7 +36,7 @@ class OpenAIAdapter(IChatClient):
         model_name = model or self.default_model
         temp = float(temperature) if temperature is not None else float(os.environ.get("ARCH_TEMPERATURE", "0.2"))
 
-        # Versuch: neues SDK (>=1.0)
+        # Versuch: neues SDK (>=1.0) - this should always work with openai>=1.0
         try:
             from openai import OpenAI  # type: ignore
             client = OpenAI(api_key=api_key)
@@ -48,26 +48,33 @@ class OpenAIAdapter(IChatClient):
                 tools=tools,
                 **kwargs,
             )
-            content = (resp.choices[0].message.content or "").strip()
+            # If tools are used and LLM called a function, return the full response
+            message = resp.choices[0].message
+            if tools and message.tool_calls:
+                return resp
+            # Otherwise return just the content string (backward compatibility)
+            content = (message.content or "").strip()
             return content
-        except ModuleNotFoundError:
+        except ImportError:
+            # Only fall back to legacy if new SDK is not installed
             pass
         except Exception as e:
-            # Fallback auf Legacy versuchen, außer bei klaren Auth/Quota-Fehlern
-            if "status_code" in str(e).lower() or "401" in str(e) or "invalid api key" in str(e).lower():
-                raise
+            # If we have the new SDK but it failed, re-raise the error
+            # Don't fall back to legacy when using openai>=1.0
+            raise RuntimeError(f"OpenAI API call failed: {e}")
 
-        # Versuch: legacy SDK (<1.0)
+        # Legacy fallback - should only be reached if openai>=1.0 is not installed
+        # This code path should not be reached in production with openai>=1.0
         try:
             import openai  # type: ignore
             openai.api_key = api_key
             resp = openai.ChatCompletion.create(model=model_name, messages=messages, temperature=temp)
             content = (resp["choices"][0]["message"]["content"] or "").strip()
             return content
-        except ModuleNotFoundError:
+        except (ImportError, AttributeError) as e:
+            # ChatCompletion doesn't exist in openai>=1.0
             raise RuntimeError(
-                "openai Python SDK nicht installiert. Bitte 'pip install openai' ausführen (>=1.0 bevorzugt)."
+                f"openai Python SDK version mismatch. Please use 'pip install openai>=1.0'. Error: {e}"
             )
         except Exception as e:
-            # Einheitliche, verständliche Fehlermeldung
             raise RuntimeError(f"OpenAI Chat-Aufruf fehlgeschlagen: {e}")

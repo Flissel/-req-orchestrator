@@ -18,11 +18,25 @@ from .adapters import (
     LLMAdapter,
 )
 
-# Services
-from .vector_service import VectorService
-from .batch_service import BatchService
-from .evaluation_service import EvaluationService
-from .corrections_service import CorrectionsService
+# Services - Lazy imports to avoid circular dependencies (PEP 562)
+def __getattr__(name):
+    """Lazy import services to avoid circular imports"""
+    if name == "VectorService":
+        from .vector_service import VectorService
+        return VectorService
+    elif name == "BatchService":
+        from .batch_service import BatchService
+        return BatchService
+    elif name == "EvaluationService":
+        from .evaluation_service import EvaluationService
+        return EvaluationService
+    elif name == "CorrectionsService":
+        from .corrections_service import CorrectionsService
+        return CorrectionsService
+    elif name == "ManifestService":
+        from .manifest_service import ManifestService
+        return ManifestService
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
     # Ports
@@ -37,9 +51,10 @@ __all__ = [
     "VectorStoreAdapter",
     "PersistenceAdapter",
     "LLMAdapter",
-    # Services
+    # Services (lazy loaded)
     "VectorService",
     "BatchService",
     "EvaluationService",
     "CorrectionsService",
+    "ManifestService",
 ]

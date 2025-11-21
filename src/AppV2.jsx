@@ -7,7 +7,6 @@ import RequirementsTable from './components/RequirementsTable'
 import KnowledgeGraph from './components/KnowledgeGraph'
 import ManifestViewer from './components/ManifestViewer'
 import ValidationModal from './components/ValidationModal'
-import BatchValidationModal from './components/BatchValidationModal'
 import ToastNotification from './components/ToastNotification'
 import ValidationTab from './components/ValidationTab'
 
@@ -289,15 +288,85 @@ function AppV2() {
     setBatchValidationQueue(failingReqs)
   }
 
-  const handleBatchValidationComplete = (results) => {
+  // Rebuild Knowledge Graph with current requirements
+  const rebuildKnowledgeGraph = async (reqs) => {
+    if (!reqs || reqs.length === 0) return
+
+    try {
+      addLog('🔄 Updating Knowledge Graph...')
+      updateAgentStatus('kg', 'active', 'Rebuilding KG')
+
+      const response = await fetch(`${API_BASE}/api/kg/build`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: reqs.map(r => ({
+            req_id: r.req_id,
+            title: r.title || r.text,
+            tag: r.tag || 'General',
+            evidence_refs: r.evidence_refs || []
+          })),
+          options: {
+            persist: 'qdrant',
+            use_llm: false,
+            llm_fallback: true,
+            persist_async: true
+          }
+        })
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        setKgData({ nodes: data.nodes || [], edges: data.edges || [] })
+        addLog(`✅ Knowledge Graph updated: ${data.nodes?.length || 0} nodes, ${data.edges?.length || 0} edges`)
+        updateAgentStatus('kg', 'complete', 'KG updated')
+      } else {
+        throw new Error(data.message || 'KG build failed')
+      }
+    } catch (err) {
+      console.error('[AppV2] KG rebuild error:', err)
+      addLog(`❌ KG rebuild failed: ${err.message}`)
+      updateAgentStatus('kg', 'error', 'KG rebuild failed')
+    }
+  }
+
+  // Handle inline validation complete from ValidationDetailPanel
+  const handleInlineValidationComplete = async (reqId, result) => {
+    // Update the specific requirement
+    const updatedRequirements = requirements.map(req => {
+      if (req.req_id === reqId) {
+        return {
+          ...req,
+          validation_score: result.final_score,
+          validation_passed: result.passed,
+          validation_fixes: result.total_fixes,
+          title: result.final_text || req.title,
+          corrected_text: result.final_text
+        }
+      }
+      return req
+    })
+
+    setRequirements(updatedRequirements)
+    addLog(`✅ Validation complete for ${reqId}: Score ${(result.final_score * 100).toFixed(0)}%`)
+
+    // Auto-rebuild KG with updated requirements
+    await rebuildKnowledgeGraph(updatedRequirements)
+  }
+
+  const handleBatchValidationComplete = async (results) => {
     // Update requirements with new validation scores
-    setRequirements(prev => prev.map(req => {
+    const updatedRequirements = requirements.map(req => {
       const updated = results.find(r => r.req_id === req.req_id)
       return updated ? { ...req, ...updated } : req
-    }))
+    })
 
+    setRequirements(updatedRequirements)
     setBatchValidationQueue(null)
     addLog(`✅ Batch validation completed`)
+
+    // Auto-rebuild KG with updated requirements
+    await rebuildKnowledgeGraph(updatedRequirements)
   }
 
   const handleAutoValidateConfirm = () => {
@@ -380,6 +449,7 @@ function AppV2() {
               requirements={requirements}
               onRequirementClick={handleRequirementClick}
               onValidateAll={handleStartBatchValidation}
+              onValidationComplete={handleInlineValidationComplete}
             />
           </div>
         )}
@@ -419,15 +489,6 @@ function AppV2() {
           requirement={validatingRequirement}
           sessionId={`val-${Date.now()}`}
           onClose={() => setValidatingRequirement(null)}
-        />
-      )}
-
-      {batchValidationQueue && (
-        <BatchValidationModal
-          requirements={batchValidationQueue}
-          sessionId={`batch-${Date.now()}`}
-          onClose={() => setBatchValidationQueue(null)}
-          onComplete={handleBatchValidationComplete}
         />
       )}
 

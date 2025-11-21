@@ -50,11 +50,11 @@ if [ -f ".env" ]; then
         echo "  → Edit .env and add your OpenAI API key"
     fi
 
-    if grep -q "QDRANT_PORT=6401" .env; then
-        print_ok "QDRANT_PORT is set to 6401 (docker-compose)"
+    # Check for new standardized port variables
+    if grep -qE "^(QDRANT_PORT|BACKEND_PORT|ARCH_TEAM_PORT)" .env; then
+        print_ok "Port configuration variables detected"
     else
-        print_fail "QDRANT_PORT not set correctly"
-        echo "  → Should be 6401 for docker-compose"
+        print_info "Using default port configuration"
     fi
 else
     print_fail ".env file not found"
@@ -86,20 +86,25 @@ fi
 # 3. Check services
 print_header "3. Required Services"
 
-# Check Qdrant (port 6401)
-if curl -s http://localhost:6401/collections > /dev/null 2>&1; then
-    COLLECTIONS=$(curl -s http://localhost:6401/collections | grep -o '"name"' | wc -l)
-    print_ok "Qdrant is running on port 6401 ($COLLECTIONS collections)"
+# Load environment variables with defaults
+QDRANT_PORT=${QDRANT_PORT:-6333}
+ARCH_TEAM_PORT=${ARCH_TEAM_PORT:-8000}
+BACKEND_PORT=${BACKEND_PORT:-8087}
+
+# Check Qdrant
+if curl -s http://localhost:${QDRANT_PORT}/collections > /dev/null 2>&1; then
+    COLLECTIONS=$(curl -s http://localhost:${QDRANT_PORT}/collections | grep -o '"name"' | wc -l)
+    print_ok "Qdrant is running on port ${QDRANT_PORT} ($COLLECTIONS collections)"
 else
-    print_fail "Qdrant not reachable on port 6401"
+    print_fail "Qdrant not reachable on port ${QDRANT_PORT}"
     echo "  → Run: docker-compose -f docker-compose.qdrant.yml up -d"
 fi
 
-# Check arch_team service (port 8000)
-if curl -s http://localhost:8000/health > /dev/null 2>&1; then
-    print_ok "arch_team service is running on port 8000"
+# Check arch_team service
+if curl -s http://localhost:${ARCH_TEAM_PORT}/health > /dev/null 2>&1; then
+    print_ok "arch_team service is running on port ${ARCH_TEAM_PORT}"
 else
-    print_fail "arch_team service not reachable on port 8000"
+    print_fail "arch_team service not reachable on port ${ARCH_TEAM_PORT}"
     echo "  → Run: python -m arch_team.service"
 fi
 
@@ -113,11 +118,11 @@ fi
 # 4. Optional services
 print_header "4. Optional Services"
 
-if curl -s http://localhost:8087/health > /dev/null 2>&1; then
-    print_ok "FastAPI v2 backend is running on port 8087"
+if curl -s http://localhost:${BACKEND_PORT}/health > /dev/null 2>&1; then
+    print_ok "FastAPI backend is running on port ${BACKEND_PORT}"
 else
-    print_info "FastAPI v2 backend not running (optional)"
-    echo "  → Run: python -m uvicorn backend_app_v2.main:fastapi_app --port 8087"
+    print_info "FastAPI backend not running (optional)"
+    echo "  → Run: python -m uvicorn backend.main:fastapi_app --port ${BACKEND_PORT}"
 fi
 
 # Summary

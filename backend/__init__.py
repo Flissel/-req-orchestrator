@@ -105,8 +105,9 @@ def create_app() -> Flask:
     def _global_cors_preflight(_):
         return ("", 204)
 
-    # DB initialisieren
-    init_db()
+    # DB initialisieren (lazy - only when app is actually used)
+    # Moved to avoid import-time initialization issues
+    # init_db()
 
     # Statische Auslieferung des Frontends
     @app.get("/")
@@ -161,5 +162,6 @@ def create_app() -> Flask:
 
     return app
 
-# Export für Gunicorn
+# Export für Gunicorn und FastAPI WSGI mount
+# Create app instance for import
 app = create_app()

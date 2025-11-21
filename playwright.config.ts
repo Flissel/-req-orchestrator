@@ -3,20 +3,13 @@ import { defineConfig } from '@playwright/test';
 const BASE: string = (globalThis as any)?.process?.env?.PLAYWRIGHT_BASE_URL ?? 'http://localhost:4173';
 
 export default defineConfig({
-  testDir: 'tests/ui',
-  timeout: 60_000,
-  expect: { timeout: 5_000 },
-  fullyParallel: true,
+  testDir: 'tests/e2e',
+  timeout: 90_000,
+  expect: { timeout: 10_000 },
+  fullyParallel: false,
   reporter: 'list',
   use: {
-    baseURL: BASE,
+    baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
-  },
-  webServer: {
-    // Serve static frontend for tests. Uses npx to avoid adding a dep.
-    command: 'npx -y http-server ./frontend -p 4173 -c-1',
-    url: BASE,
-    timeout: 120_000,
-    reuseExistingServer: true,
   },
 });

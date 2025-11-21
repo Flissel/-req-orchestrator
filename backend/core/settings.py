@@ -6,11 +6,21 @@ import json
 from dotenv import load_dotenv
 
 # Load from .env if present
-load_dotenv()
+# Use override=True to force loading even if empty env var exists
+load_dotenv(override=True)
+
+# Import centralized port configuration
+try:
+    from backend.core.ports import get_ports
+    _ports = get_ports()
+except ImportError:
+    # Fallback if ports module not available yet (during initial setup)
+    _ports = None
 
 # Core API runtime
 API_HOST = os.environ.get("API_HOST", "0.0.0.0")
-API_PORT = int(os.environ.get("API_PORT", "8081"))
+# Use centralized port configuration with legacy fallback
+API_PORT = _ports.BACKEND_PORT if _ports else int(os.environ.get("API_PORT", "8087"))
 
 # LLM Settings
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
@@ -23,9 +33,9 @@ MOCK_MODE = os.environ.get("MOCK_MODE", "false").lower() in ("1", "true", "yes")
 SQLITE_PATH = os.environ.get("SQLITE_PATH", "app.db")
 PURGE_RETENTION_H = int(os.environ.get("PURGE_RETENTION_H", "24"))
 
-# Vektor-DB (Qdrant)
-QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost")
-QDRANT_PORT = int(os.environ.get("QDRANT_PORT", "6333"))
+# Vektor-DB (Qdrant) - Use centralized configuration
+QDRANT_URL = _ports.QDRANT_URL if _ports else os.environ.get("QDRANT_URL", "http://localhost")
+QDRANT_PORT = _ports.QDRANT_PORT if _ports else int(os.environ.get("QDRANT_PORT", "6333"))
 QDRANT_COLLECTION = os.environ.get("QDRANT_COLLECTION", "requirements_v1")
 
 # Batch and files

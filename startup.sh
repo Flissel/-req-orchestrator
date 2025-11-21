@@ -12,7 +12,7 @@ mkdir -p /data
 if [ ! -f "/data/app.db" ]; then
     echo "Initializing database..."
     python -c "
-from backend_app.db import init_db
+from backend.core.db import init_db
 try:
     init_db()
     print('Database initialized successfully')
@@ -25,5 +25,7 @@ else
 fi
 
 # Start the application
-echo "Starting Gunicorn server..."
-exec gunicorn -w 2 -b 0.0.0.0:5000 --timeout 300 wsgi:app
+# Port from environment variable with fallback to 5000 (legacy default)
+PORT=${BACKEND_PORT:-${API_PORT:-5000}}
+echo "Starting Gunicorn server on port ${PORT}..."
+exec gunicorn -w 2 -b 0.0.0.0:${PORT} --timeout 300 wsgi:app

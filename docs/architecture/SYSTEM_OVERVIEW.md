@@ -9,105 +9,220 @@ Ziel dieses Dokuments:
 
 Hinweis zur Link-Konvention:
 
-- Dateien und Sprachelemente sind klickbar, z. B. [backend_app.__init__.create_app()](../../backend_app/__init__.py:13) oder [backend_app/api.py](../../backend_app/api.py).
+- Dateien und Sprachelemente sind klickbar, z. B. [backend.core.__init__.create_app()](../../backend/core/__init__.py:13) oder [backend/core/api.py](../../backend/core/api.py).
 - Für Sprachelemente wird eine Zeilennummer angegeben, für Dateinamen ist sie optional.
+
+**Wichtig**: Detaillierte englische Architekturdokumentation siehe [ARCHITECTURE_OVERVIEW.md](../ARCHITECTURE_OVERVIEW.md)
 
 ---
 
 ## 1) Komponentenlandschaft
 
-- Backend (Flask/Gunicorn)
+### Backend (Konsolidiert - FastAPI + Flask Hybrid, Port 8087)
 
-  - App-Fabrik: [backend_app.__init__.create_app()](../../backend_app/__init__.py:13)
-  - Blueprints: [backend_app/api.py](../../backend_app/api.py), [backend_app/batch.py](../../backend_app/batch.py)
-  - LLM-Adapter/Heuristiken: [backend_app.llm.*](../../backend_app/llm.py)
-  - Vektor-/RAG-Infrastruktur: [backend_app.ingest.*](../../backend_app/ingest.py), [backend_app.embeddings.*](../../backend_app/embeddings.py), [backend_app.vector_store.*](../../backend_app/vector_store.py)
-  - Persistenz/SQLite: [backend_app.db.*](../../backend_app/db.py), Konfiguration: [backend_app.settings.*](../../backend_app/settings.py:108)
-  - Logging/Middleware: [backend_app.logging_ext.*](../../backend_app/logging_ext.py)
-- Frontend (statisch, Single-Page)
+**Hauptstruktur:**
+- Entry Point: [backend/main.py](../../backend/main.py) - FastAPI App mit Flask WSGI Mount
+- FastAPI Routers: [backend/routers/](../../backend/routers/)
+- Shared Business Logic: [backend/core/](../../backend/core/)
+- Service Layer: [backend/services/](../../backend/services/)
+- Legacy Flask: [backend/legacy/](../../backend/legacy/) (Rückwärtskompatibilität)
 
-  - Einstieg: [frontend/index.html](../../frontend/index.html)
-  - UI/Logik: [frontend/app_optimized.js](../../frontend/app_optimized.js) – u. a. [ensureSuggestions()](../../frontend/app_optimized.js:162), [mergeApply()](../../frontend/app_optimized.js:211), [reanalyzeIndex()](../../frontend/app_optimized.js:1834), [autoRefineIndex()](../../frontend/app_optimized.js:1947), [autoRefineMany()](../../frontend/app_optimized.js:2017)
-  - Styles: [frontend/styles.css](../../frontend/styles.css)
-- Agent-Worker (FastAPI, optional)
+**Core Module:**
+- App-Fabrik: [backend.core.__init__.create_app()](../../backend/core/__init__.py:13) (Flask)
+- LLM-Adapter: [backend.core.llm.*](../../backend/core/llm.py) - [llm_evaluate()](../../backend/core/llm.py:102), [llm_suggest()](../../backend/core/llm.py:158), [llm_rewrite()](../../backend/core/llm.py:253)
+- AutoGen Agents: [backend.core.agents.*](../../backend/core/agents.py) - RequirementsEvaluatorAgent, RequirementsSuggestionAgent, RequirementsRewriteAgent, RequirementsOrchestratorAgent
+- Vektor-/RAG: [backend.core.ingest.*](../../backend/core/ingest.py), [backend.core.embeddings.*](../../backend/core/embeddings.py), [backend.core.vector_store.*](../../backend/core/vector_store.py), [backend.core.rag.*](../../backend/core/rag.py)
+- Persistenz/SQLite: [backend.core.db.*](../../backend/core/db.py), Konfiguration: [backend.core.settings.*](../../backend/core/settings.py)
+- Logging/Middleware: [backend.core.logging_ext.*](../../backend/core/logging_ext.py)
 
-  - Endpunkte: [agent_worker.app.mine()](../../agent_worker/app.py:261), [agent_worker.app.mine_team()](../../agent_worker/app.py:721), [agent_worker.app.prep_parser_doc()](../../agent_worker/app.py:750)
-- Externe Dienste
+**Service Layer (Port-Adapter Pattern):**
+- Ports: [backend.services.ports.*](../../backend/services/ports.py) - LLMPort, EmbeddingsPort, VectorStorePort, PersistencePort
+- Adapters: [backend.services.adapters.*](../../backend/services/adapters.py)
+- Services:
+  - [backend.services.evaluation_service.*](../../backend/services/evaluation_service.py)
+  - [backend.services.batch_service.*](../../backend/services/batch_service.py)
+  - [backend.services.corrections_service.*](../../backend/services/corrections_service.py)
+  - [backend.services.vector_service.*](../../backend/services/vector_service.py)
+  - [backend.services.rag_service.*](../../backend/services/rag_service.py)
 
-  - OpenAI: [backend_app.llm.llm_evaluate()](../../backend_app/llm.py:102), [backend_app.llm.llm_suggest()](../../backend_app/llm.py:158), [backend_app.llm.llm_rewrite()](../../backend_app/llm.py:253), [backend_app.llm.llm_apply_with_suggestions()](../../backend_app/llm.py:339)
-  - Qdrant (Vektor-DB): [backend_app.vector_store.get_qdrant_client()](../../backend_app/vector_store.py:41), [backend_app.vector_store.search()](../../backend_app/vector_store.py:151), [backend_app.vector_store.upsert_points()](../../backend_app/vector_store.py:109), [backend_app.vector_store.reset_collection()](../../backend_app/vector_store.py:197)
-- Tests
+**FastAPI Routers:**
+- LangExtract: [backend.routers.lx_router.*](../../backend/routers/lx_router.py)
+- Validation: [backend.routers.validate_router.*](../../backend/routers/validate_router.py)
+- Vector Store: [backend.routers.vector_router.*](../../backend/routers/vector_router.py)
+- Batch: [backend.routers.batch_router.*](../../backend/routers/batch_router.py)
+- Corrections: [backend.routers.corrections_router.*](../../backend/routers/corrections_router.py)
+- Gold Examples: [backend.routers.gold_router.*](../../backend/routers/gold_router.py)
+- Structure Analysis: [backend.routers.structure_router.*](../../backend/routers/structure_router.py)
 
-  - Playwright UI-Tests: [tests/ui/auto-refine.spec.ts](../../tests/ui/auto-refine.spec.ts)
-  - Modell-Tests: [tests/backend/test_rag_models.py](../../tests/backend/test_rag_models.py)
-  - RAG-Benchmark: [tests/rag_benchmark.py](../../tests/rag_benchmark.py)
+### Arch Team (Society of Mind Multi-Agent System, Port 8000)
+
+**Purpose**: Requirements mining, Knowledge Graph construction, validation
+
+**Main Service:**
+- Entry: [arch_team/service.py](../../arch_team/service.py) - Flask app mit SSE streaming
+
+**Society of Mind Agents:**
+- Master Agent: [arch_team.agents.master_agent.*](../../arch_team/agents/master_agent.py) - [create_master_agent()](../../arch_team/agents/master_agent.py:150), [run_master_workflow()](../../arch_team/agents/master_agent.py:305)
+- ChunkMiner: [arch_team.agents.chunk_miner.*](../../arch_team/agents/chunk_miner.py) - Requirements-Extraktion aus Dokumenten
+- KG Agent: [arch_team.agents.kg_agent.*](../../arch_team/agents/kg_agent.py) - Knowledge Graph Konstruktion
+- Requirements Agent: [arch_team.agents.requirements_agent.*](../../arch_team/agents/requirements_agent.py) - Society of Mind Validation
+- Planner: [arch_team.agents.planner.*](../../arch_team/agents/planner.py) - Ausführungsplanung
+- Solver: [arch_team.agents.solver.*](../../arch_team/agents/solver.py) - RAG-gestütztes Problem Solving
+- Verifier: [arch_team.agents.verifier.*](../../arch_team/agents/verifier.py) - Coverage-Validierung
+
+**Tools:**
+- Mining Tools: [arch_team.tools.mining_tools.*](../../arch_team/tools/mining_tools.py)
+- KG Tools: [arch_team.tools.kg_tools.*](../../arch_team/tools/kg_tools.py)
+- Validation Tools: [arch_team.tools.validation_tools.*](../../arch_team/tools/validation_tools.py)
+- RAG Tools: [arch_team.tools.rag_tools.*](../../arch_team/tools/rag_tools.py)
+
+**Memory & Persistence:**
+- Qdrant KG: [arch_team.memory.qdrant_kg.*](../../arch_team/memory/qdrant_kg.py) - QdrantKGClient
+- Retrieval: [arch_team.memory.retrieval.*](../../arch_team/memory/retrieval.py)
+- Trace Sink: [arch_team.memory.qdrant_trace_sink.*](../../arch_team/memory/qdrant_trace_sink.py)
+
+**Pipeline:**
+- Upload/Ingest: [arch_team.pipeline.upload_ingest.*](../../arch_team/pipeline/upload_ingest.py)
+- Store Requirements: [arch_team.pipeline.store_requirements.*](../../arch_team/pipeline/store_requirements.py)
+
+**Runtime:**
+- CoT Postprocessor: [arch_team.runtime.cot_postprocessor.*](../../arch_team/runtime/cot_postprocessor.py) - Chain-of-Thought parsing
+- Logging: [arch_team.runtime.logging.*](../../arch_team/runtime/logging.py)
+
+### Frontend
+
+**React App (Vite):**
+- Entry: [src/App.jsx](../../src/App.jsx)
+- Configuration: [src/components/Configuration.jsx](../../src/components/Configuration.jsx)
+- Knowledge Graph: [src/components/KnowledgeGraph.jsx](../../src/components/KnowledgeGraph.jsx)
+- Requirements: [src/components/Requirements.jsx](../../src/components/Requirements.jsx)
+- Agent Status: [src/components/AgentStatus.jsx](../../src/components/AgentStatus.jsx)
+- Chat Interface: [src/components/ChatInterface.jsx](../../src/components/ChatInterface.jsx)
+- Clarification Modal: [src/components/ClarificationModal.jsx](../../src/components/ClarificationModal.jsx)
+- Validation Test: [src/components/ValidationTest.jsx](../../src/components/ValidationTest.jsx)
+
+**Static HTML/JS:**
+- Einstieg: [frontend/index.html](../../frontend/index.html)
+- Mining Demo: [frontend/mining_demo.html](../../frontend/mining_demo.html)
+- KG View: [frontend/kg_view.html](../../frontend/kg_view.html)
+- Reports: [frontend/reports.html](../../frontend/reports.html)
+- TAG View: [frontend/tag_view.html](../../frontend/tag_view.html)
+- UI/Logik: [frontend/app_optimized.js](../../frontend/app_optimized.js) – u. a. [ensureSuggestions()](../../frontend/app_optimized.js:162), [mergeApply()](../../frontend/app_optimized.js:211), [reanalyzeIndex()](../../frontend/app_optimized.js:1834), [autoRefineIndex()](../../frontend/app_optimized.js:1947), [autoRefineMany()](../../frontend/app_optimized.js:2017)
+- Styles: [frontend/styles.css](../../frontend/styles.css)
+
+### Externe Dienste
+
+- **OpenAI**: [backend.core.llm.llm_evaluate()](../../backend/core/llm.py:102), [backend.core.llm.llm_suggest()](../../backend/core/llm.py:158), [backend.core.llm.llm_rewrite()](../../backend/core/llm.py:253), [backend.core.llm.llm_apply_with_suggestions()](../../backend/core/llm.py:339)
+- **Qdrant** (Vektor-DB): [backend.core.vector_store.get_qdrant_client()](../../backend/core/vector_store.py:41), [backend.core.vector_store.search()](../../backend/core/vector_store.py:151), [backend.core.vector_store.upsert_points()](../../backend/core/vector_store.py:109), [backend.core.vector_store.reset_collection()](../../backend/core/vector_store.py:197)
+- **Qdrant KG** (Knowledge Graph): [arch_team.memory.qdrant_kg.QdrantKGClient](../../arch_team/memory/qdrant_kg.py) - kg_nodes_v1, kg_edges_v1 collections
+
+### Tests
+
+- Playwright UI-Tests: [tests/ui/auto-refine.spec.ts](../../tests/ui/auto-refine.spec.ts), [tests/e2e/](../../tests/e2e/)
+- Backend Tests: [tests/backend/test_rag_models.py](../../tests/backend/test_rag_models.py), [tests/backend/test_lx_extract_v2.py](../../tests/backend/test_lx_extract_v2.py)
+- Service Tests: [tests/services/test_evaluation_service.py](../../tests/services/test_evaluation_service.py)
+- Parity Tests: [tests/parity/test_parity_core.py](../../tests/parity/test_parity_core.py)
+- Arch Team Tests: [tests/arch_team/test_autogen_rac_smoke.py](../../tests/arch_team/test_autogen_rac_smoke.py), [tests/arch_team/test_e2e_pipeline.py](../../tests/arch_team/test_e2e_pipeline.py)
+- RAG-Benchmark: [tests/rag_benchmark.py](../../tests/rag_benchmark.py)
 
 ---
 
-## 2) Haupt-Endpunkte (Backend)
+## 2) Haupt-Endpunkte
 
-- Health/Runtime
+### Backend (Port 8087)
 
-  - GET /health → [backend_app.api.health()](../../backend_app/api.py:72)
-  - GET /api/runtime-config → [backend_app.api.runtime_config()](../../backend_app/api.py:76), Quelle: [backend_app.settings.get_runtime_config()](../../backend_app/settings.py:108)
-- Kriterien/Evaluation
+**Health/Runtime:**
+- GET /health → [backend/main.py](../../backend/main.py) (FastAPI)
+- GET /ready → [backend/main.py](../../backend/main.py) (FastAPI)
+- GET /livez → [backend/main.py](../../backend/main.py) (FastAPI)
+- GET /api/runtime-config → [backend/main.py](../../backend/main.py), Quelle: [backend.core.settings.get_runtime_config()](../../backend/core/settings.py)
 
-  - GET /api/v1/criteria → [backend_app.api.list_criteria()](../../backend_app/api.py:88)
-  - POST /api/v1/evaluations → [backend_app.api.create_evaluation()](../../backend_app/api.py:98)
-    - nutzt [backend_app.llm.llm_evaluate()](../../backend_app/llm.py:102), Score mittels [backend_app.utils.weighted_score()](../../backend_app/utils.py:14), Decision via [backend_app.utils.compute_verdict()](../../backend_app/utils.py:25)
-- Corrections
+**Validation & Evaluation:**
+- POST /api/v1/validate/batch → [backend.routers.validate_router.*](../../backend/routers/validate_router.py)
+- POST /api/v1/validate/suggest → [backend.routers.validate_router.*](../../backend/routers/validate_router.py)
+- POST /api/v1/validate/batch/stream → [backend.routers.validate_router.*](../../backend/routers/validate_router.py)
+- POST /api/v1/validate/suggest/stream → [backend.routers.validate_router.*](../../backend/routers/validate_router.py)
+- POST /api/v2/evaluate/single → [backend.routers.validate_router.*](../../backend/routers/validate_router.py)
+- POST /api/v2/evaluate/batch → [backend.routers.validate_router.*](../../backend/routers/validate_router.py)
 
-  - POST /api/v1/corrections/text → [backend_app.api.save_correction_text()](../../backend_app/api.py:220)
-  - POST /api/v1/corrections/decision → [backend_app.api.set_correction_decision()](../../backend_app/api.py:176)
-  - POST /api/v1/corrections/decision/batch → [backend_app.api.set_correction_decision_batch()](../../backend_app/api.py:320)
-  - POST /api/v1/corrections/apply → [backend_app.api.apply_corrections()](../../backend_app/api.py:255) → [backend_app.llm.llm_apply_with_suggestions()](../../backend_app/llm.py:339)
-- Batch (aus Markdown-Quelle)
+**LangExtract (Requirements Mining):**
+- POST /api/v1/lx/extract → [backend.routers.lx_router.*](../../backend/routers/lx_router.py)
+- GET /api/v1/lx/mine → [backend.routers.lx_router.*](../../backend/routers/lx_router.py)
+- POST /api/v1/lx/evaluate → [backend.routers.gold_router.*](../../backend/routers/gold_router.py)
+- GET /api/v1/lx/config/list → [backend.routers.lx_router.*](../../backend/routers/lx_router.py)
+- POST /api/v1/lx/config/save → [backend.routers.lx_router.*](../../backend/routers/lx_router.py)
+- GET /api/v1/lx/gold/list → [backend.routers.gold_router.*](../../backend/routers/gold_router.py)
+- POST /api/v1/lx/gold/save → [backend.routers.gold_router.*](../../backend/routers/gold_router.py)
 
-  - POST /api/v1/batch/evaluate → [backend_app.batch.batch_evaluate()](../../backend_app/batch.py:282)
-  - POST /api/v1/batch/suggest → [backend_app.batch.batch_suggest()](../../backend_app/batch.py:301)
-  - POST /api/v1/batch/rewrite → [backend_app.batch.batch_rewrite()](../../backend_app/batch.py:319)
-- Validierung (Array-basierte UI-Verwendung)
+**Corrections:**
+- POST /api/v1/corrections/apply → [backend.routers.corrections_router.*](../../backend/routers/corrections_router.py)
+- POST /api/v1/corrections/decision → [backend.routers.corrections_router.*](../../backend/routers/corrections_router.py)
+- POST /api/v1/corrections/decision/batch → [backend.routers.corrections_router.*](../../backend/routers/corrections_router.py)
+- POST /api/v1/corrections/text → [backend.routers.corrections_router.*](../../backend/routers/corrections_router.py)
 
-  - POST /api/v1/validate/suggest → [backend_app.api.validate_suggest()](../../backend_app/api.py:571) → [backend_app.batch.process_suggestions()](../../backend_app/batch.py:152)
-  - POST /api/v1/validate/batch → [backend_app.api.validate_batch_optimized()](../../backend_app/api.py:599)
-  - Streaming-Varianten:
-    - POST /api/v1/validate/batch/stream → [backend_app.api.validate_batch_stream()](../../backend_app/api.py:828)
-    - POST /api/v1/validate/suggest/stream → [backend_app.api.validate_suggest_stream()](../../backend_app/api.py:967)
-  - Strukturierte Antwort:
-    - POST /api/v1/validate/batch/structured → [backend_app.api.validate_batch_structured()](../../backend_app/api.py:1591) → [backend_app.rag.StructuredRequirement](../../backend_app/rag.py:57)
-- RAG/Vector
+**Batch:**
+- POST /api/v1/batch/evaluate → [backend.routers.batch_router.*](../../backend/routers/batch_router.py)
+- POST /api/v1/batch/suggest → [backend.routers.batch_router.*](../../backend/routers/batch_router.py)
+- POST /api/v1/batch/rewrite → [backend.routers.batch_router.*](../../backend/routers/batch_router.py)
 
-  - Upload/Indexierung: POST /api/v1/files/ingest → [backend_app.api.files_ingest()](../../backend_app/api.py:1068) → [backend_app.ingest.extract_texts()](../../backend_app/ingest.py:230), [backend_app.ingest.chunk_payloads()](../../backend_app/ingest.py:287), [backend_app.embeddings.build_embeddings()](../../backend_app/embeddings.py:59), [backend_app.vector_store.upsert_points()](../../backend_app/vector_store.py:109)
-  - Verwaltung:
-    - GET /api/v1/vector/collections → [backend_app.api.vector_collections()](../../backend_app/api.py:1140)
-    - GET /api/v1/vector/health → [backend_app.api.vector_health()](../../backend_app/api.py:1149)
-    - POST/DELETE /api/v1/vector/reset → [backend_app.api.vector_reset()](../../backend_app/api.py:1158)
-    - GET /api/v1/vector/reset?confirm=1 → [backend_app.api.vector_reset_get()](../../backend_app/api.py:1202)
-    - GET /api/v1/vector/source/full → [backend_app.api.vector_source_full()](../../backend_app/api.py:1233)
-  - Suche:
-    - GET /api/v1/rag/search → [backend_app.api.rag_search()](../../backend_app/api.py:1286)
-- Agent/Memory
+**RAG/Vector:**
+- POST /api/v1/files/ingest → [backend.core.api.*](../../backend/core/api.py) (Flask legacy)
+- GET /api/v1/vector/collections → [backend.routers.vector_router.*](../../backend/routers/vector_router.py)
+- GET /api/v1/vector/health → [backend.routers.vector_router.*](../../backend/routers/vector_router.py)
+- POST /api/v1/vector/reset → [backend.routers.vector_router.*](../../backend/routers/vector_router.py)
+- GET /api/v1/vector/source/full → [backend.routers.vector_router.*](../../backend/routers/vector_router.py)
+- GET /api/v1/rag/search → [backend.routers.vector_router.*](../../backend/routers/vector_router.py)
 
-  - POST /api/v1/agent/answer → [backend_app.api.agent_answer()](../../backend_app/api.py:1512)
-  - POST /api/v1/agent/mine_requirements → [backend_app.api.agent_mine_requirements()](../../backend_app/api.py:1675)
-  - Agent-Worker (optional extern):
-    - [agent_worker.app.mine()](../../agent_worker/app.py:261), [agent_worker.app.mine_team()](../../agent_worker/app.py:721), [agent_worker.app.prep_parser_doc()](../../agent_worker/app.py:750)
-- CORS/Preflight-Handling
+**Structure Analysis:**
+- POST /api/v1/structure/analyze → [backend.routers.structure_router.*](../../backend/routers/structure_router.py)
+- POST /api/v1/structure/graph_export → [backend.routers.structure_router.*](../../backend/routers/structure_router.py)
 
-  - Globales Preflight: [backend_app.__init__._global_api_preflight()](../../backend_app/__init__.py:37) und [backend_app.api.options_cors_catch_all()](../../backend_app/api.py:45)
-  - Spezifische OPTIONS: [backend_app.api.options_validate_suggest()](../../backend_app/api.py:41), [backend_app.api.options_vector_reset()](../../backend_app/api.py:59)
+### Arch Team (Port 8000)
+
+**Requirements Mining:**
+- POST /api/mining/upload → [arch_team.service.mining_upload()](../../arch_team/service.py:93)
+- POST /api/mining/report → [arch_team.service.mining_report()](../../arch_team/service.py:164)
+
+**Knowledge Graph:**
+- POST /api/kg/build → [arch_team.service.kg_build()](../../arch_team/service.py:214)
+- GET /api/kg/search/nodes → [arch_team.service.kg_search_nodes()](../../arch_team/service.py:292)
+- GET /api/kg/search/edges → [arch_team.service.kg_search_edges()](../../arch_team/service.py:313)
+- GET /api/kg/neighbors → [arch_team.service.kg_neighbors()](../../arch_team/service.py:334)
+- POST /api/kg/search/semantic → [arch_team.service.kg_search_semantic()](../../arch_team/service.py:571)
+
+**Validation & RAG:**
+- POST /api/v2/evaluate/single → [arch_team.service.evaluate_single()](../../arch_team/service.py:367)
+- POST /api/v2/evaluate/batch → [arch_team.service.evaluate_batch()](../../arch_team/service.py:414)
+- POST /api/v1/validate/batch → [arch_team.service.validate_batch_rewrite()](../../arch_team/service.py:465)
+- POST /api/v1/validate/suggest → [arch_team.service.validate_suggest()](../../arch_team/service.py:527)
+- POST /api/rag/duplicates → [arch_team.service.rag_find_duplicates()](../../arch_team/service.py:653)
+- POST /api/rag/search → [arch_team.service.rag_semantic_search()](../../arch_team/service.py:833)
+- POST /api/rag/related → [arch_team.service.rag_get_related()](../../arch_team/service.py:941)
+- POST /api/rag/coverage → [arch_team.service.rag_analyze_coverage()](../../arch_team/service.py:1044)
+
+**Society of Mind Workflow:**
+- POST /api/arch_team/process → [arch_team.service.arch_team_process()](../../arch_team/service.py:1358) - Master workflow mit ChunkMiner, KG, Validator
+- POST /api/validation/run → [arch_team.service.validation_run()](../../arch_team/service.py:1258) - Society of Mind validation
+- GET /api/clarification/stream → [arch_team.service.clarification_stream()](../../arch_team/service.py:1172) - SSE für User Clarifications
+- POST /api/clarification/answer → [arch_team.service.clarification_answer()](../../arch_team/service.py:1315) - User Antwort senden
+- GET /api/workflow/stream → [arch_team.service.workflow_stream()](../../arch_team/service.py:1214) - SSE für Agent Messages
+
+**Frontend:**
+- GET / → [arch_team.service.index()](../../arch_team/service.py:1461)
+- GET /frontend/<path> → [arch_team.service.serve_frontend()](../../arch_team/service.py:1470)
+- GET /health → [arch_team.service.health_check()](../../arch_team/service.py:87)
 
 ---
 
 ## 3) End-to-End Flows (Systemlogik)
 
-### 3.1 „Demo laden und verarbeiten“ (Inkrementell)
+### 3.1 „Demo laden und verarbeiten" (Inkrementell)
 
 ```mermaid
 sequenceDiagram
   autonumber
   participant UI as Frontend
-  participant API as Flask API
+  participant API as Backend API
   participant DB as SQLite
   participant LLM as OpenAI (optional)
 
@@ -127,7 +242,8 @@ sequenceDiagram
 Relevante Funktionen:
 
 - UI: [processIncremental()](../../frontend/app_optimized.js:611), [displayResults()](../../frontend/app_optimized.js:839)
-- Backend: [validate_batch_optimized()](../../backend_app/api.py:599), [ensure_evaluation_exists()](../../backend_app/batch.py:28)
+- Backend: validate_batch via [backend.routers.validate_router](../../backend/routers/validate_router.py)
+- Service: [backend.services.evaluation_service.evaluate_batch()](../../backend/services/evaluation_service.py)
 
 ### 3.2 Auto-Refine (Einzel-Item)
 
@@ -155,7 +271,7 @@ sequenceDiagram
 Relevante Funktionen:
 
 - UI: [autoRefineIndex()](../../frontend/app_optimized.js:1947), [ensureSuggestions()](../../frontend/app_optimized.js:162), [mergeApply()](../../frontend/app_optimized.js:211), [reanalyzeIndex()](../../frontend/app_optimized.js:1834)
-- Backend: [apply_corrections()](../../backend_app/api.py:255), [llm_apply_with_suggestions()](../../backend_app/llm.py:339)
+- Backend: [backend.routers.corrections_router.*](../../backend/routers/corrections_router.py), [backend.core.llm.llm_apply_with_suggestions()](../../backend/core/llm.py:339)
 
 ### 3.3 Datei-Ingest → Vektor-Index
 
@@ -171,10 +287,10 @@ flowchart LR
 
 Relevante Funktionen:
 
-- [backend_app.api.files_ingest()](../../backend_app/api.py:1068)
-- [backend_app.ingest.extract_texts()](../../backend_app/ingest.py:230), [backend_app.ingest.chunk_payloads()](../../backend_app/ingest.py:287)
-- [backend_app.embeddings.build_embeddings()](../../backend_app/embeddings.py:59)
-- [backend_app.vector_store.upsert_points()](../../backend_app/vector_store.py:109)
+- [backend.core.api.files_ingest()](../../backend/core/api.py) (Flask legacy)
+- [backend.core.ingest.extract_texts()](../../backend/core/ingest.py:230), [backend.core.ingest.chunk_payloads()](../../backend/core/ingest.py:287)
+- [backend.core.embeddings.build_embeddings()](../../backend/core/embeddings.py:59)
+- [backend.core.vector_store.upsert_points()](../../backend/core/vector_store.py:109)
 
 ### 3.4 RAG-Suche (einfach)
 
@@ -191,60 +307,116 @@ sequenceDiagram
   API-->>UI: {hits:[...]}
 ```
 
-Relevante Funktionen: [backend_app.api.rag_search()](../../backend_app/api.py:1286)
+Relevante Funktionen: [backend.routers.vector_router.*](../../backend/routers/vector_router.py)
 
-### 3.5 Agent-/Memory-gestützte Antwort
+### 3.5 Society of Mind Workflow (Master Agent)
 
 ```mermaid
 sequenceDiagram
-  participant UI
-  participant API
-  participant Qdrant
-  participant MEM as MemoryStore
+  autonumber
+  participant UI as Frontend
+  participant API as Arch Team Service
+  participant CM as ChunkMiner Agent
+  participant KG as KG Agent
+  participant V as Validator Agent
+  participant SSE as Workflow SSE Stream
 
-  UI->>API: POST /api/v1/agent/answer {query}
-  API->>MEM: load_policies()
-  API->>API: embeddings(effectiveQuery)
-  API->>Qdrant: search()
-  API->>MEM: append_event(result)
-  API-->>UI: {effectiveQuery, hits, agentNotes, triggeredPolicies}
+  UI->>API: POST /api/arch_team/process (files, correlation_id)
+  API->>SSE: workflow_status: running
+
+  API->>CM: mine_files_or_texts_collect()
+  CM-->>API: requirements DTOs
+  API->>SSE: agent_message: "Extracted N requirements"
+
+  API->>KG: run(items, persist="qdrant")
+  KG-->>API: {nodes, edges, stats}
+  API->>SSE: agent_message: "Created N nodes, M edges"
+
+  API->>V: Validate requirements (heuristics)
+  V-->>API: validation_results
+  API->>SSE: agent_message: "Validated N requirements"
+
+  API->>SSE: workflow_status: completed
+  API->>SSE: workflow_result: {requirements, kg_data, validation_results}
+  API-->>UI: Final result JSON
 ```
 
 Relevante Funktionen:
 
-- [backend_app.api.agent_answer()](../../backend_app/api.py:1512)
-- [backend_app.memory.MemoryStore](../../backend_app/memory.py)
+- [arch_team.service.arch_team_process()](../../arch_team/service.py:1358)
+- [arch_team.agents.master_agent.run_master_workflow()](../../arch_team/agents/master_agent.py:305)
+- [arch_team.agents.chunk_miner.mine_files_or_texts_collect()](../../arch_team/agents/chunk_miner.py)
+- [arch_team.agents.kg_agent.run()](../../arch_team/agents/kg_agent.py)
+
+### 3.6 Knowledge Graph Construction
+
+```mermaid
+flowchart LR
+  REQ["Requirements DTOs"] --> KG["KG Agent"]
+  KG --> H["Heuristic Extraction"]
+  KG --> L["LLM Enhancement (optional)"]
+  H --> N["Nodes: Requirement/Actor/Action/Entity/Tag"]
+  L --> N
+  N --> E["Edges: HAS_ACTOR/HAS_ACTION/ON_ENTITY/HAS_TAG"]
+  E --> Q["Qdrant KG Collections"]
+  Q --> N1["kg_nodes_v1"]
+  Q --> E1["kg_edges_v1"]
+```
+
+Relevante Funktionen:
+
+- [arch_team.agents.kg_agent.run()](../../arch_team/agents/kg_agent.py)
+- [arch_team.memory.qdrant_kg.QdrantKGClient](../../arch_team/memory/qdrant_kg.py)
 
 ---
 
 ## 4) Abhängigkeits-Matrix (Skripte, Module, Services)
 
-| Ebene/Modul       | Abhängigkeiten                                                                                                                                                                                                        | Genutzt von                      | Verantwortung                                                 | Schlüsselfunktionen                                                                                                                                                                                                    |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App/WSGI          | [backend_app.__init__.create_app()](../../backend_app/__init__.py:13), [backend_app.logging_ext.*](../../backend_app/logging_ext.py)                                                                                   | Gunicorn, alle Blueprints        | App-Setup, CORS, Logging, Static-Serving                      | [log_runtime_config_once()](../../backend_app/logging_ext.py:248)                                                                                                                                                          |
-| API (Core)        | [backend_app.api](../../backend_app/api.py), [backend_app.batch](../../backend_app/batch.py), [backend_app.utils](../../backend_app/utils.py), [backend_app.db](../../backend_app/db.py), [backend_app.llm](../../backend_app/llm.py) | Frontend, Tests, Agent           | Endpunkt-Implementierungen, Orchestrierung                    | [validate_batch_optimized()](../../backend_app/api.py:599), [files_ingest()](../../backend_app/api.py:1068)                                                                                                                   |
-| Batch             | [backend_app.batch](../../backend_app/batch.py) → utils/db/llm                                                                                                                                                           | API                              | Batch über Markdown, Persistenz von Eval/Rewrite/Suggestions | [ensure_evaluation_exists()](../../backend_app/batch.py:28), [process_evaluations()](../../backend_app/batch.py:100), [process_suggestions()](../../backend_app/batch.py:152), [process_rewrites()](../../backend_app/batch.py:217) |
-| LLM               | OpenAI SDK (optional), Settings                                                                                                                                                                                        | API/Batch                        | Evaluate/Suggest/Rewrite/Apply mit robustem Fallback          | [llm_evaluate()](../../backend_app/llm.py:102), [llm_suggest()](../../backend_app/llm.py:158), [llm_rewrite()](../../backend_app/llm.py:253), [llm_apply_with_suggestions()](../../backend_app/llm.py:339)                          |
-| Ingest/Embeddings | requests, tenacity, tiktoken (optional)                                                                                                                                                                                | API (files/ingest), Vector-Store | Extraktion, Chunking, Embeddings                              | [extract_texts()](../../backend_app/ingest.py:230), [chunk_payloads()](../../backend_app/ingest.py:287), [build_embeddings()](../../backend_app/embeddings.py:59)                                                                |
-| Vektor-Store      | qdrant-client                                                                                                                                                                                                          | API                              | Upsert/Search/Reset der Collection                            | [get_qdrant_client()](../../backend_app/vector_store.py:41), [search()](../../backend_app/vector_store.py:151), [reset_collection()](../../backend_app/vector_store.py:197)                                                      |
-| Persistenz        | sqlite3                                                                                                                                                                                                                | API/Batch                        | DDL, Migrationen, CRUD                                        | [init_db()](../../backend_app/db.py:125), [ensure_schema_migrations()](../../backend_app/db.py:84)                                                                                                                            |
-| Settings          | dotenv, os env                                                                                                                                                                                                         | App/API/LLM                      | Laufzeitkonfiguration                                         | [get_runtime_config()](../../backend_app/settings.py:108)                                                                                                                                                                  |
-| Frontend          | fetch API                                                                                                                                                                                                              | Nutzer                           | UI, Inkrementelle Verarbeitung, Auto-Refine                   | [processIncremental()](../../frontend/app_optimized.js:611), [autoRefineIndex()](../../frontend/app_optimized.js:1947)                                                                                                        |
-| Agent-Worker      | requests → Backend                                                                                                                                                                                                    | Nutzer/Automationen              | Requirements-Mining aus Vektor-Quelle                         | [mine()](../../agent_worker/app.py:261), [mine_team()](../../agent_worker/app.py:721)                                                                                                                                         |
+| Ebene/Modul                     | Abhängigkeiten                                                                                                                                                                          | Genutzt von                       | Verantwortung                                                          | Schlüsselfunktionen                                                                                                                                                          |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Backend: FastAPI+Flask**      | [backend/main.py](../../backend/main.py), [backend.core.*](../../backend/core/), [backend.routers.*](../../backend/routers/), [backend.services.*](../../backend/services/)             | Frontend, Tests                   | Hybrid API (FastAPI v2 + Flask legacy)                                 | [fastapi_app](../../backend/main.py), [create_app()](../../backend/core/__init__.py:13)                                                                                      |
+| **Backend: Core**               | [backend.core.llm](../../backend/core/llm.py), [backend.core.db](../../backend/core/db.py), [backend.core.embeddings](../../backend/core/embeddings.py), [backend.core.vector_store](../../backend/core/vector_store.py) | Services, Routers                 | Shared business logic                                                  | [llm_evaluate()](../../backend/core/llm.py:102), [init_db()](../../backend/core/db.py)                                                                                       |
+| **Backend: Services**           | [backend.services.ports](../../backend/services/ports.py), [backend.services.adapters](../../backend/services/adapters.py)                                                               | Routers                           | Port-Adapter pattern, business logic orchestration                     | [EvaluationService](../../backend/services/evaluation_service.py), [BatchService](../../backend/services/batch_service.py)                                                   |
+| **Backend: Routers**            | [backend.routers.*](../../backend/routers/)                                                                                                                                             | Frontend via HTTP                 | FastAPI endpoint implementations                                       | [lx_router](../../backend/routers/lx_router.py), [validate_router](../../backend/routers/validate_router.py)                                                                 |
+| **Arch Team: Service**          | [arch_team.service](../../arch_team/service.py), Flask                                                                                                                                 | Frontend via HTTP, SSE            | Society of Mind web service, SSE streaming                             | [arch_team_process()](../../arch_team/service.py:1358), [workflow_stream()](../../arch_team/service.py:1214)                                                                 |
+| **Arch Team: Agents**           | [arch_team.agents.*](../../arch_team/agents/), AutoGen 0.4+                                                                                                                             | Master Agent                      | Specialized agents (ChunkMiner, KG, Validator, etc.)                   | [create_master_agent()](../../arch_team/agents/master_agent.py:150), [ChunkMinerAgent](../../arch_team/agents/chunk_miner.py)                                                |
+| **Arch Team: Memory**           | [arch_team.memory.*](../../arch_team/memory/), Qdrant                                                                                                                                  | Agents                            | Knowledge graph storage, RAG retrieval, trace persistence              | [QdrantKGClient](../../arch_team/memory/qdrant_kg.py), [Retriever](../../arch_team/memory/retrieval.py)                                                                      |
+| **Arch Team: Tools**            | [arch_team.tools.*](../../arch_team/tools/), AutoGen FunctionTool                                                                                                                       | Agents                            | Agent tool implementations                                             | [mining_tools](../../arch_team/tools/mining_tools.py), [kg_tools](../../arch_team/tools/kg_tools.py)                                                                         |
+| **Frontend: React**             | [src/*](../../src/), Vite, React                                                                                                                                                        | User browser                      | Modern UI with SSE, KG visualization                                   | [App.jsx](../../src/App.jsx), [KnowledgeGraph.jsx](../../src/components/KnowledgeGraph.jsx)                                                                                  |
+| **Frontend: Static**            | [frontend/*](../../frontend/)                                                                                                                                                           | User browser                      | Static HTML/JS UI, Auto-Refine loop                                    | [app_optimized.js](../../frontend/app_optimized.js), [autoRefineIndex()](../../frontend/app_optimized.js:1947)                                                               |
+| **LLM**                         | OpenAI SDK, Settings                                                                                                                                                                    | Core, Services                    | Evaluate/Suggest/Rewrite/Apply mit robustem Fallback                   | [llm_evaluate()](../../backend/core/llm.py:102), [llm_suggest()](../../backend/core/llm.py:158), [llm_rewrite()](../../backend/core/llm.py:253)                              |
+| **Ingest/Embeddings**           | requests, tenacity, tiktoken                                                                                                                                                            | Core, Routers                     | Extraktion, Chunking, Embeddings                                       | [extract_texts()](../../backend/core/ingest.py:230), [chunk_payloads()](../../backend/core/ingest.py:287), [build_embeddings()](../../backend/core/embeddings.py:59)         |
+| **Vektor-Store**                | qdrant-client                                                                                                                                                                           | Core, Services                    | Upsert/Search/Reset der Collection                                     | [get_qdrant_client()](../../backend/core/vector_store.py:41), [search()](../../backend/core/vector_store.py:151), [reset_collection()](../../backend/core/vector_store.py:197) |
+| **Persistenz**                  | sqlite3                                                                                                                                                                                 | Core, Services                    | DDL, Migrationen, CRUD                                                 | [init_db()](../../backend/core/db.py), [ensure_schema_migrations()](../../backend/core/db.py)                                                                                |
+| **Settings**                    | dotenv, os env                                                                                                                                                                          | Core, Services                    | Laufzeitkonfiguration                                                  | [get_runtime_config()](../../backend/core/settings.py)                                                                                                                       |
 
 ---
 
-## 5) Datenmodell (SQLite)
+## 5) Datenmodell
 
-DDL-Definition: [backend_app.db.DDL](../../backend_app/db.py:11)
+### SQLite (backend/core/db.py)
 
-- Tabellen: criterion, evaluation, evaluation_detail, suggestion, rewritten_requirement, correction_decision
+DDL-Definition: [backend.core.db.DDL](../../backend/core/db.py)
+
+- Tabellen: criterion, evaluation, evaluation_detail, suggestion, rewritten_requirement, correction_decision, lx_config, gold_example
 - Einzigartigkeit:
   - evaluation_detail: UNIQUE(evaluation_id, criterion_key)
-  - correction_decision: UNIQUE(evaluation_id) (per Migration, s. [ensure_schema_migrations()](../../backend_app/db.py:84))
+  - correction_decision: UNIQUE(evaluation_id)
 - Lebenszyklus:
-  - Initialbefüllung Kriterien: [init_db()](../../backend_app/db.py:125) → [load_criteria()](../../backend_app/db.py:152)
-  - Retention/Housekeeping: [purge_old_evaluations()](../../backend_app/db.py:113)
+  - Initialbefüllung Kriterien: [init_db()](../../backend/core/db.py) → [load_criteria()](../../backend/core/db.py)
+  - Retention/Housekeeping: [purge_old_evaluations()](../../backend/core/db.py)
+
+### Qdrant Collections
+
+**Backend Collections:**
+- `requirements_v2`: RAG document chunks mit embeddings
+- Struktur: {text, sourceFile, chunkIndex, payload}
+
+**Arch Team Collections:**
+- `kg_nodes_v1`: Knowledge Graph Knoten (Requirement, Actor, Action, Entity, Tag)
+- `kg_edges_v1`: Knowledge Graph Kanten (HAS_ACTOR, HAS_ACTION, ON_ENTITY, HAS_TAG)
+- `arch_trace`: Agent conversation traces
+- Struktur: siehe [QdrantKGClient](../../arch_team/memory/qdrant_kg.py)
 
 ---
 
@@ -253,27 +425,41 @@ DDL-Definition: [backend_app.db.DDL](../../backend_app/db.py:11)
 Quellen:
 
 - Env/Dateien: [.env](../../.env), [.env.example](../../.env.example)
-- Laufzeit-Snapshot: [backend_app.settings.get_runtime_config()](../../backend_app/settings.py:108)
+- Laufzeit-Snapshot: [backend.core.settings.get_runtime_config()](../../backend/core/settings.py)
 - Prompts: [config/prompts/evaluate.system.txt](../../config/prompts/evaluate.system.txt), [config/prompts/suggest.system.txt](../../config/prompts/suggest.system.txt), [config/prompts/rewrite.system.txt](../../config/prompts/rewrite.system.txt)
 - Kriterien-JSON: [config/criteria.json](../../config/criteria.json)
+- Agent Prompts: [arch_team/agents/prompts/](../../arch_team/agents/prompts/)
 
 Wichtige Schlüssel:
 
+**Backend:**
 - OPENAI_MODEL, OPENAI_API_KEY, MOCK_MODE
 - VERDICT_THRESHOLD, SUGGEST_MAX, BATCH_SIZE, MAX_PARALLEL
 - REQUIREMENTS_MD_PATH, OUTPUT_MD_PATH
 - QDRANT_URL, QDRANT_PORT, QDRANT_COLLECTION
 - EMBEDDINGS_MODEL, CHUNK_TOKENS_MIN/MAX/OVERLAP
+- FEATURE_FLAG_USE_V2, CANARY_PERCENT
+- API_HOST, API_PORT (default: 8087)
+
+**Arch Team:**
+- MODEL_NAME (default: gpt-4o-mini)
+- APP_PORT (default: 8000)
+- ARCH_REFLECTION_ROUNDS, ARCH_MODEL_CONTEXT_MAX
+- CHUNK_MINER_NEIGHBORS
 
 ---
 
 ## 7) CORS/Preflight
 
-- Globaler Intercept vor Routing: [backend_app.__init__._global_api_preflight()](../../backend_app/__init__.py:37)
-- OPTIONS-Catch-All / spezifische OPTIONS:
-  - [backend_app.api.options_cors_catch_all()](../../backend_app/api.py:45)
-  - [backend_app.api.options_validate_suggest()](../../backend_app/api.py:41)
-  - [backend_app.api.options_vector_reset()](../../backend_app/api.py:59)
+**Backend (FastAPI):**
+- Global CORS Middleware: [backend/main.py](../../backend/main.py) - CORSMiddleware with allow_origins=["*"]
+
+**Backend (Flask Legacy):**
+- Globaler Intercept vor Routing: [backend.core.__init__._global_api_preflight()](../../backend/core/__init__.py)
+- OPTIONS-Catch-All: [backend.core.api.options_cors_catch_all()](../../backend/core/api.py)
+
+**Arch Team:**
+- Flask-CORS: [arch_team/service.py](../../arch_team/service.py) - CORS(app)
 
 Ziel: 204-Antworten inkl. Access-Control-* für alle /api/* Preflights, kein 404.
 
@@ -286,17 +472,144 @@ Ziel: 204-Antworten inkl. Access-Control-* für alle /api/* Preflights, kein 404
 ```mermaid
 flowchart LR
   user["User"]
-  fe["Frontend (Static)"]
-  api["Flask API"]
+  fe_react["React Frontend (Vite)"]
+  fe_static["Static Frontend"]
+  backend["Backend (FastAPI+Flask)"]
+  arch["Arch Team (Flask)"]
   db["SQLite"]
   qd["Qdrant"]
   oa["OpenAI"]
 
-  user --> fe
-  fe --> api
-  api --> db
-  api --> qd
-  api --> oa
+  user --> fe_react
+  user --> fe_static
+  fe_react --> backend
+  fe_react --> arch
+  fe_static --> backend
+  fe_static --> arch
+  backend --> db
+  backend --> qd
+  backend --> oa
+  arch --> qd
+  arch --> oa
+  arch --> backend
+```
+
+### 8.2 Container-Diagramm (Docker Compose)
+
+```mermaid
+flowchart TB
+  subgraph Frontend
+    nginx["Nginx :8081"]
+    react["React Dev :5173"]
+  end
+
+  subgraph Backend
+    fastapi["FastAPI+Flask :8087"]
+    arch["Arch Team :8000"]
+  end
+
+  subgraph Storage
+    qdrant["Qdrant :6333/:6401"]
+    sqlite["SQLite (volume)"]
+  end
+
+  subgraph External
+    openai["OpenAI API"]
+  end
+
+  nginx --> fastapi
+  nginx --> arch
+  react --> fastapi
+  react --> arch
+  fastapi --> sqlite
+  fastapi --> qdrant
+  fastapi --> openai
+  arch --> qdrant
+  arch --> openai
+```
+
+### 8.3 Component-Diagramm (Backend)
+
+```mermaid
+flowchart TB
+  subgraph FastAPI Layer
+    main["main.py<br/>FastAPI App"]
+    lx["lx_router"]
+    validate["validate_router"]
+    vector["vector_router"]
+    batch["batch_router"]
+    corrections["corrections_router"]
+  end
+
+  subgraph Flask Layer
+    flask["Flask App<br/>(WSGIMiddleware)"]
+    legacy["legacy/ APIs"]
+  end
+
+  subgraph Service Layer
+    ports["ports.py<br/>(Protocols)"]
+    adapters["adapters.py"]
+    eval_svc["evaluation_service"]
+    batch_svc["batch_service"]
+  end
+
+  subgraph Core Layer
+    llm["llm.py"]
+    db["db.py"]
+    embeddings["embeddings.py"]
+    vector_store["vector_store.py"]
+    agents["agents.py<br/>(AutoGen)"]
+  end
+
+  main --> lx
+  main --> validate
+  main --> vector
+  main --> flask
+  lx --> eval_svc
+  validate --> eval_svc
+  eval_svc --> adapters
+  adapters --> llm
+  adapters --> db
+  vector_store -.-> qdrant[(Qdrant)]
+  db -.-> sqlite[(SQLite)]
+```
+
+### 8.4 Society of Mind Agents
+
+```mermaid
+flowchart LR
+  subgraph Master Agent
+    orchestrator["Orchestrator<br/>(Coordination)"]
+  end
+
+  subgraph Phase 1
+    chunk_miner["ChunkMiner<br/>(Mining)"]
+  end
+
+  subgraph Phase 2
+    kg_agent["KG Agent<br/>(Graph)"]
+  end
+
+  subgraph Phase 3
+    validator["Validator<br/>(Quality)"]
+  end
+
+  subgraph Phase 4
+    rag["RAG Agent<br/>(Search)"]
+    qa["QA Agent<br/>(Review)"]
+  end
+
+  subgraph Human Loop
+    user_clarify["UserClarification<br/>(Ask User)"]
+  end
+
+  orchestrator --> chunk_miner
+  chunk_miner --> kg_agent
+  kg_agent --> validator
+  validator --> rag
+  rag --> qa
+  qa --> user_clarify
+  user_clarify -.->|SSE| frontend["Frontend"]
 ```
 
 ### 8.5 v2 Requirements-Extraction (LangExtract) – Ablauf
@@ -349,44 +662,49 @@ Guided Mining:
 Evaluation:
 
 - `/api/v1/lx/evaluate`: Robust-Similarity=max(Jaccard, Token‑Containment, Char‑Ratio; optional Embeddings‑Cosine)
-- `/api/v1/lx/evaluate/auto`: One‑Click aus Datei (Extract→Auto‑Gold→Evaluate)
 
 Fast Mode:
 
 - ersetzt Self‑Consistency durch einen Lauf (konfigurierbare `temperature`), überspringt Repair
 
-### 8.2 Feature: Validate Batch
+### 8.6 Feature: Validate Batch
 
 ```mermaid
 sequenceDiagram
   participant UI
-  participant API
+  participant Router
+  participant Service
   participant DB
-  UI->>API: POST /api/v1/validate/batch {items, includeSuggestions}
-  API->>DB: ensure_evaluation_exists()
-  API-->>UI: Array[Result]
+  UI->>Router: POST /api/v1/validate/batch {items, includeSuggestions}
+  Router->>Service: evaluate_batch()
+  Service->>DB: ensure_evaluation_exists()
+  Service-->>Router: results
+  Router-->>UI: Array[Result]
 ```
 
-### 8.3 Feature: Suggestions/Apply
+### 8.7 Feature: Suggestions/Apply
 
 ```mermaid
 sequenceDiagram
   participant UI
-  participant API
+  participant Router
+  participant Service
   participant DB
-  UI->>API: POST /api/v1/validate/suggest
-  API-->>UI: {items:{...suggestions...}}
-  UI->>API: POST /api/v1/corrections/apply
-  API->>DB: INSERT rewritten_requirement
-  API-->>UI: {items:[{redefinedRequirement}]}
+  UI->>Router: POST /api/v1/validate/suggest
+  Router-->>UI: {items:{...suggestions...}}
+  UI->>Router: POST /api/v1/corrections/apply
+  Router->>Service: apply_corrections()
+  Service->>DB: INSERT rewritten_requirement
+  Service-->>Router: results
+  Router-->>UI: {items:[{redefinedRequirement}]}
 ```
 
-### 8.4 Feature: Vector Reset
+### 8.8 Feature: Vector Reset
 
 ```mermaid
 flowchart LR
   UI["UI"]
-  API["/api/v1/vector/reset (POST/GET)"]
+  API["/api/v1/vector/reset (POST)"]
   Q["Qdrant reset_collection()"]
 
   UI --> API
@@ -395,64 +713,169 @@ flowchart LR
   API --> UI
 ```
 
+### 8.9 Feature: SSE Streaming (Workflow)
+
+```mermaid
+sequenceDiagram
+  participant UI
+  participant SSE as /api/workflow/stream
+  participant API as /api/arch_team/process
+  participant Agent as Master Agent
+
+  UI->>SSE: GET (EventSource connection)
+  SSE-->>UI: {type: "connected"}
+
+  UI->>API: POST (files, correlation_id)
+  API->>Agent: run_master_workflow()
+
+  Agent->>SSE: {type: "agent_message", agent: "ChunkMiner", message: "..."}
+  SSE-->>UI: Stream event
+
+  Agent->>SSE: {type: "agent_message", agent: "KG", message: "..."}
+  SSE-->>UI: Stream event
+
+  Agent->>SSE: {type: "workflow_status", status: "completed"}
+  SSE-->>UI: Stream event
+
+  Agent->>SSE: {type: "workflow_result", result: {...}}
+  SSE-->>UI: Stream event
+
+  API-->>UI: Final JSON response
+```
+
 ---
 
 ## 9) Test-Integration
 
-- UI/Flow: [tests/ui/auto-refine.spec.ts](../../tests/ui/auto-refine.spec.ts) deckt:
+- **UI/Flow**: [tests/ui/auto-refine.spec.ts](../../tests/ui/auto-refine.spec.ts), [tests/e2e/](../../tests/e2e/)
   - Einzel-Auto-Refine (Erreichen Release-Gate)
-  - „Use modified“-Scope
-  - Eskalation auf „Review“ bei max Iterationen
-- Daten-/Modell-Serialisierung: [tests/backend/test_rag_models.py](../../tests/backend/test_rag_models.py)
-- RAG Qualitäts-Benchmark: [tests/rag_benchmark.py](../../tests/rag_benchmark.py)
+  - „Use modified"-Scope
+  - Eskalation auf „Review" bei max Iterationen
+- **Backend Tests**: [tests/backend/test_rag_models.py](../../tests/backend/test_rag_models.py), [tests/backend/test_lx_extract_v2.py](../../tests/backend/test_lx_extract_v2.py)
+- **Service Tests**: [tests/services/test_evaluation_service.py](../../tests/services/test_evaluation_service.py)
+- **Parity Tests** (v1 vs v2): [tests/parity/test_parity_core.py](../../tests/parity/test_parity_core.py) - MOCK_MODE=true
+- **Arch Team Tests**:
+  - [tests/arch_team/test_autogen_rac_smoke.py](../../tests/arch_team/test_autogen_rac_smoke.py) - AutoGen smoke tests
+  - [tests/arch_team/test_e2e_pipeline.py](../../tests/arch_team/test_e2e_pipeline.py) - E2E pipeline
+  - [tests/arch_team/test_chunk_miner_cli.py](../../tests/arch_team/test_chunk_miner_cli.py) - ChunkMiner CLI
+  - [tests/arch_team/test_autogen_rag_tool.py](../../tests/arch_team/test_autogen_rag_tool.py) - RAG tool
+- **RAG Qualitäts-Benchmark**: [tests/rag_benchmark.py](../../tests/rag_benchmark.py)
+
+**Test Ausführung:**
+
+```bash
+# Alle Tests
+pytest
+
+# Backend Tests
+pytest tests/backend/
+
+# Service Layer Tests
+pytest tests/services/
+
+# Parity Tests (MOCK_MODE=true)
+pytest tests/parity/test_parity_core.py
+
+# Arch Team Tests
+pytest tests/arch_team/
+
+# E2E UI Tests (Playwright)
+npx playwright test
+```
 
 ---
 
-## 10) Navigations-Index (geplante/empfohlene Dokus)
+## 10) Navigations-Index
 
-Dieser Überblick ist die Zentrale. Ergänzende Detail-MDs (werden sukzessive erstellt):
+Dieser Überblick ist zentral. Ergänzende Dokumente:
 
-- Technologie-Stacks
+**Architecture:**
+- **[ARCHITECTURE_OVERVIEW.md](../ARCHITECTURE_OVERVIEW.md)** (Englisch) - Detaillierte Architekturdokumentation mit allen Workflows und Patterns
+- [FEATURES_AND_STACKS.md](./FEATURES_AND_STACKS.md) - Feature-Diagramme und Technology Stacks
+- [C4.md](./C4.md) - C4-Modell Visualisierung
+- [README.md](./README.md) - Navigation und Index
 
-  - Backend/Flask: docs/stack/backend-flask.md (geplant) – Referenzen u. a. [create_app()](../../backend_app/__init__.py:13), [api.py](../../backend_app/api.py)
-  - Vektor/Qdrant: docs/stack/vector-qdrant.md (geplant) – Referenzen u. a. [vector_store.py](../../backend_app/vector_store.py), Compose: [docker-compose.qdrant.yml](../../docker-compose.qdrant.yml)
-  - OpenAI/LLM: docs/stack/llm-openai.md (geplant) – Referenzen u. a. [llm.py](../../backend_app/llm.py)
-  - Frontend/UI: docs/stack/frontend.md (geplant) – Referenzen u. a. [app_optimized.js](../../frontend/app_optimized.js)
-  - Tests/Playwright: docs/stack/testing-playwright.md (geplant) – Referenzen u. a. [playwright.config.ts](../../playwright.config.ts), [tests/ui/*](../../tests/ui)
-  - Docker/Infra: docs/stack/docker-infra.md (geplant) – Referenzen u. a. [Dockerfile](../../Dockerfile), [docker-compose.qdrant.yml](../../docker-compose.qdrant.yml)
-- Feature-Diagramme (pro Logik-Baustein, als eigene MDs)
+**Backend:**
+- [docs/backend/README.md](../backend/README.md) - Backend Übersicht
+- [docs/backend/ROUTES.md](../backend/ROUTES.md) - Vollständige Endpoint-Referenz
+- [docs/backend/CONFIG.md](../backend/CONFIG.md) - LLM Konfiguration
+- Weitere: TESTS.md, DEPLOYMENT.md, DIAGRAMS.md, DEMO.md, MODELS.md, LLM-SPEC.md
 
-  - validate-batch.md, suggestions-apply.md, auto-refine.md, files-ingest.md, rag-search.md, agent-answer.md, vector-reset.md
-- 10 Markdown-Showcases (Template-Varianten aus diesem Projekt ableitbar)
+**Showcases:**
+- [docs/showcases/ALL_SHOWCASES.md](../showcases/ALL_SHOWCASES.md) - 10 praktische Szenarien
 
-  - docs/showcases/showcase-01.md … showcase-10.md (geplant)
-  - Beispiele: „API-only Evaluator“, „RAG-Suche ohne Agent“, „Nur Suggest/Apply“, „Streaming-Validate im CLI“, „Agent-Mining für Pflichtenheft“ usw.
+**Source Code:**
+- Backend Core: [backend/core/](../../backend/core/)
+- Backend Services: [backend/services/](../../backend/services/)
+- Backend Routers: [backend/routers/](../../backend/routers/)
+- Arch Team: [arch_team/](../../arch_team/)
+- React Frontend: [src/](../../src/)
+- Static Frontend: [frontend/](../../frontend/)
 
 ---
 
 ## 11) Wichtige Code-Bezüge (Deep Links)
 
-- App-Bootstrap: [backend_app.__init__.create_app()](../../backend_app/__init__.py:13)
-- Evaluation sichern/ermitteln: [backend_app.batch.ensure_evaluation_exists()](../../backend_app/batch.py:28)
-- Validate Batch orchestration: [backend_app.api.validate_batch_optimized()](../../backend_app/api.py:599)
-- Suggest/Apply: [backend_app.api.validate_suggest()](../../backend_app/api.py:571), [backend_app.api.apply_corrections()](../../backend_app/api.py:255)
-- Streaming: [backend_app.api.validate_batch_stream()](../../backend_app/api.py:828)
-- RAG: [backend_app.api.files_ingest()](../../backend_app/api.py:1068), [backend_app.api.rag_search()](../../backend_app/api.py:1286)
-- Agent/Memory: [backend_app.api.agent_answer()](../../backend_app/api.py:1512)
-- Frontend Kern: [frontend/app_optimized.js](../../frontend/app_optimized.js), u. a. [autoRefineIndex()](../../frontend/app_optimized.js:1947), [reanalyzeIndex()](../../frontend/app_optimized.js:1834)
+**Backend (Consolidated):**
+- App-Bootstrap (FastAPI): [backend/main.py:32](../../backend/main.py:32)
+- App-Bootstrap (Flask): [backend.core.__init__.create_app()](../../backend/core/__init__.py:13)
+- Validate Batch: [backend.routers.validate_router.*](../../backend/routers/validate_router.py)
+- Service Layer: [backend.services.evaluation_service.evaluate_batch()](../../backend/services/evaluation_service.py)
+- LLM Calls: [backend.core.llm.llm_evaluate()](../../backend/core/llm.py:102), [backend.core.llm.llm_suggest()](../../backend/core/llm.py:158), [backend.core.llm.llm_rewrite()](../../backend/core/llm.py:253)
+- AutoGen Agents: [backend.core.agents.*](../../backend/core/agents.py)
+
+**Arch Team:**
+- Master Workflow: [arch_team.agents.master_agent.run_master_workflow()](../../arch_team/agents/master_agent.py:305)
+- ChunkMiner: [arch_team.agents.chunk_miner.mine_files_or_texts_collect()](../../arch_team/agents/chunk_miner.py)
+- KG Agent: [arch_team.agents.kg_agent.run()](../../arch_team/agents/kg_agent.py)
+- Service Entry: [arch_team.service.arch_team_process()](../../arch_team/service.py:1358)
+- SSE Streaming: [arch_team.service.workflow_stream()](../../arch_team/service.py:1214)
+
+**Frontend:**
+- React App: [src/App.jsx](../../src/App.jsx)
+- Auto-Refine: [frontend/app_optimized.js:1947](../../frontend/app_optimized.js:1947)
+- Knowledge Graph: [src/components/KnowledgeGraph.jsx](../../src/components/KnowledgeGraph.jsx)
 
 ---
 
 ## 12) Qualitäts-/Betriebshinweise
 
-- Fallback-Verhalten ohne OPENAI_API_KEY:
-  - Evaluate/Rewrite liefern Heuristik oder Originaltext (s. [llm_evaluate()](../../backend_app/llm.py:102), [llm_rewrite()](../../backend_app/llm.py:253))
+- **Fallback-Verhalten ohne OPENAI_API_KEY:**
+  - Evaluate/Rewrite liefern Heuristik oder Originaltext (s. [llm_evaluate()](../../backend/core/llm.py:102), [llm_rewrite()](../../backend/core/llm.py:253))
   - Suggest kann leer bleiben (wenn nicht MOCK_MODE)
-- CORS-Preflight explizit implementiert, um 204/Headers für /api/* sicherzustellen ([__init__.py](../../backend_app/__init__.py:37), [api.py](../../backend_app/api.py))
-- RAG-Port-Fallback: [backend_app.vector_store.get_qdrant_client()](../../backend_app/vector_store.py:41) prüft 6333/6401
-- Retention: Alte Evaluations via [purge_old_evaluations()](../../backend_app/db.py:113)
-- Runtime-Konfiguration bei Start geloggt: [log_runtime_config_once()](../../backend_app/logging_ext.py:248)
+  - MOCK_MODE: Set `MOCK_MODE=true` für heuristische Evaluation ohne API
+
+- **CORS-Preflight:**
+  - FastAPI: Global CORSMiddleware in [backend/main.py](../../backend/main.py)
+  - Flask Legacy: explizit implementiert in [backend.core.__init__](../../backend/core/__init__.py), [backend.core.api](../../backend/core/api.py)
+  - Arch Team: Flask-CORS in [arch_team/service.py](../../arch_team/service.py)
+
+- **RAG-Port-Fallback:**
+  - [backend.core.vector_store.get_qdrant_client()](../../backend/core/vector_store.py:41) prüft 6333/6401
+  - Docker Compose: Host 6401, Container 6333
+
+- **Retention:**
+  - Alte Evaluations via [purge_old_evaluations()](../../backend/core/db.py)
+
+- **Runtime-Konfiguration:**
+  - Bei Start geloggt: [log_runtime_config_once()](../../backend/core/logging_ext.py)
+  - Abrufbar via GET /api/runtime-config
+
+- **Request Tracing:**
+  - Jeder Request erhält UUID (X-Request-Id Header)
+  - Strukturiertes JSON Logging mit Request-ID
+  - Middleware: [backend/main.py:47](../../backend/main.py:47)
+
+- **Feature Flags:**
+  - FEATURE_FLAG_USE_V2: v2 Routing (default: true)
+  - CANARY_PERCENT: Sticky Canary % (0-100)
+  - Variant Header: X-Variant, X-Variant-Reason
+
+- **Health Checks:**
+  - Backend: GET /health, /ready, /livez
+  - Arch Team: GET /health
+  - Qdrant: GET /api/v1/vector/health
 
 ---
 
-Version: Autogeneriert aus Codebasis (Stand: aktuelle Arbeitskopie)
+**Version:** Aktualisiert für konsolidierte Backend-Struktur + Arch Team Society of Mind (Stand: 2025-11-10)

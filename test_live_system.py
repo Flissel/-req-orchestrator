@@ -2,7 +2,7 @@ import requests
 import json
 
 def test_fastapi_system():
-    base_url = "http://127.0.0.1:8001"
+    base_url = "http://127.0.0.1:8087"
     
     print("=== FastAPI Requirements System - Live Test ===")
     

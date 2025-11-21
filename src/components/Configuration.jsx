@@ -1,13 +1,24 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { getAutoValidatePreference, setAutoValidatePreference } from '../utils/preferences'
 
-export default function Configuration({ onStart, onReset, onFilesChange, status, logs }) {
+export default function Configuration({ onStart, onReset, onFilesChange, status, logs, isLoading = false }) {
   const [files, setFiles] = useState(null)
   const [model, setModel] = useState('gpt-4o-mini')
   const [neighborRefs, setNeighborRefs] = useState(true)
   const [useLlm, setUseLlm] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [chunkSize, setChunkSize] = useState(800)
-  const [chunkOverlap, setChunkOverlap] = useState(200)
+  const [chunkSize, setChunkSize] = useState(4000)  // Match V1's effective chunk size
+  const [chunkOverlap, setChunkOverlap] = useState(300)  // Match V1's overlap
+  const [isLoadingSample, setIsLoadingSample] = useState(false)
+  const [autoValidate, setAutoValidate] = useState(false)
+  const [selectedExample, setSelectedExample] = useState('')
+
+  // Load auto-validate preference from LocalStorage on mount
+  useEffect(() => {
+    const savedPreference = getAutoValidatePreference()
+    setAutoValidate(savedPreference)
+    console.log('[Configuration] Loaded auto-validate preference:', savedPreference)
+  }, [])
 
   const handleFileChange = (e) => {
     const selectedFiles = Array.from(e.target.files)
@@ -19,6 +30,7 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
 
   const loadSampleFile = async () => {
     try {
+      setIsLoadingSample(true)
       const response = await fetch('/moire_mouse_tracking_requirements.md')
       if (!response.ok) throw new Error('Sample file not found')
       const text = await response.text()
@@ -32,7 +44,48 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
     } catch (err) {
       console.error('Failed to load sample:', err)
       alert('Sample file could not be loaded. Make sure the Vite dev server is running.')
+    } finally {
+      setIsLoadingSample(false)
     }
+  }
+
+  const loadExampleFile = async (exampleType) => {
+    if (!exampleType) return
+
+    try {
+      setIsLoadingSample(true)
+      const response = await fetch(`/${exampleType}`)
+      if (!response.ok) throw new Error('Example file not found')
+      const text = await response.text()
+      const blob = new Blob([text], { type: 'text/markdown' })
+      const file = new File([blob], exampleType, { type: 'text/markdown' })
+      const fileList = [file]
+      setFiles(fileList)
+      if (onFilesChange) {
+        onFilesChange(fileList)
+      }
+      console.log(`[Configuration] Loaded example: ${exampleType}`)
+    } catch (err) {
+      console.error('Failed to load example:', err)
+      alert('Example file could not be loaded. Make sure the Vite dev server is running.')
+    } finally {
+      setIsLoadingSample(false)
+    }
+  }
+
+  const handleExampleChange = (e) => {
+    const exampleType = e.target.value
+    setSelectedExample(exampleType)
+    if (exampleType) {
+      loadExampleFile(exampleType)
+    }
+  }
+
+  const handleAutoValidateChange = (e) => {
+    const enabled = e.target.checked
+    setAutoValidate(enabled)
+    setAutoValidatePreference(enabled)
+    console.log('[Configuration] Auto-validate preference changed:', enabled)
   }
 
   const handleStart = () => {
@@ -42,7 +95,8 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
       neighborRefs,
       useLlm,
       chunkSize,
-      chunkOverlap
+      chunkOverlap,
+      autoValidate  // Pass preference to parent
     })
   }
 
@@ -67,8 +121,30 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
       </div>
 
       <div className="form-group">
-        <button className="btn btn-sample" onClick={loadSampleFile}>
-          📝 Beispieldatei laden (Moiré Mouse Tracking)
+        <label htmlFor="examples">🧪 Test-Beispiele:</label>
+        <select
+          id="examples"
+          value={selectedExample}
+          onChange={handleExampleChange}
+          disabled={isLoadingSample || isLoading}
+        >
+          <option value="">-- Beispiel auswählen --</option>
+          <option value="bad_requirements_example.md">❌ Schlechte Requirements (alle Fehler)</option>
+          <option value="good_requirements_example.md">✅ Gute Requirements (sollten passen)</option>
+          <option value="mixed_requirements_example.md">🔀 Gemischte Requirements (~50% Pass-Rate)</option>
+        </select>
+        <small className="hint" style={{ display: 'block', marginTop: '4px', color: '#666' }}>
+          Vordefinierte Beispiele zum Testen der Auto-Validierung
+        </small>
+      </div>
+
+      <div className="form-group">
+        <button
+          className="btn btn-sample"
+          onClick={loadSampleFile}
+          disabled={isLoadingSample || isLoading}
+        >
+          {isLoadingSample ? '⏳ Lade...' : '📝 Beispieldatei laden (Moiré Mouse Tracking)'}
         </button>
       </div>
 
@@ -79,6 +155,20 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
           <option value="gpt-4o">gpt-4o (präzise)</option>
           <option value="gpt-4">gpt-4</option>
         </select>
+      </div>
+
+      <div className="form-group">
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={autoValidate}
+            onChange={handleAutoValidateChange}
+          />
+          <span>⚡ Automatisch validieren nach Mining</span>
+        </label>
+        <small className="hint" style={{ display: 'block', marginTop: '4px', marginLeft: '24px', color: '#666' }}>
+          Startet Batch-Validierung automatisch nach erfolgreicher Requirements-Extraktion
+        </small>
       </div>
 
       <div className="form-group">
@@ -112,9 +202,9 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
               max="2000"
               step="100"
               value={chunkSize}
-              onChange={(e) => setChunkSize(parseInt(e.target.value))}
+              onChange={(e) => setChunkSize(parseInt(e.target.value) || 800)}
             />
-            <small className="hint">Standard: 800 | Größer = mehr Kontext pro Chunk</small>
+            <small className="hint">Standard: 4000 | Größer = mehr Kontext pro Chunk</small>
           </div>
 
           <div className="form-group">
@@ -126,9 +216,9 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
               max="500"
               step="50"
               value={chunkOverlap}
-              onChange={(e) => setChunkOverlap(parseInt(e.target.value))}
+              onChange={(e) => setChunkOverlap(parseInt(e.target.value) || 200)}
             />
-            <small className="hint">Standard: 200 | Überlappung zwischen Chunks</small>
+            <small className="hint">Standard: 300 | Überlappung zwischen Chunks</small>
           </div>
 
           <div className="form-group">
@@ -146,10 +236,18 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
       )}
 
       <div className="button-group">
-        <button className="btn btn-primary" onClick={handleStart} disabled={!files}>
-          🚀 Mining starten
+        <button
+          className="btn btn-primary"
+          onClick={handleStart}
+          disabled={!files || isLoading}
+        >
+          {isLoading ? '⏳ Verarbeitung läuft...' : '🚀 Mining starten'}
         </button>
-        <button className="btn btn-secondary" onClick={onReset}>
+        <button
+          className="btn btn-secondary"
+          onClick={onReset}
+          disabled={isLoading}
+        >
           🔄 Zurücksetzen
         </button>
       </div>

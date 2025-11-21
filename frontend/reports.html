@@ -19,7 +19,12 @@
     .status { margin-top:8px; font-size: 13px; color: var(--muted); }
     .link { color:#93c5fd; text-decoration:none; }
   </style>
-  <script>window.API_BASE = window.API_BASE || 'http://localhost:8087';</script>
+  <!-- Centralized API configuration -->
+  <script src="./config.js"></script>
+  <script>
+    // Backward compatibility: set window.API_BASE from centralized config
+    window.API_BASE = window.API_CONFIG ? window.API_CONFIG.BACKEND_URL : 'http://localhost:8087';
+  </script>
   <script defer src="./reports.js?v=1"></script>
 </head>
 <body>

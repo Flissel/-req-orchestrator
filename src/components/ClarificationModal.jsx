@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { debugSSE, exposeSSEForTesting } from '../utils/sse-debug';
+import { createReconnectingEventSource } from '../utils/sse-reconnection';
 
 /**
  * ClarificationModal - Real-time user clarification via SSE
@@ -20,43 +22,70 @@ export default function ClarificationModal({ sessionId, enabled = true }) {
       return;
     }
 
-    console.log(`[ClarificationModal] Connecting to SSE for session: ${sessionId}`);
+    if (import.meta.env.DEV) {
+      console.log(`[ClarificationModal] Connecting to SSE for session: ${sessionId}`);
+    }
 
-    // Establish SSE connection
-    const eventSource = new EventSource(
-      `http://localhost:8000/api/clarification/stream?session_id=${sessionId}`
+    // Establish SSE connection with automatic reconnection
+    const clarificationConnection = createReconnectingEventSource(
+      `/api/clarification/stream?session_id=${sessionId}`,
+      {
+        onOpen: () => {
+          if (import.meta.env.DEV) {
+            console.log('[ClarificationModal] SSE connection established');
+          }
+        },
+        onMessage: (event) => {
+          try {
+            const data = JSON.parse(event.data);
+
+            if (import.meta.env.DEV) {
+              console.log('[ClarificationModal] Received event:', data);
+            }
+
+            if (data.type === 'connected') {
+              if (import.meta.env.DEV) {
+                console.log(`[ClarificationModal] Connected to session: ${data.session_id}`);
+              }
+            } else if (data.type === 'question') {
+              if (import.meta.env.DEV) {
+                console.log('[ClarificationModal] Displaying question:', data.question);
+              }
+              setQuestion(data);
+              setAnswer(''); // Reset answer field
+            }
+          } catch (error) {
+            console.error('[ClarificationModal] Failed to parse SSE message:', error);
+          }
+        },
+        onError: (error) => {
+          console.error('[ClarificationModal] SSE error:', error);
+        },
+        onClose: (info) => {
+          if (import.meta.env.DEV) {
+            console.log('[ClarificationModal] SSE connection closed:', info);
+          }
+        }
+      },
+      {
+        maxRetries: 10,
+        initialDelay: 1000,
+        maxDelay: 30000,
+        logReconnections: import.meta.env.DEV
+      }
     );
 
-    eventSource.onopen = () => {
-      console.log('[ClarificationModal] SSE connection established');
-    };
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('[ClarificationModal] Received event:', data);
-
-        if (data.type === 'connected') {
-          console.log(`[ClarificationModal] Connected to session: ${data.session_id}`);
-        } else if (data.type === 'question') {
-          console.log('[ClarificationModal] Displaying question:', data.question);
-          setQuestion(data);
-          setAnswer(''); // Reset answer field
-        }
-      } catch (error) {
-        console.error('[ClarificationModal] Failed to parse SSE message:', error);
-      }
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('[ClarificationModal] SSE error:', error);
-      eventSource.close();
-    };
+    // Debug and expose for testing
+    const eventSource = clarificationConnection.getEventSource();
+    debugSSE('ClarificationModalStream', eventSource);
+    exposeSSEForTesting('clarificationModal', eventSource);
 
     // Cleanup on unmount
     return () => {
-      console.log('[ClarificationModal] Closing SSE connection');
-      eventSource.close();
+      if (import.meta.env.DEV) {
+        console.log('[ClarificationModal] Closing SSE connection');
+      }
+      clarificationConnection.close();
     };
   }, [sessionId, enabled]);
 
@@ -71,7 +100,7 @@ export default function ClarificationModal({ sessionId, enabled = true }) {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/clarification/answer', {
+      const response = await fetch('/api/clarification/answer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

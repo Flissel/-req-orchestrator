@@ -12,7 +12,8 @@ from fastapi.middleware.wsgi import WSGIMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import der korrigierten Flask-App
-from . import app as flask_app
+# DISABLED: Flask import disabled to prevent route conflicts with FastAPI
+# from . import app as flask_app
 # Neon: FastAPI-Router (LX)
 from .routers.lx_router import router as lx_router
 from .routers.structure_router import router as structure_router
@@ -21,12 +22,19 @@ from .routers.validate_router import router as validate_router
 from .routers.vector_router import router as vector_router
 from .routers.corrections_router import router as corrections_router
 from .routers.batch_router import router as batch_router
+from .routers.manifest_router import router as manifest_router
 import uuid
 import json
 import logging
 import hashlib  # für sticky Variant-Berechnung
 # Import für Runtime-Config
 from backend.core.settings import get_runtime_config as get_runtime_config_v1
+# Import centralized port configuration
+try:
+    from backend.core.ports import get_ports
+    _ports = get_ports()
+except ImportError:
+    _ports = None
 
 # Erstelle FastAPI-App als Wrapper
 fastapi_app = FastAPI(
@@ -119,9 +127,11 @@ fastapi_app.include_router(validate_router)
 fastapi_app.include_router(vector_router)
 fastapi_app.include_router(corrections_router)
 fastapi_app.include_router(batch_router)
+fastapi_app.include_router(manifest_router)
 
 # Mount Flask-App unter Root, damit Routen wie /api/v1/* direkt erreichbar sind
-fastapi_app.mount("/", WSGIMiddleware(flask_app))
+# DISABLED: Flask mount conflicts with FastAPI routers - using FastAPI v2 exclusively
+# fastapi_app.mount("/", WSGIMiddleware(flask_app))
 
 # Health-Endpoint für FastAPI
 @fastapi_app.get("/health")
@@ -137,7 +147,7 @@ async def runtime_config_v2():
 
 @fastapi_app.get("/ready")
 async def readiness():
-    return {"status": "ok", "checks": {"app": "fastapi", "flask_mount": True}}
+    return {"status": "ok", "checks": {"app": "fastapi", "flask_mount": False}}
 
 @fastapi_app.get("/livez")
 async def liveness():
@@ -146,7 +156,8 @@ async def liveness():
 if __name__ == "__main__":
     # Konfiguration aus Umgebungsvariablen
     host = os.getenv("API_HOST", "0.0.0.0")
-    port = int(os.getenv("API_PORT", "8082"))  # Anderer Port als V1
+    # Use centralized port configuration with legacy fallback
+    port = _ports.BACKEND_PORT if _ports else int(os.getenv("BACKEND_PORT", os.getenv("API_PORT", "8087")))
 
     print("🚀 Starting Requirements Mining API V2" )
     print(f"📍 Host: {host}:{port}")

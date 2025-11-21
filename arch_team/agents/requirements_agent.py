@@ -4,15 +4,16 @@ Requirements Validation Agent using Society of Mind Pattern.
 
 This module provides a multi-agent system for requirements quality assurance:
 - RequirementsOperator: Validates and improves requirements (with tools)
-- UserClarificationAgent: Gets missing info from user (with ask_user tool)
-- QAValidator: Verifies completeness and quality (no tools)
+- QAValidator: Quality gate that verifies completeness (no tools)
+
+**NOTE**: This agent no longer uses UserClarificationAgent. Automatic validation
+is now handled by the RequirementOrchestrator with CriterionSpecialistAgents.
 
 Architecture:
     SocietyOfMindAgent
       └─ RoundRobinGroupChat (inner team)
            ├─ RequirementsOperator (tools: evaluate, rewrite, suggest, detect_duplicates)
-           ├─ UserClarificationAgent (tool: ask_user)
-           └─ QAValidator (no tools, terminates with "APPROVE")
+           └─ QAValidator (no tools, quality gate pattern, terminates with "APPROVE")
 
 Reference Implementation: arch_team/dev_folder_/agent.py (GitHub MCP Agent)
 """
@@ -25,6 +26,7 @@ import uuid
 import requests
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
 
 try:
     # AutoGen imports
@@ -60,13 +62,19 @@ def _init_model_client(model_name: Optional[str] = None) -> OpenAIChatCompletion
     Returns:
         OpenAIChatCompletionClient configured for arch_team
     """
+    # Load .env explicitly (same pattern as master_agent.py)
+    # This ensures OPENAI_API_KEY is available in async context
+    # Use override=True to force loading even if empty env var exists
+    project_dir = Path(__file__).resolve().parents[2]
+    load_dotenv(project_dir / ".env", override=True)
+
     adapter = OpenAIAdapter()
     model = model_name or adapter.default_model
 
     # Get API key from environment (same as OpenAIAdapter does)
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY not set")
+        raise RuntimeError("OPENAI_API_KEY environment variable not set")
 
     return OpenAIChatCompletionClient(
         model=model,
@@ -75,124 +83,25 @@ def _init_model_client(model_name: Optional[str] = None) -> OpenAIChatCompletion
     )
 
 
-def _create_ask_user_tool(correlation_id: Optional[str] = None) -> FunctionTool:
-    """
-    Create the ask_user tool for UserClarificationAgent.
-
-    This tool enables the agent to ask the user clarification questions via GUI.
-    Uses file-based polling for user responses (similar to GitHub agent).
-
-    Args:
-        correlation_id: Optional correlation ID for multi-session tracking
-
-    Returns:
-        FunctionTool that can be used by UserClarificationAgent
-    """
-
-    async def ask_user_impl(question: str, suggested_answers: Optional[List[str]] = None) -> str:
-        """
-        Ask the user a clarification question via GUI/file polling + SSE.
-
-        Args:
-            question: The question to ask (in German)
-            suggested_answers: Optional list of suggested answers
-
-        Returns:
-            User's answer as string
-        """
-        # Generate unique question ID
-        question_id = str(uuid.uuid4())
-
-        # Print to console for visibility
-        print(f"\n{'='*60}")
-        print(f"USER QUESTION (ID: {question_id}):")
-        print(f"   {question}")
-        if suggested_answers:
-            print(f"   Vorschläge: {suggested_answers}")
-        print(f"{'='*60}\n")
-
-        # Broadcast to GUI via SSE (if correlation_id exists, session is active)
-        if correlation_id:
-            try:
-                # Get access to the clarification_streams registry from service.py
-                # We do this via direct import (since service.py is in same process)
-                import sys
-                service_module = sys.modules.get('arch_team.service')
-                if service_module and hasattr(service_module, 'clarification_streams'):
-                    streams = service_module.clarification_streams
-                    if correlation_id in streams:
-                        # Send question event to SSE stream
-                        streams[correlation_id].put({
-                            "type": "question",
-                            "question_id": question_id,
-                            "question": question,
-                            "suggested_answers": suggested_answers or []
-                        })
-                        logger.info(f"Sent question via SSE to session {correlation_id}")
-                        print(f"[SSE] Question sent to frontend (session: {correlation_id})")
-            except Exception as e:
-                logger.warning(f"Failed to broadcast via SSE: {e}")
-                print(f"[SSE] Warning: Could not broadcast to frontend: {e}")
-
-        try:
-            # Determine response file path
-            project_root = Path(__file__).resolve().parents[2]  # Navigate to project root
-            tmp_dir = project_root / "data" / "tmp"
-            tmp_dir.mkdir(parents=True, exist_ok=True)
-
-            # Use correlation_id for file name, fallback to question_id
-            file_id = correlation_id if correlation_id else question_id
-            response_file = tmp_dir / f"clarification_{file_id}.txt"
-
-            # Poll for response file (timeout after 5 minutes)
-            max_wait = 300  # 5 minutes
-            poll_interval = 1  # 1 second
-            elapsed = 0
-
-            logger.info(f"Waiting for user response (polling {response_file})...")
-            print(f"⏳ Warte auf Antwort (Datei: {response_file})...")
-
-            while elapsed < max_wait:
-                if response_file.exists():
-                    # Read and delete the response file
-                    try:
-                        answer = response_file.read_text(encoding='utf-8').strip()
-                        response_file.unlink()  # Delete file after reading
-
-                        logger.info(f"User answered: {answer}")
-                        print(f"✅ User antwortete: {answer}")
-                        return f"User provided: {answer}"
-                    except Exception as e:
-                        logger.error(f"Error reading response file: {e}")
-                        return "Error: Could not read user response"
-
-                # Wait before next poll
-                await asyncio.sleep(poll_interval)
-                elapsed += poll_interval
-
-            # Timeout reached
-            logger.warning("Timeout waiting for user response")
-            print(f"⏰ Timeout: Keine Antwort vom User")
-            return "Error: User did not respond within timeout (5 minutes)"
-
-        except Exception as e:
-            logger.error(f"Error in polling mechanism: {e}")
-            return f"Error: Polling failed - {e}"
-
-    return FunctionTool(
-        ask_user_impl,
-        description="Ask the user a clarification question when critical information is missing"
-    )
+# NOTE: _create_ask_user_tool has been removed.
+# User clarification is now handled by the RequirementOrchestrator with
+# CriterionSpecialistAgents that automatically fix quality issues.
 
 
 class RequirementsValidationAgent:
     """
     Society of Mind agent for requirements validation and quality assurance.
 
-    This agent orchestrates three specialized agents:
+    This agent orchestrates two specialized agents:
     1. RequirementsOperator: Validates and improves requirements using validation tools
-    2. UserClarificationAgent: Gets missing information from the user
-    3. QAValidator: Verifies completeness and approves the work
+    2. QAValidator: Acts as quality gate, verifies completeness and approves the work
+
+    **NOTE**: UserClarificationAgent has been removed. Automatic requirement fixing
+    is now handled by the RequirementOrchestrator with CriterionSpecialistAgents.
+
+    The QAValidator now operates as a pure quality gate - it checks if requirements
+    meet all criteria and either approves (APPROVE) or rejects them. No user
+    interaction is required.
 
     Usage:
         agent = RequirementsValidationAgent()
@@ -264,11 +173,9 @@ class RequirementsValidationAgent:
         try:
             from .prompts import requirements_operator_prompt
             from .prompts import qa_validator_prompt
-            from .prompts import user_clarification_prompt
 
             operator_prompt = requirements_operator_prompt.PROMPT
             qa_prompt = qa_validator_prompt.PROMPT
-            clarification_prompt = user_clarification_prompt.PROMPT
         except Exception as e:
             logger.error(f"Failed to load prompts: {e}")
             return {"status": "error", "error": f"Prompt loading failed: {e}"}
@@ -289,18 +196,9 @@ class RequirementsValidationAgent:
             system_message=operator_prompt
         )
 
-        # Create ask_user tool for UserClarificationAgent
-        ask_user_tool = _create_ask_user_tool(correlation_id=correlation_id)
-
-        # Create Clarification agent WITH ask_user tool
-        clarification_agent = AssistantAgent(
-            "UserClarificationAgent",
-            model_client=self.model_client,
-            tools=[ask_user_tool],
-            system_message=clarification_prompt
-        )
-
-        # Create QA Validator (no tools, validation only)
+        # Create QA Validator (no tools, acts as quality gate)
+        # The QA Validator now checks if all criteria pass and either approves or rejects.
+        # No user interaction required - automatic fixes are handled by RequirementOrchestrator.
         qa_validator = AssistantAgent(
             "QAValidator",
             model_client=self.model_client,
@@ -310,9 +208,9 @@ class RequirementsValidationAgent:
         # Inner team termination: wait for "APPROVE" from QA Validator
         termination = TextMentionTermination("APPROVE")
         inner_team = RoundRobinGroupChat(
-            [operator, clarification_agent, qa_validator],
+            [operator, qa_validator],  # Only 2 agents now: Operator and QA
             termination_condition=termination,
-            max_turns=50  # Allow user interaction
+            max_turns=20  # Reduced from 50 since no user interaction
         )
 
         # Society of Mind wrapper

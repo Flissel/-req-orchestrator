@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import './ChatInterface.css'
+import { debugSSE, exposeSSEForTesting } from '../utils/sse-debug'
+import { createReconnectingEventSource } from '../utils/sse-reconnection'
 
-const API_BASE = window.location.hostname === 'localhost'
-  ? 'http://localhost:8000'
-  : ''
+// Use relative URLs to leverage Vite's proxy (eliminates CORS warnings)
+const API_BASE = ''
 
 function ChatInterface({ sessionId, onWorkflowComplete }) {
   const [messages, setMessages] = useState([])
@@ -118,82 +119,126 @@ function ChatInterface({ sessionId, onWorkflowComplete }) {
     }
   }, [isWorkflowRunning, workflowId])
 
-  // Listen for workflow messages via SSE
+  // Listen for workflow messages via SSE (with automatic reconnection)
   useEffect(() => {
     if (!sessionId) return
 
-    const workflowSource = new EventSource(`${API_BASE}/api/workflow/stream?session_id=${sessionId}`)
-
-    workflowSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-
-        if (data.type === 'connected') {
-          console.log('[Chat] Workflow SSE connected:', data.session_id)
-        } else if (data.type === 'agent_message') {
-          addAgentMessage(data.agent, data.message)
-        } else if (data.type === 'workflow_status') {
-          if (data.status === 'running') {
-            setIsWorkflowRunning(true)
-            addSystemMessage('🔄 Workflow gestartet')
-          } else if (data.status === 'completed') {
-            setIsWorkflowRunning(false)
-            addSystemMessage('✅ Workflow abgeschlossen')
-          } else if (data.status === 'failed') {
-            setIsWorkflowRunning(false)
-            addSystemMessage(`❌ Workflow fehlgeschlagen: ${data.error || 'Unbekannter Fehler'}`)
+    const workflowConnection = createReconnectingEventSource(
+      `${API_BASE}/api/workflow/stream?session_id=${sessionId}`,
+      {
+        onOpen: (e) => {
+          if (import.meta.env.DEV) {
+            console.log('[Chat] Workflow SSE connection opened')
           }
-        } else if (data.type === 'workflow_result') {
-          if (onWorkflowComplete) {
-            onWorkflowComplete(data.result)
+        },
+        onMessage: (event) => {
+          try {
+            const data = JSON.parse(event.data)
+
+            if (data.type === 'connected') {
+              if (import.meta.env.DEV) {
+                console.log('[Chat] Workflow SSE connected:', data.session_id)
+              }
+            } else if (data.type === 'agent_message') {
+              addAgentMessage(data.agent, data.message)
+            } else if (data.type === 'workflow_status') {
+              if (data.status === 'running') {
+                setIsWorkflowRunning(true)
+                addSystemMessage('🔄 Workflow gestartet')
+              } else if (data.status === 'completed') {
+                setIsWorkflowRunning(false)
+                addSystemMessage('✅ Workflow abgeschlossen')
+              } else if (data.status === 'failed') {
+                setIsWorkflowRunning(false)
+                addSystemMessage(`❌ Workflow fehlgeschlagen: ${data.error || 'Unbekannter Fehler'}`)
+              }
+            } else if (data.type === 'workflow_result') {
+              if (onWorkflowComplete) {
+                onWorkflowComplete(data.result)
+              }
+            }
+          } catch (err) {
+            console.error('[Chat] Workflow SSE parse error:', err)
           }
+        },
+        onError: (err) => {
+          console.error('[Chat] Workflow SSE error:', err)
+        },
+        onClose: (info) => {
+          console.warn('[Chat] Workflow SSE closed:', info)
         }
-      } catch (err) {
-        console.error('[Chat] Workflow SSE parse error:', err)
+      },
+      {
+        maxRetries: 10,
+        initialDelay: 1000,
+        maxDelay: 30000,
+        logReconnections: import.meta.env.DEV
       }
-    }
+    )
 
-    workflowSource.onerror = (err) => {
-      console.error('[Chat] Workflow SSE error:', err)
-      workflowSource.close()
-    }
+    // Debug and expose for testing
+    const eventSource = workflowConnection.getEventSource()
+    debugSSE('WorkflowStream', eventSource)
+    exposeSSEForTesting('workflow', eventSource)
 
     return () => {
-      workflowSource.close()
+      workflowConnection.close()
     }
   }, [sessionId, onWorkflowComplete])
 
-  // Listen for clarification questions from SSE
+  // Listen for clarification questions from SSE (with automatic reconnection)
   useEffect(() => {
     if (!sessionId) return
 
-    const eventSource = new EventSource(`${API_BASE}/api/clarification/stream?session_id=${sessionId}`)
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-
-        if (data.type === 'connected') {
-          console.log('[Chat] Clarification SSE connected:', data.session_id)
-        } else if (data.type === 'question') {
-          addAgentMessage('UserClarification', `❓ ${data.question}`)
-
-          if (data.suggested_answers && data.suggested_answers.length > 0) {
-            addSystemMessage(`Vorschläge: ${data.suggested_answers.join(', ')}`)
+    const clarificationConnection = createReconnectingEventSource(
+      `${API_BASE}/api/clarification/stream?session_id=${sessionId}`,
+      {
+        onOpen: (e) => {
+          if (import.meta.env.DEV) {
+            console.log('[Chat] Clarification SSE connection opened')
           }
-        }
-      } catch (err) {
-        console.error('[Chat] Clarification SSE parse error:', err)
-      }
-    }
+        },
+        onMessage: (event) => {
+          try {
+            const data = JSON.parse(event.data)
 
-    eventSource.onerror = (err) => {
-      console.error('[Chat] Clarification SSE error:', err)
-      eventSource.close()
-    }
+            if (data.type === 'connected') {
+              if (import.meta.env.DEV) {
+                console.log('[Chat] Clarification SSE connected:', data.session_id)
+              }
+            } else if (data.type === 'question') {
+              addAgentMessage('UserClarification', `❓ ${data.question}`)
+
+              if (data.suggested_answers && data.suggested_answers.length > 0) {
+                addSystemMessage(`Vorschläge: ${data.suggested_answers.join(', ')}`)
+              }
+            }
+          } catch (err) {
+            console.error('[Chat] Clarification SSE parse error:', err)
+          }
+        },
+        onError: (err) => {
+          console.error('[Chat] Clarification SSE error:', err)
+        },
+        onClose: (info) => {
+          console.warn('[Chat] Clarification SSE closed:', info)
+        }
+      },
+      {
+        maxRetries: 10,
+        initialDelay: 1000,
+        maxDelay: 30000,
+        logReconnections: import.meta.env.DEV
+      }
+    )
+
+    // Debug and expose for testing
+    const eventSource = clarificationConnection.getEventSource()
+    debugSSE('ClarificationStream', eventSource)
+    exposeSSEForTesting('clarificationChat', eventSource)
 
     return () => {
-      eventSource.close()
+      clarificationConnection.close()
     }
   }, [sessionId])
 

@@ -5,7 +5,7 @@ import types
 def test_lx_extract_json(monkeypatch):
     # Import v2 module and app
     import backend.api_v2_part2 as api_v2_part2
-    from backend.core_v2 import app
+    from backend import app
 
     # Fake LangExtract module with minimal extract implementation
     class _FakeLX:

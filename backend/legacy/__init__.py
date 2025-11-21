@@ -58,8 +58,9 @@ def create_app() -> Flask:
     def _global_cors_preflight(_):
         # Leere 204-Antwort; Flask-CORS fügt die CORS-Header hinzu
         return ("", 204)
-    # DB initialisieren
-    init_db()
+    # DB initialisieren (lazy - only when app is actually used)
+    # Moved to first request handler to avoid import-time initialization
+    # init_db()
 
     # Statische Auslieferung des Frontends (http://localhost:8081/)
     @app.get("/")
@@ -77,5 +78,6 @@ def create_app() -> Flask:
     return app
 
 
-# Export für Gunicorn wsgi:app
-app = create_app()
+# Export für Gunicorn wsgi:app (lazy creation to avoid import-time DB init)
+# app = create_app()
+# Only create app when explicitly needed (e.g., in main.py via WSGIMiddleware)

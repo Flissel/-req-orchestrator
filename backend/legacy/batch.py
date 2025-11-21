@@ -22,6 +22,15 @@ from .utils import parse_context_cell, parse_requirements_md, sha256_text, weigh
 
 import concurrent.futures as futures
 
+# Manifest Integration
+from backend.services.manifest_integration import (
+    start_evaluation_stage,
+    complete_evaluation_stage,
+    start_atomicity_stage,
+    complete_atomicity_stage,
+    record_atomicity_split,
+)
+
 batch_bp = Blueprint("batch", __name__)
 
 
@@ -41,6 +50,23 @@ def ensure_evaluation_exists(requirement_text: str, context: Dict[str, Any], cri
             "latencyMs": row["latency_ms"],
         }
 
+    # Generate stable requirement ID
+    requirement_id = f"REQ-{checksum[:6]}-api"
+
+    # Start evaluation stage tracking
+    stage_id = None
+    try:
+        stage_id = start_evaluation_stage(
+            conn=conn,
+            requirement_id=requirement_id,
+            requirement_text=requirement_text,
+            evaluation_id=None,
+            model_used=settings.OPENAI_MODEL,
+            ctx=None
+        )
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Failed to start evaluation stage: {e}")
+
     ts = time.time()
     details = llm_evaluate(requirement_text, criteria_keys, context)
     crits = load_criteria(conn, criteria_keys)
@@ -59,6 +85,93 @@ def ensure_evaluation_exists(requirement_text: str, context: Dict[str, Any], cri
                 "INSERT INTO evaluation_detail(evaluation_id, criterion_key, score, passed, feedback) VALUES (?, ?, ?, ?, ?)",
                 (eval_id, d["criterion"], float(d["score"]), 1 if d["passed"] else 0, d.get("feedback", "")),
             )
+
+    # Complete evaluation stage tracking
+    if stage_id is not None:
+        try:
+            complete_evaluation_stage(
+                conn=conn,
+                stage_id=stage_id,
+                score=agg_score,
+                verdict=verdict,
+                latency_ms=latency_ms,
+                token_usage=None,  # TODO: Extract from llm_evaluate response
+                ctx=None
+            )
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Failed to complete evaluation stage: {e}")
+
+    # === CONDITIONAL ATOMICITY CHECK ===
+    # Check if atomic criterion failed (score < 0.7)
+    atomic_detail = next((d for d in details if d["criterion"] == "atomic"), None)
+    if atomic_detail:
+        atomic_score = atomic_detail.get("score", 1.0)
+
+        # Only process if atomic_score < 0.7 AND stage doesn't exist yet
+        if atomic_score < 0.7:
+            try:
+                # Start atomicity stage (returns None if already exists)
+                atomicity_stage_id = start_atomicity_stage(
+                    conn,
+                    requirement_id=requirement_id,
+                    model_used=settings.OPENAI_MODEL,
+                    ctx=None
+                )
+
+                if atomicity_stage_id is not None:
+                    # Stage was created → invoke AtomicityAgent
+                    try:
+                        from backend.core.agents import RequirementsAtomicityAgent
+                        import asyncio
+
+                        agent = RequirementsAtomicityAgent()
+
+                        # Call _split_with_retry directly (synchronous path)
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            splits = loop.run_until_complete(
+                                agent._split_with_retry(requirement_text, context, max_splits=5)
+                            )
+                        finally:
+                            loop.close()
+
+                        # Complete atomicity stage
+                        complete_atomicity_stage(
+                            conn,
+                            stage_id=atomicity_stage_id,
+                            atomic_score=atomic_score,
+                            is_atomic=False,
+                            was_split=bool(splits),
+                            ctx=None
+                        )
+
+                        # Record splits
+                        if splits:
+                            child_ids = record_atomicity_split(
+                                conn,
+                                parent_id=requirement_id,
+                                splits=splits,
+                                split_model=settings.OPENAI_MODEL,
+                                ctx=None
+                            )
+                            logging.getLogger(__name__).info(
+                                f"Atomicity: Split {requirement_id} into {len(child_ids)} children"
+                            )
+
+                    except Exception as split_error:
+                        # Mark stage as failed
+                        conn.execute(
+                            "UPDATE processing_stage SET status = 'failed', error_message = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?",
+                            (str(split_error), atomicity_stage_id)
+                        )
+                        logging.getLogger(__name__).warning(f"Atomicity split failed: {split_error}")
+                else:
+                    # Stage already exists, skip
+                    logging.getLogger(__name__).info(f"Atomicity stage already exists for {requirement_id}, skipping")
+
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"Atomicity check failed: {e}")
 
     return eval_id, {"score": agg_score, "verdict": verdict, "model": settings.OPENAI_MODEL, "latencyMs": latency_ms}
 

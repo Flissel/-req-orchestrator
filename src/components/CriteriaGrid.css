@@ -1,0 +1,215 @@
+/* Container for all tier sections */
+.criteria-grid-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Tier section wrapper */
+.tier-section {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Tier header with badge and description */
+.tier-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--card2);
+  border-left: 4px solid;
+  margin-bottom: 8px;
+}
+
+.tier-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tier-description {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Criteria grid within each tier */
+.criteria-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.criterion-item {
+  background: var(--card2);
+  border: 2px solid var(--chip);
+  border-radius: 8px;
+  padding: 12px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+/* Tier-specific styling for criterion items */
+.criterion-item.tier-gating {
+  border-left: 4px solid transparent;
+}
+
+.criterion-item.tier-priority {
+  border-left: 4px solid transparent;
+}
+
+.criterion-item.tier-polish {
+  border-left: 4px solid transparent;
+}
+
+/* Pass/fail status takes precedence */
+.criterion-item.pass {
+  border-left-color: var(--ok);
+}
+
+.criterion-item.fail.tier-gating {
+  border-left-color: #dc3545;
+  background: rgba(220, 53, 69, 0.05);
+}
+
+.criterion-item.fail.tier-priority {
+  border-left-color: #fd7e14;
+  background: rgba(253, 126, 20, 0.05);
+}
+
+.criterion-item.fail.tier-polish {
+  border-left-color: #ffc107;
+  background: rgba(255, 193, 7, 0.05);
+}
+
+.criterion-item.unknown {
+  border-left-color: var(--muted);
+}
+
+.criterion-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.criterion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.criterion-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.criterion-status-icon {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.criterion-item.pass .criterion-status-icon {
+  color: var(--ok);
+}
+
+.criterion-item.fail.tier-gating .criterion-status-icon {
+  color: #dc3545;
+}
+
+.criterion-item.fail.tier-priority .criterion-status-icon {
+  color: #fd7e14;
+}
+
+.criterion-item.fail.tier-polish .criterion-status-icon {
+  color: #ffc107;
+}
+
+.criterion-item.unknown .criterion-status-icon {
+  color: var(--muted);
+}
+
+.criterion-score {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.score-bar-container {
+  flex: 1;
+  height: 6px;
+  background: var(--chip);
+  border-radius: 3px;
+  overflow: visible;
+  position: relative;
+}
+
+.score-bar-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+  border-radius: 3px;
+}
+
+/* Threshold marker on score bar */
+.score-threshold-marker {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: 10px;
+  background: var(--fg);
+  opacity: 0.5;
+  border-radius: 1px;
+}
+
+.score-text {
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 36px;
+  text-align: right;
+}
+
+.criterion-reason {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--muted);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--chip);
+  max-height: 60px;
+  overflow-y: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .criteria-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tier-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
+
+/* Compact mode for smaller displays */
+@media (max-width: 480px) {
+  .criterion-item {
+    padding: 8px;
+  }
+
+  .criterion-name {
+    font-size: 11px;
+  }
+
+  .score-text {
+    font-size: 10px;
+  }
+}

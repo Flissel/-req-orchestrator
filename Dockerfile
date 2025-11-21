@@ -21,7 +21,9 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 # -------- Production: Legacy (Flask/Gunicorn) --------
 FROM base AS production-legacy
+# Use BACKEND_PORT (new standard) with API_PORT fallback (legacy)
 ENV API_HOST=0.0.0.0 \
+    BACKEND_PORT=8081 \
     API_PORT=8081 \
     SQLITE_PATH=/data/app.db
 # Runtime-Dependencies aus deps_legacy übernehmen
@@ -30,15 +32,19 @@ COPY --from=deps_legacy /usr/local /usr/local
 COPY . .
 # Datenverzeichnis
 RUN mkdir -p /data && chmod 755 /data
-EXPOSE 8081
+# Port can be overridden via --build-arg BACKEND_PORT=xxxx
+ARG BACKEND_PORT=8081
+EXPOSE ${BACKEND_PORT}
 HEALTHCHECK --interval=30s --timeout=5s --retries=5 \
-  CMD curl -sf http://localhost:8081/health || exit 1
-# Start (Gunicorn, WSGI Entry muss vorhanden sein)
-CMD ["sh","-lc","exec gunicorn -b 0.0.0.0:8081 wsgi:app --timeout 300 --workers 2 --threads 4"]
+  CMD curl -sf http://localhost:${BACKEND_PORT}/health || exit 1
+# Start (Gunicorn, WSGI Entry muss vorhanden sein) - port from env with fallback
+CMD sh -c "exec gunicorn -b 0.0.0.0:${BACKEND_PORT:-8081} wsgi:app --timeout 300 --workers 2 --threads 4"
 
 # -------- Production: FastAPI (Uvicorn) --------
 FROM base AS production-fastapi
+# Use BACKEND_PORT (new standard) with API_PORT fallback (legacy)
 ENV API_HOST=0.0.0.0 \
+    BACKEND_PORT=8087 \
     API_PORT=8087 \
     SQLITE_PATH=/app/data/app.db
 # Runtime-Dependencies aus deps_fastapi übernehmen
@@ -50,11 +56,13 @@ RUN useradd --create-home --shell /bin/bash app \
  && mkdir -p /app/data \
  && chown -R app:app /app/data
 USER app
-EXPOSE 8087
+# Port can be overridden via --build-arg BACKEND_PORT=xxxx
+ARG BACKEND_PORT=8087
+EXPOSE ${BACKEND_PORT}
 HEALTHCHECK --interval=30s --timeout=5s --retries=5 \
-  CMD curl -sf http://localhost:8087/health || exit 1
-# Start (Uvicorn with consolidated backend)
-CMD ["uvicorn","backend.main:fastapi_app","--host","0.0.0.0","--port","8087","--workers","4"]
+  CMD curl -sf http://localhost:${BACKEND_PORT}/health || exit 1
+# Start (Uvicorn with consolidated backend) - port from env with fallback
+CMD sh -c "uvicorn backend.main:fastapi_app --host 0.0.0.0 --port ${BACKEND_PORT:-8087} --workers 4"
 
 # -------- Worker (optional, gRPC/Agents) --------
 FROM base AS worker

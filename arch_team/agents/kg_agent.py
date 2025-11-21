@@ -237,7 +237,7 @@ class KGAbstractionAgent:
         sparse = (len(extra_nodes) == 0 and len(extra_edges) == 0)
         if use_llm or (llm_fallback and sparse):
             try:
-                llm_nodes, llm_edges = self._llm_expand(title=title, req_id=req_id, tag=tag, model=model)
+                llm_nodes, llm_edges = self._llm_expand(title=title, req_id=req_id, tag=tag, model=model, existing_nodes=nodes)
                 nodes.extend(llm_nodes)
                 edges.extend(llm_edges)
             except Exception as e:
@@ -374,14 +374,19 @@ class KGAbstractionAgent:
     # -------------------------
     # Optional LLM expansion
     # -------------------------
-    def _llm_expand(self, *, title: str, req_id: str, tag: str, model: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def _llm_expand(self, *, title: str, req_id: str, tag: str, model: str, existing_nodes: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Fragt ein striktes JSON vom LLM ab:
           { "nodes": [...], "edges": [...] }
         Akzeptiert nur valide JSONs, invalid → ignoriert.
+        Validiert Kanten gegen existierende Knoten.
         """
+        # Build list of existing node IDs for the prompt
+        existing_node_ids = [n.get("id", "") for n in existing_nodes if n.get("id")]
+        node_list = ", ".join(existing_node_ids) if existing_node_ids else "None"
+
         prompt = [
-            {"role": "system", "content": "Extrahiere aus dem Requirement-Titel eine KG-Ansicht. Antworte NUR mit JSON (keine Erklärungen)."},
+            {"role": "system", "content": "Extrahiere aus dem Requirement-Titel eine KG-Ansicht. Antworte NUR mit JSON (keine Erklärungen). WICHTIG: Verwende EXAKT die ID-Formate für existierende Knoten."},
             {
                 "role": "user",
                 "content": (
@@ -391,6 +396,8 @@ class KGAbstractionAgent:
                     '  "nodes": [{"id": "...", "type": "...", "name": "..."}],\n'
                     '  "edges": [{"from": "...", "to": "...", "rel": "..."}]\n'
                     "}\n"
+                    "WICHTIG: Tag-Knoten müssen Format 'Tag:{name}' haben (z.B. 'Tag:functional').\n"
+                    f"Existierende Knoten-IDs: {node_list}\n"
                     f'Titel: "{title}"\n'
                     f"ReqId: {req_id}\n"
                     f"Tag: {tag}\n"
@@ -406,6 +413,8 @@ class KGAbstractionAgent:
             raw_edges = data.get("edges") or []
             nodes: List[Dict[str, Any]] = []
             edges: List[Dict[str, Any]] = []
+
+            # Process LLM-generated nodes
             for n in raw_nodes:
                 nid = str(n.get("id") or "").strip()
                 name = str(n.get("name") or nid or "").strip()
@@ -413,13 +422,42 @@ class KGAbstractionAgent:
                 if not nid:
                     nid = _entity_id(ntype, name or ntype)
                 nodes.append({"id": nid, "type": ntype, "name": name or nid, "payload": {"node_id": nid, "type": ntype, "name": name or nid}})
+
+            # Build complete node ID set (existing + newly created)
+            all_node_ids = {n.get("id", "") for n in existing_nodes if n.get("id")}
+            all_node_ids.update(n.get("id", "") for n in nodes if n.get("id"))
+
+            # Process LLM-generated edges with validation and pattern mapping
             for e in raw_edges:
                 fr = str(e.get("from") or "").strip()
                 to = str(e.get("to") or "").strip()
                 rel = str(e.get("rel") or "RELATES_TO").strip()
-                if fr and to:
-                    eid = f"{fr}#{rel}#{to}"
-                    edges.append({"id": eid, "from": fr, "to": to, "rel": rel, "payload": {"edge_id": eid, "from_node_id": fr, "to_node_id": to, "rel": rel}})
+
+                if not (fr and to):
+                    continue
+
+                # Pattern mapping: Fix common LLM mistakes
+                # 1. Tag edges: "functional" → "Tag:functional"
+                if rel.lower() in ["tagged_as", "has_tag"] and not to.startswith("Tag:"):
+                    corrected_to = f"Tag:{to}"
+                    if corrected_to in all_node_ids:
+                        logger.debug(f"LLM edge: auto-corrected tag reference '{to}' → '{corrected_to}'")
+                        to = corrected_to
+
+                # 2. Validate edge targets exist
+                if to not in all_node_ids:
+                    logger.warning(f"LLM edge references non-existent node: {fr} --[{rel}]--> {to} (skipping)")
+                    continue
+
+                # 3. Validate edge sources exist (paranoid check)
+                if fr not in all_node_ids:
+                    logger.warning(f"LLM edge has non-existent source: {fr} --[{rel}]--> {to} (skipping)")
+                    continue
+
+                # Edge is valid - add it
+                eid = f"{fr}#{rel}#{to}"
+                edges.append({"id": eid, "from": fr, "to": to, "rel": rel, "payload": {"edge_id": eid, "from_node_id": fr, "to_node_id": to, "rel": rel}})
+
             return nodes, edges
         except Exception as e:
             logger.debug("LLM expand parse failed: %s", e)

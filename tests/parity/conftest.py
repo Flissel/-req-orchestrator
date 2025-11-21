@@ -125,7 +125,7 @@ def clients(tmp_path) -> Tuple[Any, Any]:
 
     # FastAPI-App (v2) laden
     from fastapi.testclient import TestClient
-    from backend.core_v2.main import fastapi_app
+    from backend.main import fastapi_app
     fastapi_client = TestClient(fastapi_app)
 
     return flask_client, fastapi_client

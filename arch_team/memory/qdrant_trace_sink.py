@@ -7,6 +7,13 @@ from typing import Optional
 
 from ..runtime.logging import get_logger
 
+# Import centralized port configuration
+try:
+    from backend.core.ports import get_ports
+    _ports = get_ports()
+except ImportError:
+    _ports = None
+
 logger = get_logger("memory.qdrant_trace_sink")
 
 
@@ -24,7 +31,8 @@ class QdrantTraceSink:
         collection: str = "arch_trace",
         st_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
     ) -> None:
-        self.qdrant_url = qdrant_url or os.environ.get("QDRANT_URL", "http://localhost:6333")
+        # Use centralized port configuration with legacy fallback
+        self.qdrant_url = qdrant_url or (_ports.QDRANT_FULL_URL if _ports else os.environ.get("QDRANT_URL", "http://localhost:6333"))
         self.api_key = api_key or os.environ.get("QDRANT_API_KEY") or None
         self.collection = collection
         self.st_model_name = st_model_name

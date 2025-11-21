@@ -11,10 +11,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from tempfile import mkdtemp
 
+from dotenv import load_dotenv
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_agentchat.conditions import TextMentionTermination
-from autogen_ext.models import OpenAIChatCompletionClient
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+from autogen_ext.models.openai._openai_client import ModelInfo, ModelCapabilities
 
 # Import all tools
 from arch_team.tools.mining_tools import mining_tools
@@ -178,15 +180,47 @@ async def create_master_agent(
             task="Extract and validate requirements from uploaded files"
         )
     """
+    # Load .env explicitly (same pattern as arch_team/main.py)
+    # This ensures OPENAI_API_KEY is available in async context
+    # Use override=True to force loading even if empty env var exists
+    import sys
+    project_dir = Path(__file__).resolve().parents[2]
+
+    sys.stderr.write(f"[master_agent.py] Loading .env from: {project_dir / '.env'}\n")
+    sys.stderr.flush()
+
+    load_dotenv(project_dir / ".env", override=True)
+
     # Get API key from environment
     api_key = os.environ.get("OPENAI_API_KEY", "")
+
+    # Debug: Log API key status
+    sys.stderr.write(f"[master_agent.py] OPENAI_API_KEY length after load_dotenv: {len(api_key)}\n")
+    sys.stderr.flush()
+
     if not api_key:
+        sys.stderr.write("[master_agent.py] ERROR: API key is empty! Raising RuntimeError\n")
+        sys.stderr.flush()
         raise RuntimeError("OPENAI_API_KEY environment variable not set")
 
-    # Create model client
+    # Create model client with model_info for non-standard OpenAI models
+    # AutoGen 0.4.7+ requires ModelInfo with 'family' field
+    model_info = ModelInfo(
+        family="gpt",  # Required field in v0.4.7+
+        vision=True,
+        function_calling=True,
+        json_output=True,
+        capabilities=ModelCapabilities(
+            vision=True,
+            function_calling=True,
+            json_output=True
+        )
+    )
+
     model_client = OpenAIChatCompletionClient(
         model=model,
-        api_key=api_key
+        api_key=api_key,
+        model_info=model_info
     )
 
     logger.info(f"Creating master Society of Mind agent with model: {model}")
@@ -197,7 +231,7 @@ async def create_master_agent(
         model_client=model_client,
         system_message=orchestrator_prompt
     )
-    logger.info("✓ Created Orchestrator agent")
+    logger.info("[OK] Created Orchestrator agent")
 
     # 2. Create ChunkMiner (with mining tools)
     chunk_miner = AssistantAgent(
@@ -206,7 +240,7 @@ async def create_master_agent(
         tools=mining_tools,
         system_message=chunk_miner_prompt
     )
-    logger.info("✓ Created ChunkMiner agent with mining tools")
+    logger.info("[OK] Created ChunkMiner agent with mining tools")
 
     # 3. Create KG Agent (with KG tools)
     kg_agent = AssistantAgent(
@@ -215,7 +249,7 @@ async def create_master_agent(
         tools=kg_tools,
         system_message=kg_agent_prompt
     )
-    logger.info("✓ Created KG agent with knowledge graph tools")
+    logger.info("[OK] Created KG agent with knowledge graph tools")
 
     # 4. Create Validator (with validation tools)
     validator = AssistantAgent(
@@ -224,7 +258,7 @@ async def create_master_agent(
         tools=validation_tools,
         system_message=validation_agent_prompt
     )
-    logger.info("✓ Created Validator agent with evaluation tools")
+    logger.info("[OK] Created Validator agent with evaluation tools")
 
     # 5. Create RAG Agent (with RAG tools)
     rag_agent = AssistantAgent(
@@ -233,7 +267,7 @@ async def create_master_agent(
         tools=rag_tools,
         system_message=rag_agent_prompt
     )
-    logger.info("✓ Created RAG agent with semantic search tools")
+    logger.info("[OK] Created RAG agent with semantic search tools")
 
     # 6. Create QA Validator (no tools, reviews outputs)
     qa_validator = AssistantAgent(
@@ -241,7 +275,7 @@ async def create_master_agent(
         model_client=model_client,
         system_message=qa_validator_prompt
     )
-    logger.info("✓ Created QA Validator agent")
+    logger.info("[OK] Created QA Validator agent")
 
     # 7. Create UserClarification Agent (with ask_user tool)
     ask_user_tool = _create_ask_user_tool(correlation_id)
@@ -251,7 +285,7 @@ async def create_master_agent(
         tools=[ask_user_tool],
         system_message=user_clarification_prompt
     )
-    logger.info("✓ Created UserClarification agent with ask_user tool")
+    logger.info("[OK] Created UserClarification agent with ask_user tool")
 
     # Create inner team with all agents
     termination = TextMentionTermination("WORKFLOW_COMPLETE")
@@ -268,7 +302,7 @@ async def create_master_agent(
         termination_condition=termination,
         max_turns=max_turns
     )
-    logger.info(f"✓ Created RoundRobinGroupChat with {len(inner_team._participants)} agents, max_turns={max_turns}")
+    logger.info(f"[OK] Created RoundRobinGroupChat with {len(inner_team._participants)} agents, max_turns={max_turns}")
 
     # Wrap in Society of Mind (single-agent interface)
     from autogen_agentchat.agents import SocietyOfMindAgent
@@ -278,7 +312,7 @@ async def create_master_agent(
         team=inner_team,
         model_client=model_client
     )
-    logger.info("✓ Created master Society of Mind agent")
+    logger.info("[OK] Created master Society of Mind agent")
 
     return master_agent
 
@@ -363,9 +397,12 @@ Execute all phases and signal WORKFLOW_COMPLETE when done.
 
     logger.info(f"Task description:\n{task}")
 
-    # Run workflow with streaming
+    # DIRECT MINING APPROACH (bypassing AutoGen conversation)
+    # The AutoGen agents weren't calling the mining tools properly,
+    # so we call ChunkMiner and KG agents directly
     try:
-        from autogen_agentchat.messages import TextMessage
+        from arch_team.agents.chunk_miner import ChunkMinerAgent
+        from arch_team.agents.kg_agent import KGAbstractionAgent
 
         # Send workflow start status
         _send_to_workflow_stream(
@@ -374,21 +411,204 @@ Execute all phases and signal WORKFLOW_COMPLETE when done.
             status="running"
         )
 
-        # Use run_stream to get messages in real-time
-        result = None
-        async for message in master.run_stream(task=task):
-            # Stream each agent message to frontend
-            if hasattr(message, 'source') and hasattr(message, 'content'):
+        # Phase 1: Mine requirements from files
+        logger.info("Phase 1: Mining requirements from documents...")
+        _send_to_workflow_stream(
+            correlation_id,
+            "agent_message",
+            agent="ChunkMiner",
+            message=f"Mining requirements from {len(files)} document(s)..."
+        )
+
+        miner = ChunkMinerAgent(source="master_workflow", default_model=model)
+
+        # Prepare chunk options
+        chunk_opts = {
+            "max_tokens": chunk_size,
+            "overlap_tokens": chunk_overlap
+        }
+
+        # Read files from disk - files parameter contains path strings
+        # ChunkMiner expects file data, not paths
+        file_records = []
+        for file_path in files:
+            file_path_obj = Path(file_path)
+            logger.info(f"Reading file: {file_path_obj}")
+            with open(file_path_obj, 'rb') as f:
+                file_records.append({
+                    "filename": file_path_obj.name,
+                    "data": f.read(),
+                    "content_type": ""
+                })
+
+        # Mine requirements directly with file contents
+        requirements = miner.mine_files_or_texts_collect(
+            files_or_texts=file_records,  # Pass file data, not paths
+            model=model,
+            neighbor_refs=True,  # Include ±1 chunk context
+            chunk_options=chunk_opts
+        )
+
+        logger.info(f"Mining completed: {len(requirements)} requirements extracted")
+        _send_to_workflow_stream(
+            correlation_id,
+            "agent_message",
+            agent="ChunkMiner",
+            message=f"✅ Extracted {len(requirements)} requirements"
+        )
+
+        # Phase 1.5: Create Manifests in Database
+        logger.info("Phase 1.5: Creating manifests in database...")
+        _send_to_workflow_stream(
+            correlation_id,
+            "agent_message",
+            agent="System",
+            message="Persisting requirements to manifest system..."
+        )
+
+        try:
+            from backend.core import db as _db
+            from backend.services.manifest_integration import create_manifests_from_chunkminer
+
+            conn = _db.get_db()
+            try:
+                manifest_ids = create_manifests_from_chunkminer(conn, requirements)
+                logger.info(f"Created {len(manifest_ids)} manifests in database")
                 _send_to_workflow_stream(
                     correlation_id,
                     "agent_message",
-                    agent=message.source,
-                    message=str(message.content)
+                    agent="System",
+                    message=f"✅ Persisted {len(manifest_ids)} requirement manifests"
+                )
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error(f"Manifest creation failed: {e}")
+            _send_to_workflow_stream(
+                correlation_id,
+                "agent_message",
+                agent="System",
+                message=f"⚠️ Manifest creation failed (non-critical): {str(e)}"
+            )
+            # Continue anyway - manifests are optional for workflow completion
+
+        # Phase 2: Build Knowledge Graph
+        logger.info("Phase 2: Building Knowledge Graph...")
+        _send_to_workflow_stream(
+            correlation_id,
+            "agent_message",
+            agent="KGAgent",
+            message="Building Knowledge Graph from requirements..."
+        )
+
+        kg_agent = KGAbstractionAgent(default_model=model)
+        kg_result = kg_agent.run(
+            items=requirements,
+            model=model,
+            persist="qdrant",  # Persist to Qdrant
+            use_llm=use_llm_kg,  # Use LLM for entity extraction if enabled
+            llm_fallback=True,  # Fall back to LLM if heuristics fail
+            dedupe=True  # Deduplicate nodes/edges
+        )
+
+        kg_stats = kg_result.get("stats", {})
+        logger.info(f"KG built: {kg_stats.get('nodes', 0)} nodes, {kg_stats.get('edges', 0)} edges")
+        _send_to_workflow_stream(
+            correlation_id,
+            "agent_message",
+            agent="KGAgent",
+            message=f"✅ Created {kg_stats.get('nodes', 0)} nodes and {kg_stats.get('edges', 0)} edges"
+        )
+
+        # Phase 3: Validate requirements using local heuristics
+        logger.info("Phase 3: Validating requirements...")
+        _send_to_workflow_stream(
+            correlation_id,
+            "agent_message",
+            agent="Validator",
+            message=f"Validating {len(requirements)} requirements..."
+        )
+
+        validation_results = []
+        passed_count = 0
+        failed_count = 0
+
+        # Validate each requirement using real LLM-based validation
+        from arch_team.tools.validation_tools import evaluate_requirement
+
+        for idx, req in enumerate(requirements):
+            req_title = req.get("title", f"Requirement {idx + 1}")
+            req_id = req.get("req_id", f"req-{idx + 1}")
+
+            logger.info(f"Validating requirement {idx + 1}/{len(requirements)}: {req_title}")
+
+            try:
+                # Call real LLM-based validation API
+                # Uses all 10 quality criteria: clarity, testability, measurability, atomic, concise,
+                # unambiguous, consistent_language, follows_template, design_independent, purpose_independent
+                validation_result = evaluate_requirement(
+                    requirement_text=req_title,
+                    criteria_keys=None  # None = use all criteria
                 )
 
-            # Keep last message as result
-            result = message
+                # Extract validation results
+                score = validation_result.get("score", 0.0)
+                verdict = validation_result.get("verdict", "fail")
+                evaluation = validation_result.get("evaluation", [])
+                error = validation_result.get("error")
 
+                # Count pass/fail
+                if verdict == "pass":
+                    passed_count += 1
+                else:
+                    failed_count += 1
+
+                # Build result object
+                result_obj = {
+                    "req_id": req_id,
+                    "title": req_title,
+                    "score": round(score, 2),
+                    "verdict": verdict,
+                    "evaluation": evaluation,
+                    "tag": req.get("tag", "unknown")
+                }
+
+                if error:
+                    result_obj["error"] = error
+                    logger.warning(f"Validation API error for {req_id}: {error}")
+
+                validation_results.append(result_obj)
+
+                # Stream progress for every 5 requirements or at the end
+                if (idx + 1) % 5 == 0 or (idx + 1) == len(requirements):
+                    _send_to_workflow_stream(
+                        correlation_id,
+                        "agent_message",
+                        agent="Validator",
+                        message=f"Validated {idx + 1}/{len(requirements)} requirements (✅ {passed_count} passed, ❌ {failed_count} failed)"
+                    )
+
+            except Exception as e:
+                logger.error(f"Validation failed for requirement {req_id}: {e}")
+                failed_count += 1
+                validation_results.append({
+                    "req_id": req_id,
+                    "title": req_title,
+                    "score": 0.0,
+                    "verdict": "error",
+                    "evaluation": [],
+                    "error": str(e)
+                })
+
+        logger.info(f"Validation completed: {passed_count} passed, {failed_count} failed")
+        _send_to_workflow_stream(
+            correlation_id,
+            "agent_message",
+            agent="Validator",
+            message=f"✅ Validation complete: {passed_count} passed, {failed_count} failed"
+        )
+
+        # Phase 4: Workflow complete
         logger.info("Workflow completed successfully")
 
         # Send completion status
@@ -398,22 +618,52 @@ Execute all phases and signal WORKFLOW_COMPLETE when done.
             status="completed"
         )
 
-        # Send final result
+        # Send final result with structured data
+        final_result = {
+            "success": True,
+            "workflow_status": "completed",
+            "requirements": requirements,
+            "kg_data": kg_result,
+            "validation_results": {
+                "validated_count": len(validation_results),
+                "passed": passed_count,
+                "failed": failed_count,
+                "details": validation_results
+            },
+            "summary": {
+                "total_requirements": len(requirements),
+                "kg_nodes": kg_stats.get("nodes", 0),
+                "kg_edges": kg_stats.get("edges", 0),
+                "validation_passed": passed_count,
+                "validation_failed": failed_count
+            }
+        }
+
         _send_to_workflow_stream(
             correlation_id,
             "workflow_result",
-            result={
-                "success": True,
-                "workflow_status": "completed",
-                "final_message": str(result) if result else "Workflow completed"
-            }
+            result=final_result
         )
 
-        return {
-            "success": True,
-            "workflow_status": "completed",
-            "result": result
-        }
+        # Save debug data to JSON file for inspection
+        try:
+            import json
+            from datetime import datetime
+
+            debug_dir = Path("./debug")
+            debug_dir.mkdir(exist_ok=True)
+
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            debug_file = debug_dir / f"requirements_{timestamp}.json"
+
+            with open(debug_file, 'w', encoding='utf-8') as f:
+                json.dump(final_result, f, indent=2, ensure_ascii=False)
+
+            logger.info(f"📁 Debug data saved to {debug_file}")
+        except Exception as e:
+            logger.warning(f"Failed to save debug data: {e}")
+
+        return final_result
 
     except Exception as e:
         logger.error(f"Workflow failed: {e}", exc_info=True)

@@ -20,6 +20,13 @@ from qdrant_client.models import (
 
 from . import settings
 
+# Import centralized port configuration for fallback logic
+try:
+    from backend.core.ports import get_ports
+    _ports = get_ports()
+except ImportError:
+    _ports = None
+
 # OpenAI text-embedding-3-small dimensionality (as of 2025-08)
 DEFAULT_EMBEDDING_DIM: int = 1536
 
@@ -40,12 +47,15 @@ def _build_url_with_port(base_url: str, port: int) -> str:
 
 def get_qdrant_client(timeout: float = 5.0) -> Tuple[QdrantClient, int]:
     """
-    Liefert einen Qdrant-Client. Versucht Fallback auf Port 6401, falls 6333 nicht erreichbar.
+    Liefert einen Qdrant-Client. Versucht Fallback auf QDRANT_PORT_FALLBACK, falls primär nicht erreichbar.
     Gibt (client, effektiver_port) zurück.
     Hinweis: 6334 ist gRPC, HTTP bleibt 6333. Alternativer HTTP-Fallback kann 6401 sein.
     """
     base_url = getattr(settings, "QDRANT_URL", "http://localhost")
     port = int(getattr(settings, "QDRANT_PORT", 6333))
+    # Get fallback port from centralized config
+    fallback_port = _ports.QDRANT_PORT_FALLBACK if _ports else int(os.environ.get("QDRANT_PORT_FALLBACK", "6401"))
+
     # Primär
     try:
         url = _build_url_with_port(base_url, port)
@@ -56,13 +66,13 @@ def get_qdrant_client(timeout: float = 5.0) -> Tuple[QdrantClient, int]:
     except Exception:
         pass
 
-    # Fallback auf 6401, falls primärer Port 6333 war
-    if port == 6333:
+    # Fallback auf configured fallback port
+    if fallback_port and fallback_port != port:
         try:
-            url = _build_url_with_port(base_url, 6401)
+            url = _build_url_with_port(base_url, fallback_port)
             client = QdrantClient(url=url, timeout=timeout)
             _ = client.get_collections()
-            return client, 6401
+            return client, fallback_port
         except Exception:
             pass
 

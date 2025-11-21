@@ -9,6 +9,7 @@ from ..runtime.logging import get_logger
 from ..runtime.agent_base import AgentBase, AgentId, MessageContext
 from ..model.openai_adapter import OpenAIAdapter
 from .req_worker import ReqWorkerAgent
+from .extraction_schema import REQUIREMENT_EXTRACTION_TOOL, EXTRACTION_SYSTEM_PROMPT
 
 # Reuse ingestion helpers directly to avoid Qdrant dependency during mining
 from backend.core.ingest import extract_texts, chunk_payloads  # noqa: E402
@@ -127,7 +128,7 @@ class ChunkMinerAgent(AgentBase):
         tag = (item.get("tag") or "").lower()
         if tag not in {"functional", "security", "performance", "ux", "ops"}:
             tag = "functional"
-    
+
         ev = item.get("evidence_refs") or item.get("evidenceRefs") or item.get("citations") or []
         base_ev: List[Dict[str, Any]] = []
         if isinstance(ev, list):
@@ -148,7 +149,7 @@ class ChunkMinerAgent(AgentBase):
                 if key not in seen:
                     base_ev.append(e)
                     seen.add(key)
-    
+
         return {
             "req_id": str(req_id or f"REQ-{(payload.get('sha1') or 'X')[:6]}-{int(payload.get('chunkIndex') or 0):03d}"),
             "title": str(title),
@@ -156,21 +157,122 @@ class ChunkMinerAgent(AgentBase):
             "evidence_refs": base_ev,
         }
 
+    def _ensure_item_fields_from_tool_call(self, item: Dict[str, Any], payload: Dict[str, Any], suggested_req_id: str, additional_evidence: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """Process requirement item from tool call with enriched metadata"""
+        # Extract tool call fields
+        req_id = item.get("req_id") or suggested_req_id
+        title = item.get("title") or ""
+        tag = (item.get("tag") or "functional").lower()
+        priority = (item.get("priority") or "must").lower()
+        measurable_criteria = item.get("measurable_criteria") or ""
+        actors = item.get("actors") or []
+        evidence_text = item.get("evidence") or ""
+
+        # Validate tag
+        valid_tags = {"functional", "security", "performance", "ux", "ops", "usability", "reliability", "compliance", "interface", "data", "constraint"}
+        if tag not in valid_tags:
+            tag = "functional"
+
+        # Build evidence_refs from evidence text or payload
+        base_ev: List[Dict[str, Any]] = [
+            {
+                "sourceFile": payload.get("sourceFile") or payload.get("source") or "",
+                "sha1": payload.get("sha1") or "",
+                "chunkIndex": payload.get("chunkIndex") or 0,
+            }
+        ]
+
+        if additional_evidence:
+            # Deduplicate by (sourceFile, sha1, chunkIndex)
+            seen = {(e.get("sourceFile"), e.get("sha1"), e.get("chunkIndex")) for e in base_ev}
+            for e in additional_evidence:
+                key = (e.get("sourceFile"), e.get("sha1"), e.get("chunkIndex"))
+                if key not in seen:
+                    base_ev.append(e)
+                    seen.add(key)
+
+        # Build result with core fields + optional enriched fields
+        result = {
+            "req_id": str(req_id),
+            "title": str(title),
+            "tag": tag,
+            "evidence_refs": base_ev,
+        }
+
+        # Add optional enriched fields if present
+        if priority:
+            result["priority"] = priority
+        if measurable_criteria:
+            result["measurable_criteria"] = measurable_criteria
+        if actors:
+            result["actors"] = actors if isinstance(actors, list) else [actors]
+        if evidence_text:
+            result["evidence"] = evidence_text
+
+        return result
+
     def _mine_chunk(self, chunk_text: str, payload: Dict[str, Any], model_override: Optional[str]) -> List[Dict[str, Any]]:
-        messages = self._build_messages(chunk_text, payload)
+        """Extract requirements using tool calling for structured, high-quality output"""
+        sha1 = str(payload.get("sha1") or "")
+        chunk_idx = int(payload.get("chunkIndex") or 0)
+        suggested_req_id = f"REQ-{(sha1 or 'X')[:6]}-{chunk_idx:03d}"
+
+        # Build messages for tool-based extraction
+        messages = [
+            {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": (
+                    f"Extract all requirements from the following text chunk.\n"
+                    f"Use '{suggested_req_id}' as the base for req_id, adding -a, -b, -c... for multiple requirements.\n\n"
+                    f"Text:\n---\n{chunk_text.strip()}\n---"
+                )
+            }
+        ]
+
         try:
-            content = self.adapter.create(messages=messages, temperature=self.temperature, model=model_override)
-            if isinstance(content, list):
-                # OpenAIAdapter kann auch Messages zurückgeben, wir erwarten hier aber plain string
-                content = ""
+            response = self.adapter.create(
+                messages=messages,
+                temperature=self.temperature,
+                model=model_override,
+                tools=[REQUIREMENT_EXTRACTION_TOOL],
+                tool_choice={"type": "function", "function": {"name": "submit_requirements"}}
+            )
+
+            # Check if we got a tool call response
+            if hasattr(response, 'choices'):
+                # Full response object with tool calls
+                message = response.choices[0].message
+                if message.tool_calls:
+                    tool_call = message.tool_calls[0]
+                    requirements_data = json.loads(tool_call.function.arguments)
+                    items = requirements_data.get("requirements", [])
+                else:
+                    logger.warning("Tool call expected but not received - fallback to parsing")
+                    items = self._parse_items(str(message.content or "").strip())
+            else:
+                # Backward compatibility: string response (fallback to old JSON parsing)
+                logger.warning("String response received instead of tool call - using legacy parser")
+                items = self._parse_items(str(response or "").strip())
+
         except Exception as e:
             logger.warning("Chunk mining failed (adapter): %s", e)
             return []
 
-        items = self._parse_items(str(content or "").strip())
+        # Process extracted items and ensure required fields
+        # Add unique suffixes -a, -b, -c... if multiple requirements from same chunk
         out: List[Dict[str, Any]] = []
-        for it in items:
-            out.append(self._ensure_item_fields(it, payload))
+        suffixes = [''] + [f'-{chr(97+i)}' for i in range(26)]  # '', '-a', '-b', ..., '-z'
+
+        for idx, it in enumerate(items):
+            enriched = self._ensure_item_fields_from_tool_call(it, payload, suggested_req_id)
+
+            # Override req_id with unique suffix if multiple items
+            if len(items) > 1:
+                suffix = suffixes[idx] if idx < len(suffixes) else f'-{idx}'
+                enriched['req_id'] = f"{suggested_req_id}{suffix}"
+
+            out.append(enriched)
         return out
 
     def mine_files_or_texts(

@@ -28,6 +28,14 @@ from .adapters import LLMAdapter
 from backend.core import utils as _utils
 from backend.core import settings as _settings
 
+# All 9 quality criteria (fallback when no criteria specified)
+DEFAULT_CRITERIA_KEYS = [
+    "clarity", "testability", "measurability",
+    "atomic", "concise", "unambiguous",
+    "consistent_language",
+    "design_independent", "purpose_independent"
+]
+
 
 class EvaluationService:
     """
@@ -95,7 +103,7 @@ class EvaluationService:
                 crits = list(all_criteria)
                 crit_keys = [str(c.get("key")) for c in crits]
                 if not crit_keys:
-                    crit_keys = ["clarity", "testability", "measurability"]
+                    crit_keys = DEFAULT_CRITERIA_KEYS
             # LLM Evaluate
             details = self._llm.evaluate(
                 requirement_text,

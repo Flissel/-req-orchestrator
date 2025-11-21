@@ -428,6 +428,18 @@ body {
   margin: 12px 0;
   border-radius: 8px;
   border-left: 4px solid var(--accent);
+  transition: all 0.2s;
+}
+
+.requirement-card:hover {
+  background: var(--card2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.requirement-card.selected {
+  background: rgba(76, 201, 240, 0.1);
+  border-left-color: var(--ok);
+  box-shadow: 0 0 0 2px var(--ok);
 }
 
 .req-id {
@@ -435,6 +447,11 @@ body {
   color: var(--accent);
   margin-bottom: 8px;
   font-size: 14px;
+}
+
+.req-id.clickable:hover {
+  opacity: 0.8;
+  transform: translateX(2px);
 }
 
 .req-title {

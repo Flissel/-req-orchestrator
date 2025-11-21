@@ -59,22 +59,26 @@ echo   3. Services
 echo ======================================================================
 echo.
 
-REM Check Qdrant (port 6401)
-curl -s http://localhost:6401/collections >nul 2>nul
+REM Load environment variables with defaults
+if not defined QDRANT_PORT set QDRANT_PORT=6333
+if not defined ARCH_TEAM_PORT set ARCH_TEAM_PORT=8000
+
+REM Check Qdrant
+curl -s http://localhost:%QDRANT_PORT%/collections >nul 2>nul
 if %ERRORLEVEL% EQU 0 (
-    echo [OK] Qdrant is running on port 6401
+    echo [OK] Qdrant is running on port %QDRANT_PORT%
 ) else (
-    echo [FAIL] Qdrant not reachable on port 6401
+    echo [FAIL] Qdrant not reachable on port %QDRANT_PORT%
     echo   Run: docker-compose -f docker-compose.qdrant.yml up -d
     set /a ERROR_COUNT+=1
 )
 
-REM Check arch_team service (port 8000)
-curl -s http://localhost:8000/health >nul 2>nul
+REM Check arch_team service
+curl -s http://localhost:%ARCH_TEAM_PORT%/health >nul 2>nul
 if %ERRORLEVEL% EQU 0 (
-    echo [OK] arch_team service is running on port 8000
+    echo [OK] arch_team service is running on port %ARCH_TEAM_PORT%
 ) else (
-    echo [FAIL] arch_team service not reachable on port 8000
+    echo [FAIL] arch_team service not reachable on port %ARCH_TEAM_PORT%
     echo   Run: python -m arch_team.service
     set /a ERROR_COUNT+=1
 )

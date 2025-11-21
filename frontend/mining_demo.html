@@ -69,7 +69,12 @@
   <script src="https://unpkg.com/layout-base/layout-base.js"></script>
   <script src="https://unpkg.com/cose-base/cose-base.js"></script>
   <script src="https://unpkg.com/cytoscape-fcose@2.2.0/cytoscape-fcose.js"></script>
-  <script>window.API_BASE = window.API_BASE || 'http://localhost:8087';</script>
+  <!-- Centralized API configuration -->
+  <script src="./config.js"></script>
+  <script>
+    // Backward compatibility: set window.API_BASE from centralized config
+    window.API_BASE = window.API_CONFIG ? window.API_CONFIG.BACKEND_URL : 'http://localhost:8087';
+  </script>
   <!-- Cache-Busting, damit die aktualisierte JS-Version sicher geladen wird -->
   <script defer src="./mining_demo.js?v=6"></script>
 </head>

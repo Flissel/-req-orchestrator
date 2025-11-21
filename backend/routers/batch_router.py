@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from backend.core import settings
 from backend.core.utils import parse_requirements_md
-from backend.core.batch import (
+from backend.legacy.batch import (
     process_evaluations,
     process_suggestions,
     process_rewrites,

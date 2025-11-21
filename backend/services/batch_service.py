@@ -19,7 +19,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 from .ports import RequestContext, ServiceError, safe_request_id
 
 # Bestehende Implementierungen aus der Legacy/Shared-Schicht
-from backend.core.batch import (
+from backend.legacy.batch import (
     process_evaluations as _process_evaluations,
     process_suggestions as _process_suggestions,
     process_rewrites as _process_rewrites,

@@ -9,6 +9,13 @@ from ..runtime.logging import get_logger
 from backend.core.ingest import extract_texts, chunk_payloads
 from backend.core.embeddings import build_embeddings, get_embeddings_dim
 
+# Import centralized port configuration
+try:
+    from backend.core.ports import get_ports
+    _ports = get_ports()
+except ImportError:
+    _ports = None
+
 logger = get_logger("pipeline.upload_ingest")
 
 
@@ -79,7 +86,8 @@ def upload_to_requirements_v2(files_or_texts: List[Union[str, bytes, Dict[str, A
 
     import os
 
-    qdrant_url = os.environ.get("QDRANT_URL") or "http://localhost:6333"
+    # Use centralized port configuration with legacy fallback
+    qdrant_url = _ports.QDRANT_FULL_URL if _ports else (os.environ.get("QDRANT_URL") or "http://localhost:6333")
     qdrant_api_key = os.environ.get("QDRANT_API_KEY") or None
 
     client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)

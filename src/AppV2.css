@@ -1,0 +1,338 @@
+/* Import existing App.css variables */
+@import './App.css';
+
+.app-v2 {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--fg);
+  padding: 20px;
+}
+
+.header-v2 {
+  text-align: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid var(--accent);
+}
+
+.header-v2 h1 {
+  margin: 0 0 8px 0;
+  font-size: 28px;
+  color: var(--accent);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.tab-content {
+  margin-top: 0;
+}
+
+.tab-panel {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mining Tab */
+.mining-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mining-grid {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 20px;
+}
+
+.config-section {
+  background: var(--card);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.preview-section {
+  background: var(--card);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.file-preview h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  color: var(--accent);
+}
+
+.preview-header {
+  background: var(--card2);
+  padding: 10px 14px;
+  border-radius: 6px 6px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--chip);
+  border-bottom: none;
+}
+
+.preview-content {
+  background: var(--card2);
+  border: 1px solid var(--chip);
+  border-radius: 0 0 6px 6px;
+  padding: 16px;
+  max-height: 600px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--fg);
+  margin: 0;
+}
+
+.preview-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+  font-size: 14px;
+  background: var(--card2);
+  border: 1px dashed var(--chip);
+  border-radius: 6px;
+}
+
+/* Requirements Tab */
+.requirements-panel {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 280px);
+}
+
+/* Validation Tab */
+.validation-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.validation-header {
+  background: var(--card);
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.validation-header h2 {
+  margin: 0 0 20px 0;
+  font-size: 20px;
+  color: var(--accent);
+}
+
+.validation-stats {
+  display: flex;
+  gap: 20px;
+}
+
+.stat-card {
+  flex: 1;
+  background: var(--card2);
+  border: 2px solid var(--chip);
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.stat-card.ok {
+  border-color: var(--ok);
+}
+
+.stat-card.err {
+  border-color: var(--err);
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.stat-card.ok .stat-value {
+  color: var(--ok);
+}
+
+.stat-card.err .stat-value {
+  color: var(--err);
+}
+
+.validation-actions {
+  background: var(--card);
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: #3da8cc;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(76, 201, 240, 0.3);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.no-failing {
+  background: var(--card);
+  border-radius: 8px;
+  padding: 60px 40px;
+  text-align: center;
+  border: 2px solid var(--ok);
+}
+
+.success-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 20px;
+  background: var(--ok);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  color: white;
+  font-weight: bold;
+}
+
+.no-failing h3 {
+  margin: 0 0 12px 0;
+  font-size: 24px;
+  color: var(--ok);
+}
+
+.no-failing p {
+  margin: 0;
+  font-size: 16px;
+  color: var(--muted);
+}
+
+/* Knowledge Graph Tab */
+.kg-panel {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 280px);
+}
+
+.kg-split-layout {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 20px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.kg-left-panel,
+.kg-right-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border-radius: 8px;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.panel-title {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  color: var(--accent);
+  font-weight: 600;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--chip);
+}
+
+.kg-left-panel {
+  overflow-y: auto;
+}
+
+.kg-right-panel {
+  overflow: hidden;
+}
+
+.kg-container {
+  flex: 1;
+  background: var(--card2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .mining-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .kg-split-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 400px 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-v2 {
+    padding: 10px;
+  }
+
+  .header-v2 h1 {
+    font-size: 20px;
+  }
+
+  .validation-stats {
+    flex-direction: column;
+  }
+
+  .stat-card {
+    padding: 16px;
+  }
+
+  .stat-value {
+    font-size: 24px;
+  }
+}
