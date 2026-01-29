@@ -1,0 +1,35 @@
+{
+  "id": "05-static-site",
+  "name": "Static Site (Next.js Static Export)",
+  "description": "Statisch generierte Website mit Next.js Static Export. Optimal für Blogs, Dokumentationen und Landing Pages.",
+  "version": "1.0.0",
+  "category": "web",
+  "tags": ["nextjs", "static", "ssg", "blog", "documentation", "jamstack"],
+  "difficulty": "beginner",
+  "estimated_setup_time": "5 minutes",
+  "tech_stack": {
+    "frontend": {
+      "framework": "Next.js 14 (Static Export)",
+      "styling": "Tailwind CSS",
+      "content": "MDX",
+      "language": "TypeScript"
+    },
+    "deployment": {
+      "platforms": ["Vercel", "Netlify", "GitHub Pages", "Any Static Host"],
+      "output": "Static HTML/CSS/JS"
+    }
+  },
+  "prerequisites": ["Node.js 20+", "npm oder yarn"],
+  "features": [
+    "Statische Generierung (SSG)",
+    "MDX für Content",
+    "Automatisches Sitemap",
+    "SEO-optimiert",
+    "Schnelle Ladezeiten",
+    "Kein Server nötig"
+  ],
+  "placeholders": {
+    "PROJECT_NAME": "My Static Site",
+    "PROJECT_NAME_KEBAB": "my-static-site"
+  }
+}

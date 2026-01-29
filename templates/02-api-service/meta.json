@@ -1,0 +1,64 @@
+{
+  "id": "02-api-service",
+  "name": "API Backend Service",
+  "version": "1.0.0",
+  "description": "REST API Backend mit FastAPI, SQLAlchemy, PostgreSQL und Docker",
+  "category": "backend",
+
+  "stack": [
+    "FastAPI",
+    "Python 3.11+",
+    "SQLAlchemy 2.0",
+    "PostgreSQL",
+    "Alembic",
+    "Pydantic v2",
+    "Docker"
+  ],
+
+  "pc_requirements": [
+    "Docker Desktop",
+    "Python 3.11+ (optional, für lokale Entwicklung)"
+  ],
+
+  "commands": {
+    "install": "docker-compose up -d && pip install -r requirements.txt",
+    "dev": "uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "build": "docker build -t api-service .",
+    "test": "pytest",
+    "lint": "ruff check . && mypy .",
+    "db:migrate": "alembic upgrade head",
+    "db:revision": "alembic revision --autogenerate -m"
+  },
+
+  "ports": {
+    "api": 8000,
+    "db": 5432
+  },
+
+  "features": [
+    "Auto-generated OpenAPI docs",
+    "Async support",
+    "Type validation",
+    "Database migrations",
+    "JWT Authentication",
+    "CORS configured",
+    "Health checks",
+    "Structured logging"
+  ],
+
+  "use_cases": [
+    "REST APIs",
+    "Microservices",
+    "Backend for Mobile/Web",
+    "Data APIs",
+    "Internal Tools"
+  ],
+
+  "estimated_setup_time": "5 minutes",
+  "difficulty": "beginner",
+
+  "related_templates": [
+    "01-web-app",
+    "07-data-ml"
+  ]
+}

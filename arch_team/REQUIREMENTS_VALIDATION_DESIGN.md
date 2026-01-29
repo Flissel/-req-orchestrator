@@ -60,8 +60,6 @@ Automatisierte Requirements-Qualitätssicherung mit:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
----
-
 ## 🛠️ **Tool-Spezifikation**
 
 ### **1. evaluate_requirement**
@@ -448,6 +446,53 @@ from autogen_core.tools import FunctionTool
 from arch_team.model.openai_adapter import OpenAIAdapter
 from arch_team.memory.qdrant_kg import QdrantKGClient
 ```
+
+---
+
+## 🚀 **PARALLELISIERUNG IMPLEMENTIERT**
+
+**Status**: ✅ Implementiert (2024-11)
+
+Die sequenzielle Validierung wurde durch ein **paralleles Event-basiertes System** ersetzt:
+
+### Neue Komponenten
+
+| Datei | Beschreibung |
+|-------|-------------|
+| `arch_team/agents/validation_worker.py` | ValidationWorkerAgent mit AsyncSemaphore |
+| `arch_team/agents/validation_delegator.py` | ValidationDelegatorAgent mit asyncio.gather |
+| `arch_team/PARALLEL_VALIDATION_DESIGN.md` | Detailliertes Design-Dokument |
+| `tests/test_parallel_validation.py` | Unit-Tests und Performance-Benchmark |
+
+### Performance-Verbesserung
+
+| Requirements | Vorher (sequenziell) | Nachher (parallel, 5 Worker) | Speedup |
+|-------------|---------------------|------------------------------|---------|
+| 10 | ~30s | ~6s | **5x** |
+| 25 | ~75s | ~15s | **5x** |
+| 50 | ~150s | ~30s | **5x** |
+
+### Konfiguration
+
+```bash
+# .env
+VALIDATION_MAX_CONCURRENT=5     # Max parallele LLM-Aufrufe
+VALIDATION_TIMEOUT=30           # Timeout pro Requirement
+```
+
+### Verwendung
+
+```python
+from arch_team.agents.validation_delegator import ValidationDelegatorAgent
+
+delegator = ValidationDelegatorAgent(max_concurrent=5)
+result = await delegator.validate_batch(
+    requirements=requirements,
+    correlation_id="session-123"
+)
+```
+
+📖 **Siehe**: `arch_team/PARALLEL_VALIDATION_DESIGN.md` für vollständige Architektur-Details.
 
 ---
 

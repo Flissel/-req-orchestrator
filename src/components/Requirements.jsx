@@ -1,13 +1,64 @@
+import { useRef } from 'react';
+
 export default function Requirements({
   requirements,
   onRequirementClick,
   selectedRequirementId,
-  onValidateRequirement
+  onValidateRequirement,
+  onEnhanceRequirement,
+  onOpenDetail,
+  onLoadRequirements
 }) {
+  const fileInputRef = useRef(null);
+
+  const handleFileChange = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file || !onLoadRequirements) return
+
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      const reqs = data.requirements || data
+      if (Array.isArray(reqs)) {
+        onLoadRequirements(reqs, file.name)
+      }
+    } catch (err) {
+      console.error('[Requirements] Failed to load:', err)
+    }
+    event.target.value = ''
+  }
+
   if (!requirements || requirements.length === 0) {
     return (
       <div className="card">
-        <h2>📋 Extrahierte Requirements</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2>📋 Extrahierte Requirements</h2>
+          {onLoadRequirements && (
+            <>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".json"
+                style={{ display: 'none' }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  border: '1px solid var(--primary)',
+                  background: 'var(--bg)',
+                  color: 'var(--primary)',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                Load JSON
+              </button>
+            </>
+          )}
+        </div>
         <div style={{ padding: '20px', textAlign: 'center', color: 'var(--muted)' }}>
           Keine Requirements gefunden. Starten Sie den Mining-Prozess.
         </div>
@@ -17,7 +68,34 @@ export default function Requirements({
 
   return (
     <div className="card">
-      <h2>📋 Extrahierte Requirements ({requirements.length})</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2>📋 Extrahierte Requirements ({requirements.length})</h2>
+        {onLoadRequirements && (
+          <>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".json"
+              style={{ display: 'none' }}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '4px',
+                border: '1px solid var(--primary)',
+                background: 'var(--bg)',
+                color: 'var(--primary)',
+                cursor: 'pointer',
+                fontSize: '12px'
+              }}
+            >
+              Load JSON
+            </button>
+          </>
+        )}
+      </div>
       <div style={{ maxHeight: '600px', overflowY: 'auto', marginTop: '15px' }}>
         {requirements.map((req, idx) => {
           const reqId = req.req_id || `REQ-${idx + 1}`
@@ -29,11 +107,16 @@ export default function Requirements({
             <div
               key={reqId}
               className={`requirement-card ${isSelected ? 'selected' : ''}`}
+              onClick={() => onOpenDetail && onOpenDetail(req)}
+              style={{ cursor: onOpenDetail ? 'pointer' : 'default' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div
                   className="req-id clickable"
-                  onClick={() => onRequirementClick && onRequirementClick(reqId)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onRequirementClick && onRequirementClick(reqId)
+                  }}
                   title="Click to view manifest"
                   style={{
                     cursor: onRequirementClick ? 'pointer' : 'default',
@@ -42,24 +125,50 @@ export default function Requirements({
                 >
                   {reqId}
                 </div>
-                {onValidateRequirement && (
-                  <button
-                    onClick={() => onValidateRequirement(req)}
-                    style={{
-                      padding: '4px 8px',
-                      fontSize: '11px',
-                      borderRadius: '4px',
-                      border: '1px solid var(--primary)',
-                      background: 'var(--bg)',
-                      color: 'var(--primary)',
-                      cursor: 'pointer',
-                      fontWeight: '500'
-                    }}
-                    title="Validate this requirement"
-                  >
-                    ✓ Validate
-                  </button>
-                )}
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {onEnhanceRequirement && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onEnhanceRequirement(req)
+                      }}
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        borderRadius: '4px',
+                        border: '1px solid #8b5cf6',
+                        background: 'var(--bg)',
+                        color: '#8b5cf6',
+                        cursor: 'pointer',
+                        fontWeight: '500'
+                      }}
+                      title="Enhance with SocietyOfMind agents"
+                    >
+                      🧠 Enhance
+                    </button>
+                  )}
+                  {onValidateRequirement && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onValidateRequirement(req)
+                      }}
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        borderRadius: '4px',
+                        border: '1px solid var(--primary)',
+                        background: 'var(--bg)',
+                        color: 'var(--primary)',
+                        cursor: 'pointer',
+                        fontWeight: '500'
+                      }}
+                      title="Validate this requirement"
+                    >
+                      Validate
+                    </button>
+                  )}
+                </div>
               </div>
 
               {hasValidation && (

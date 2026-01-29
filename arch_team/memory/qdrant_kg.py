@@ -395,6 +395,60 @@ class QdrantKGClient:
         return {"nodes": nodes_payload, "edges": edges_payload}
 
     # -----------------------------
+    # Export all nodes and edges
+    # -----------------------------
+    def export_all(self, limit: int = 10000) -> Dict[str, Any]:
+        """
+        Export all nodes and edges from KG collections.
+        Returns: {"nodes": [...], "edges": [...]}
+        """
+        self.ensure_collections()
+        client = self._client()
+
+        nodes: List[Dict[str, Any]] = []
+        edges: List[Dict[str, Any]] = []
+
+        try:
+            # Scroll through all nodes
+            offset = None
+            while True:
+                result = client.scroll(
+                    collection_name=self.nodes_collection,
+                    limit=min(100, limit - len(nodes)),
+                    with_payload=True,
+                    offset=offset
+                )
+                points, next_offset = result if isinstance(result, tuple) else (result, None)
+                for p in (points or []):
+                    nodes.append(dict(getattr(p, "payload", {}) or {}))
+                if not next_offset or len(nodes) >= limit:
+                    break
+                offset = next_offset
+        except Exception as e:
+            logger.error("KG export nodes failed: %s", e)
+
+        try:
+            # Scroll through all edges
+            offset = None
+            while True:
+                result = client.scroll(
+                    collection_name=self.edges_collection,
+                    limit=min(100, limit - len(edges)),
+                    with_payload=True,
+                    offset=offset
+                )
+                points, next_offset = result if isinstance(result, tuple) else (result, None)
+                for p in (points or []):
+                    edges.append(dict(getattr(p, "payload", {}) or {}))
+                if not next_offset or len(edges) >= limit:
+                    break
+                offset = next_offset
+        except Exception as e:
+            logger.error("KG export edges failed: %s", e)
+
+        return {"nodes": nodes, "edges": edges}
+
+    # -----------------------------
     # Helper: fetch nodes by ids
     # -----------------------------
     def _fetch_nodes_by_ids(self, node_ids: List[str]) -> List[Dict[str, Any]]:

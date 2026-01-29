@@ -1,0 +1,61 @@
+{
+  "id": "03-desktop-electron",
+  "name": "Desktop App (Electron + Python)",
+  "description": "Cross-platform Desktop-Anwendung mit Electron Frontend und optionalem Python Backend für native Funktionalität.",
+  "version": "1.0.0",
+  "category": "desktop",
+  "tags": ["electron", "desktop", "python", "cross-platform", "nodejs"],
+  "difficulty": "intermediate",
+  "estimated_setup_time": "10 minutes",
+  "tech_stack": {
+    "frontend": {
+      "framework": "Electron",
+      "ui": "React",
+      "bundler": "Vite",
+      "language": "TypeScript"
+    },
+    "backend": {
+      "runtime": "Python 3.12",
+      "framework": "FastAPI (optional)",
+      "ipc": "Electron IPC"
+    },
+    "database": {
+      "primary": "SQLite",
+      "orm": "better-sqlite3"
+    },
+    "deployment": {
+      "platform": "electron-builder",
+      "targets": ["Windows", "macOS", "Linux"]
+    }
+  },
+  "prerequisites": [
+    "Node.js 20+",
+    "Python 3.12+ (optional)",
+    "npm oder yarn"
+  ],
+  "ports": {
+    "vite_dev": 5173,
+    "electron_debug": 9229
+  },
+  "environment_variables": [
+    {
+      "name": "NODE_ENV",
+      "description": "Environment mode",
+      "default": "development"
+    }
+  ],
+  "placeholders": {
+    "PROJECT_NAME": "My Electron App",
+    "PROJECT_NAME_SNAKE": "my_electron_app",
+    "PROJECT_NAME_KEBAB": "my-electron-app",
+    "DESCRIPTION": "A cross-platform desktop application"
+  },
+  "features": [
+    "Native System-Integration",
+    "Automatische Updates",
+    "System Tray Support",
+    "Cross-Platform Build",
+    "IPC Communication",
+    "SQLite Datenbank"
+  ]
+}

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Static Site - Preview Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' }
+  </script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <!-- Status Bar -->
+  <header class="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+    <div class="flex items-center gap-4">
+      <h1 class="text-lg font-semibold">Static Site Preview</h1>
+      <div id="status" class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-gray-500"></span>
+        <span class="text-sm text-gray-400">Not built</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="runBuild()" id="buildBtn" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium flex items-center gap-2">
+        <span id="buildIcon">🔨</span> Build
+      </button>
+      <button onclick="startServer()" id="serveBtn" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm font-medium disabled:opacity-50" disabled>
+        ▶ Serve
+      </button>
+      <button onclick="runLighthouse()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded text-sm font-medium">
+        🔍 Lighthouse
+      </button>
+      <button onclick="toggleTheme()" id="themeBtn" class="p-2 hover:bg-gray-800 rounded">🌙</button>
+    </div>
+  </header>
+
+  <div class="flex">
+    <!-- Sidebar -->
+    <aside class="w-80 bg-gray-900 border-r border-gray-800 h-[calc(100vh-57px)] overflow-y-auto">
+      <div class="p-4 space-y-6">
+        <!-- Pages -->
+        <div>
+          <h2 class="font-semibold mb-3 flex items-center gap-2">📄 Pages</h2>
+          <div id="pages-list" class="space-y-1">
+            <p class="text-sm text-gray-500">Run build to see pages</p>
+          </div>
+        </div>
+
+        <!-- SEO Check -->
+        <div>
+          <h2 class="font-semibold mb-3 flex items-center gap-2">🔎 SEO Status</h2>
+          <div id="seo-status" class="space-y-2">
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-400">Meta titles</span>
+              <span class="text-gray-500">—</span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-400">Meta descriptions</span>
+              <span class="text-gray-500">—</span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-400">Open Graph</span>
+              <span class="text-gray-500">—</span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-400">Sitemap</span>
+              <span class="text-gray-500">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Build Stats -->
+        <div>
+          <h2 class="font-semibold mb-3 flex items-center gap-2">📊 Build Stats</h2>
+          <div id="build-stats" class="space-y-2 text-sm">
+            <div class="flex items-center justify-between">
+              <span class="text-gray-400">Total pages</span>
+              <span id="stat-pages" class="text-gray-500">—</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-gray-400">Total size</span>
+              <span id="stat-size" class="text-gray-500">—</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-gray-400">Build time</span>
+              <span id="stat-time" class="text-gray-500">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1">
+      <!-- Tabs -->
+      <div class="border-b border-gray-800 bg-gray-900">
+        <nav class="flex px-4">
+          <button onclick="showTab('preview')" class="tab-btn px-4 py-3 text-sm border-b-2 border-blue-500 text-blue-400" data-tab="preview">
+            Preview
+          </button>
+          <button onclick="showTab('lighthouse')" class="tab-btn px-4 py-3 text-sm border-b-2 border-transparent text-gray-400" data-tab="lighthouse">
+            Lighthouse Report
+          </button>
+          <button onclick="showTab('sitemap')" class="tab-btn px-4 py-3 text-sm border-b-2 border-transparent text-gray-400" data-tab="sitemap">
+            Sitemap
+          </button>
+          <button onclick="showTab('console')" class="tab-btn px-4 py-3 text-sm border-b-2 border-transparent text-gray-400" data-tab="console">
+            Console
+          </button>
+        </nav>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="p-6">
+        <!-- Preview Tab -->
+        <div id="tab-preview" class="tab-content">
+          <div class="bg-gray-900 rounded-lg border border-gray-800 overflow-hidden">
+            <div class="bg-gray-800 px-4 py-2 flex items-center gap-3">
+              <div class="flex gap-1.5">
+                <span class="w-3 h-3 rounded-full bg-red-500"></span>
+                <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
+                <span class="w-3 h-3 rounded-full bg-green-500"></span>
+              </div>
+              <input id="preview-url" type="text" value="http://localhost:3000/" class="flex-1 px-3 py-1 bg-gray-700 border border-gray-600 rounded text-sm font-mono" />
+              <button onclick="refreshPreview()" class="text-sm text-gray-400 hover:text-white">↻ Refresh</button>
+            </div>
+            <div class="bg-white" style="height: 600px;">
+              <iframe id="preview-frame" src="about:blank" class="w-full h-full"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lighthouse Tab -->
+        <div id="tab-lighthouse" class="tab-content hidden">
+          <div class="bg-gray-900 rounded-lg border border-gray-800 p-6">
+            <div id="lighthouse-results" class="text-center py-12">
+              <p class="text-gray-500 mb-4">Run a Lighthouse audit to see results</p>
+              <button onclick="runLighthouse()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded font-medium">
+                🔍 Run Lighthouse Audit
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sitemap Tab -->
+        <div id="tab-sitemap" class="tab-content hidden">
+          <div class="bg-gray-900 rounded-lg border border-gray-800 p-6">
+            <h3 class="font-semibold mb-4">Sitemap.xml</h3>
+            <pre id="sitemap-content" class="bg-gray-800 p-4 rounded overflow-auto max-h-96 text-sm font-mono text-gray-300">
+&lt;!-- Sitemap will appear after build --&gt;
+            </pre>
+          </div>
+        </div>
+
+        <!-- Console Tab -->
+        <div id="tab-console" class="tab-content hidden">
+          <div class="bg-gray-900 rounded-lg border border-gray-800">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+              <span class="font-semibold">Build Console</span>
+              <button onclick="clearConsole()" class="text-sm text-gray-400 hover:text-white">Clear</button>
+            </div>
+            <div id="console-output" class="p-4 font-mono text-sm h-96 overflow-auto bg-gray-950">
+              <p class="text-gray-500">$ Ready for commands...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let serverRunning = false;
+
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      document.getElementById('themeBtn').textContent =
+        document.documentElement.classList.contains('dark') ? '🌙' : '☀️';
+    }
+
+    function showTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('border-blue-500', 'text-blue-400');
+        el.classList.add('border-transparent', 'text-gray-400');
+      });
+      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+      document.querySelector(`[data-tab="${tabName}"]`).classList.remove('border-transparent', 'text-gray-400');
+      document.querySelector(`[data-tab="${tabName}"]`).classList.add('border-blue-500', 'text-blue-400');
+    }
+
+    function log(message, type = 'info') {
+      const console = document.getElementById('console-output');
+      const colors = { info: 'text-gray-300', success: 'text-green-400', error: 'text-red-400', warn: 'text-yellow-400' };
+      const time = new Date().toLocaleTimeString();
+      console.innerHTML += `<p class="${colors[type]}">[${time}] ${message}</p>`;
+      console.scrollTop = console.scrollHeight;
+    }
+
+    function clearConsole() {
+      document.getElementById('console-output').innerHTML = '<p class="text-gray-500">$ Console cleared</p>';
+    }
+
+    async function runBuild() {
+      const btn = document.getElementById('buildBtn');
+      const icon = document.getElementById('buildIcon');
+      btn.disabled = true;
+      icon.textContent = '⏳';
+
+      log('Starting build...', 'info');
+      log('$ npm run build', 'info');
+
+      // Simulate build process
+      await new Promise(r => setTimeout(r, 1500));
+      log('✓ Compiled successfully', 'success');
+
+      await new Promise(r => setTimeout(r, 500));
+      log('✓ Generated 12 static pages', 'success');
+
+      await new Promise(r => setTimeout(r, 300));
+      log('✓ Created sitemap.xml', 'success');
+      log('✓ Build completed in 2.3s', 'success');
+
+      // Update stats
+      document.getElementById('stat-pages').textContent = '12';
+      document.getElementById('stat-size').textContent = '245 KB';
+      document.getElementById('stat-time').textContent = '2.3s';
+
+      // Update status
+      document.getElementById('status').innerHTML =
+        '<span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-sm text-green-400">Built</span>';
+
+      // Enable serve button
+      document.getElementById('serveBtn').disabled = false;
+
+      // Update pages list
+      document.getElementById('pages-list').innerHTML = `
+        <button onclick="previewPage('/')" class="w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-sm">/ (index)</button>
+        <button onclick="previewPage('/about')" class="w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-sm">/about</button>
+        <button onclick="previewPage('/blog')" class="w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-sm">/blog</button>
+        <button onclick="previewPage('/contact')" class="w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-sm">/contact</button>
+      `;
+
+      // Update sitemap
+      document.getElementById('sitemap-content').textContent = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://example.com/</loc>
+    <lastmod>2024-01-15</lastmod>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://example.com/about</loc>
+    <lastmod>2024-01-15</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://example.com/blog</loc>
+    <lastmod>2024-01-15</lastmod>
+    <priority>0.8</priority>
+  </url>
+</urlset>`;
+
+      btn.disabled = false;
+      icon.textContent = '🔨';
+    }
+
+    function startServer() {
+      if (!serverRunning) {
+        log('$ npx serve out/', 'info');
+        log('✓ Server running at http://localhost:3000', 'success');
+        document.getElementById('serveBtn').textContent = '⏹ Stop';
+        document.getElementById('serveBtn').classList.remove('bg-green-600', 'hover:bg-green-700');
+        document.getElementById('serveBtn').classList.add('bg-red-600', 'hover:bg-red-700');
+        serverRunning = true;
+
+        // Load preview
+        document.getElementById('preview-frame').src = 'about:blank';
+        document.getElementById('preview-frame').srcdoc = `
+          <html>
+            <head><style>body{font-family:system-ui;padding:40px;background:#f9fafb;}</style></head>
+            <body>
+              <h1 style="font-size:2em;margin-bottom:0.5em;">Welcome to Your Site</h1>
+              <p style="color:#666;">This is a preview of your static site.</p>
+              <nav style="margin-top:2em;">
+                <a href="#" style="margin-right:1em;">Home</a>
+                <a href="#" style="margin-right:1em;">About</a>
+                <a href="#" style="margin-right:1em;">Blog</a>
+                <a href="#">Contact</a>
+              </nav>
+            </body>
+          </html>
+        `;
+      } else {
+        log('Server stopped', 'warn');
+        document.getElementById('serveBtn').textContent = '▶ Serve';
+        document.getElementById('serveBtn').classList.remove('bg-red-600', 'hover:bg-red-700');
+        document.getElementById('serveBtn').classList.add('bg-green-600', 'hover:bg-green-700');
+        serverRunning = false;
+      }
+    }
+
+    function previewPage(path) {
+      document.getElementById('preview-url').value = `http://localhost:3000${path}`;
+      log(`Previewing ${path}`, 'info');
+    }
+
+    function refreshPreview() {
+      const frame = document.getElementById('preview-frame');
+      frame.src = frame.src;
+    }
+
+    function runLighthouse() {
+      showTab('lighthouse');
+      const el = document.getElementById('lighthouse-results');
+      el.innerHTML = '<p class="text-gray-400">Running Lighthouse audit...</p>';
+
+      setTimeout(() => {
+        el.innerHTML = `
+          <div class="grid grid-cols-4 gap-6">
+            <div class="text-center">
+              <div class="w-24 h-24 mx-auto rounded-full border-4 border-green-500 flex items-center justify-center">
+                <span class="text-3xl font-bold text-green-400">98</span>
+              </div>
+              <p class="mt-2 font-medium">Performance</p>
+            </div>
+            <div class="text-center">
+              <div class="w-24 h-24 mx-auto rounded-full border-4 border-green-500 flex items-center justify-center">
+                <span class="text-3xl font-bold text-green-400">100</span>
+              </div>
+              <p class="mt-2 font-medium">Accessibility</p>
+            </div>
+            <div class="text-center">
+              <div class="w-24 h-24 mx-auto rounded-full border-4 border-green-500 flex items-center justify-center">
+                <span class="text-3xl font-bold text-green-400">100</span>
+              </div>
+              <p class="mt-2 font-medium">Best Practices</p>
+            </div>
+            <div class="text-center">
+              <div class="w-24 h-24 mx-auto rounded-full border-4 border-green-500 flex items-center justify-center">
+                <span class="text-3xl font-bold text-green-400">100</span>
+              </div>
+              <p class="mt-2 font-medium">SEO</p>
+            </div>
+          </div>
+          <div class="mt-8 text-left">
+            <h4 class="font-semibold mb-3">Metrics</h4>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between"><span class="text-gray-400">First Contentful Paint</span><span class="text-green-400">0.8s</span></div>
+              <div class="flex justify-between"><span class="text-gray-400">Largest Contentful Paint</span><span class="text-green-400">1.2s</span></div>
+              <div class="flex justify-between"><span class="text-gray-400">Total Blocking Time</span><span class="text-green-400">0ms</span></div>
+              <div class="flex justify-between"><span class="text-gray-400">Cumulative Layout Shift</span><span class="text-green-400">0</span></div>
+            </div>
+          </div>
+        `;
+      }, 2000);
+    }
+  </script>
+</body>
+</html>

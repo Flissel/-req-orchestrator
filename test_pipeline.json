@@ -1,0 +1,11 @@
+{
+  "files": [
+    {
+      "filename": "test.md",
+      "content": "# Anforderungen\n\n- Das System soll eine Login-Funktion bieten\n- Die App speichert Nutzerdaten verschluesselt\n- Performance muss unter 2 Sekunden Reaktionszeit liegen"
+    }
+  ],
+  "quality_threshold": 0.7,
+  "max_iterations": 2,
+  "auto_mode": true
+}

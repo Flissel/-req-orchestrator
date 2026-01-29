@@ -27,6 +27,7 @@ import asyncio
 import json
 import logging
 import re
+import os
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
@@ -36,6 +37,12 @@ from arch_team.agents.criterion_specialists import (
     get_specialist_by_criterion,
     AtomicityAgent
 )
+
+# Import batch evaluator for faster evaluation (9 criteria in 1 call)
+from arch_team.agents.batch_criteria_evaluator import BatchCriteriaEvaluator, get_batch_evaluator
+
+# Feature flag: Use batch evaluator for 9x faster evaluation
+USE_BATCH_EVALUATOR = os.environ.get("USE_BATCH_EVALUATOR", "true").lower() == "true"
 
 # Import existing RequirementsAtomicityAgent for splitting
 try:
@@ -118,6 +125,7 @@ class RequirementOrchestrator:
     - Tier-based scoring (gating → priority → polish)
     - Split-first logic for non-atomic requirements
     - Actionable feedback with specific fix guidance
+    - BATCH EVALUATION: 9 criteria in 1 LLM call (9x faster)
     """
 
     # Phase-based criterion grouping to prevent conflicts and reduce iterations
@@ -150,7 +158,7 @@ class RequirementOrchestrator:
     def __init__(
         self,
         threshold: float = 0.7,
-        max_iterations: int = 3,
+        max_iterations: int = 5,
         stream_callback: Optional[callable] = None
     ):
         """
@@ -158,7 +166,7 @@ class RequirementOrchestrator:
 
         Args:
             threshold: Minimum acceptable score for each criterion (default: 0.7)
-            max_iterations: Maximum number of fix iterations (default: 3)
+            max_iterations: Maximum number of fix iterations (default: 5)
             stream_callback: Optional async callback(event_type, data) for streaming updates
         """
         self.threshold = threshold
@@ -477,7 +485,7 @@ class RequirementOrchestrator:
                 # Log feedback for failing criteria
                 logger.info(f"Failing criteria ({len(failing_criteria)}): {failing_criteria}")
                 for fb in tier_result["feedback"][:3]:  # Log top 3 issues
-                    logger.info(f"  [{fb['tier']}] {fb['criterion']}: {fb['score']:.2f} < {fb['threshold']} - {fb['action']}")
+                    logger.info(f"  [{fb['tier']} {fb['criterion']}] score: {fb['score']:.2f} below threshold: {fb['threshold']:.2f} - {fb['action']}")
 
                 # Step 3: Handle atomic criterion specially (requires splitting)
                 if "atomic" in failing_criteria:
@@ -632,7 +640,10 @@ class RequirementOrchestrator:
         context: Dict[str, Any]
     ) -> Dict[str, float]:
         """
-        Evaluate all 10 criteria in parallel
+        Evaluate all 9 criteria.
+
+        Uses BatchCriteriaEvaluator (1 LLM call) by default for ~9x faster performance.
+        Falls back to individual specialists (9 LLM calls) if USE_BATCH_EVALUATOR=false.
 
         Args:
             requirement_text: Text to evaluate
@@ -641,6 +652,18 @@ class RequirementOrchestrator:
         Returns:
             Dict mapping criterion name to score
         """
+        if USE_BATCH_EVALUATOR:
+            # FAST PATH: Single LLM call for all 9 criteria
+            try:
+                evaluator = get_batch_evaluator()
+                scores = await evaluator.evaluate(requirement_text, context)
+                logger.debug(f"Batch evaluation complete: {scores}")
+                return scores
+            except Exception as e:
+                logger.warning(f"Batch evaluation failed, falling back to individual: {e}")
+                # Fall through to individual evaluation
+        
+        # SLOW PATH: 9 separate LLM calls (fallback)
         tasks = []
         criteria_names = []
 
@@ -690,10 +713,10 @@ class RequirementOrchestrator:
             atomicity_agent = RequirementsAtomicityAgent()
 
             # Call the internal split method directly
-            splits = await atomicity_agent._split_atomic_llm(
+            splits = await atomicity_agent._split_with_retry(
                 requirement_text=requirement_text,
                 context=context,
-                max_splits=5
+                max_splits=2
             )
 
             if splits and len(splits) >= 2:
@@ -800,9 +823,9 @@ class RequirementOrchestrator:
                 logger.error(f"Error in stream callback: {e}")
 
 
-# ============================================================================
+# ==============================================================================
 # BATCH ORCHESTRATION - Process multiple requirements
-# ============================================================================
+# ==============================================================================
 
 class BatchOrchestrator:
     """Orchestrates validation for multiple requirements"""

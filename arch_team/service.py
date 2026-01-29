@@ -360,6 +360,31 @@ def kg_search_edges():
         return jsonify({"success": False, "message": f"KG search edges failed: {e}"}), 500
 
 
+@app.route("/api/kg/export", methods=["GET"])
+def kg_export():
+    """
+    Export all KG nodes and edges from Qdrant.
+    Query-Parameter:
+      - limit: Max. Anzahl Nodes/Edges (Default 10000)
+    Antwort: { success, nodes: [...], edges: [...], stats: {node_count, edge_count} }
+    """
+    try:
+        limit = int(request.args.get("limit") or "10000")
+        client = QdrantKGClient()
+        data = client.export_all(limit=limit)
+        return jsonify({
+            "success": True,
+            "nodes": data.get("nodes", []),
+            "edges": data.get("edges", []),
+            "stats": {
+                "node_count": len(data.get("nodes", [])),
+                "edge_count": len(data.get("edges", []))
+            }
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": f"KG export failed: {e}"}), 500
+
+
 @app.route("/api/kg/neighbors", methods=["GET"])
 def kg_neighbors():
     """
@@ -1434,6 +1459,7 @@ def arch_team_process():
         files = request.files.getlist('files')
         correlation_id = request.form.get('correlation_id')
         model = request.form.get('model', 'gpt-4o-mini')
+        provider = request.form.get('provider', 'openai')  # Extract provider parameter
 
         # Safely parse chunk_size with fallback
         chunk_size_raw = request.form.get('chunk_size', '800')
@@ -1459,6 +1485,17 @@ def arch_team_process():
 
         import sys
         sys.stderr.write(f"[MasterWorkflow] Starting with {len(files)} file(s) (session: {correlation_id})\n")
+        sys.stderr.flush()
+
+        # Log provider and model configuration
+        sys.stderr.write(f"[MasterWorkflow] Provider: {provider}, Model: {model}\n")
+        sys.stderr.flush()
+
+        # Set LLM provider and model environment variables for this request
+        # This allows backend.core.settings.get_llm_config() to use the correct configuration
+        os.environ['LLM_PROVIDER'] = provider
+        os.environ['OPENAI_MODEL'] = model
+        sys.stderr.write(f"[MasterWorkflow] Set LLM_PROVIDER={provider}, OPENAI_MODEL={model}\n")
         sys.stderr.flush()
 
         # Debug: Check API key status before workflow

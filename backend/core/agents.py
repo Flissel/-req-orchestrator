@@ -44,9 +44,9 @@ async def _maybe_await(func, *args, **kwargs):
         return await result
     return result
 
-# =============================================================================
+# ==============================================================================
 # Message Types für Agent-Kommunikation
-# =============================================================================
+# ==============================================================================
 
 @dataclass
 class RequirementProcessingRequest:
@@ -142,7 +142,7 @@ class AtomicSplitRequest:
     requirement_id: str
     requirement_text: str
     context: Dict[str, Any]
-    max_splits: int = 5
+    max_splits: int = 2
     retry_attempt: int = 0
     request_id: str = ""
     timestamp: str = ""
@@ -171,9 +171,9 @@ class AtomicSplitResult:
         if not self.timestamp:
             self.timestamp = datetime.now().isoformat()
 
-# =============================================================================
+# ==============================================================================
 # Requirements Processing Agents
-# =============================================================================
+# ==============================================================================
 
 class RequirementsEvaluatorAgent(RoutedAgent):
     """Agent für Requirements-Evaluation mit LLM"""
@@ -348,7 +348,7 @@ class RequirementsSuggestionAgent(RoutedAgent):
             await self.publish_message(
                 ProcessingStatusUpdate(
                     requirement_id=message.requirement_id,
-                    request_id=message.request_id,
+                    request_id=message.request_id, 
                     stage="suggestion", 
                     status="failed",
                     message=f"Suggestion fehlgeschlagen: {str(e)}"
@@ -498,7 +498,7 @@ class RequirementsOrchestratorAgent(RoutedAgent):
             self.active_requests[message.request_id]["results"]["evaluation"] = message
             self.active_requests[message.request_id]["completed_stages"].append("evaluation")
             logger.info(f"Evaluation-Ergebnis erhalten für {message.requirement_id}")
-    
+
     @message_handler
     async def handle_suggestion_result(self, message: SuggestionResult, ctx: MessageContext) -> None:
         """Verarbeitet Suggestion-Ergebnisse"""
@@ -506,7 +506,7 @@ class RequirementsOrchestratorAgent(RoutedAgent):
             self.active_requests[message.request_id]["results"]["suggestion"] = message
             self.active_requests[message.request_id]["completed_stages"].append("suggestion")
             logger.info(f"Suggestion-Ergebnis erhalten für {message.requirement_id}")
-    
+
     @message_handler
     async def handle_rewrite_result(self, message: RewriteResult, ctx: MessageContext) -> None:
         """Verarbeitet Rewrite-Ergebnisse"""
@@ -520,7 +520,7 @@ class RequirementsOrchestratorAgent(RoutedAgent):
         """Verarbeitet Status-Updates"""
         logger.debug(f"Status-Update: {message.requirement_id} - {message.stage} - {message.status}")
 
-# =============================================================================
+# =============================================================================\
 # Observer Agent für Monitoring und Logging
 # =============================================================================
 
@@ -716,33 +716,34 @@ class RequirementsAtomicityAgent(RoutedAgent):
         import os
         from openai import OpenAI
 
-        prompt = f"""Du bist ein Experte für Requirements Engineering.
-Analysiere folgendes Requirement und teile es in atomare, eigenständige Sub-Requirements auf.
+        prompt = f"""You are an expert in Requirements Engineering.
+Analyze the following requirement and split it into atomic, independent sub-requirements.
 
 **Requirement:** {requirement_text}
 
-**Regeln:**
-1. Jedes Sub-Requirement muss GENAU EINE Aussage enthalten (atomic principle)
-2. Jedes Sub-Requirement muss eigenständig verständlich sein
-3. Erstelle mindestens 2, maximal {max_splits} Sub-Requirements
-4. Vermeide Redundanz zwischen den Sub-Requirements
-5. Behalte die ursprüngliche Intention bei
+**Rules:**
+1. Each sub-requirement MUST contain EXACTLY ONE statement (atomic principle)
+2. Each sub-requirement MUST be independently understandable
+3. Create at least 2, maximum {max_splits} sub-requirements
+4. Avoid redundancy between sub-requirements
+5. Preserve the original intention
 
-**Antwortformat (JSON):**
+**Response Format (JSON):**
 {{
   "splits": [
     {{
-      "text": "Das erste atomare Sub-Requirement",
-      "rationale": "Erklärung, warum dies ein eigenständiges Requirement ist"
+      "text": "The first atomic sub-requirement",
+      "rationale": "Explanation why this is an independent requirement"
     }},
     {{
-      "text": "Das zweite atomare Sub-Requirement",
-      "rationale": "Erklärung, warum dies ein eigenständiges Requirement ist"
+      "text": "The second atomic sub-requirement",
+      "rationale": "Explanation why this is an independent requirement"
     }}
   ]
 }}
 
-Antworte NUR mit dem JSON-Objekt, ohne zusätzlichen Text."""
+IMPORTANT: Respond ONLY with the JSON object, no additional text. Write all requirements in ENGLISH."""
+
 
         try:
             # OpenAI Client erstellen
@@ -754,12 +755,12 @@ Antworte NUR mit dem JSON-Objekt, ohne zusätzlichen Text."""
 
             # OpenAI API call mit JSON response format
             response = client.chat.completions.create(
-                model="gpt-4o-mini",  # Günstiges, schnelles Modell für Splitting
+                model="gpt-4o-mini",  # Fast, cost-effective model for splitting
                 messages=[
-                    {"role": "system", "content": "Du bist ein Requirements Engineering Experte."},
+                    {"role": "system", "content": "You are a Requirements Engineering expert. Always respond in English."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,  # Niedrige Temperatur für konsistente Splits
+                temperature=0.3,  # Low temperature for consistent splits
                 response_format={"type": "json_object"}
             )
 
@@ -820,7 +821,7 @@ class RequirementsMonitorAgent(RoutedAgent):
         if self.processing_stats["total_requests"] % 10 == 0:
             logger.info(f"Processing Stats: {self.processing_stats}")
 
-# =============================================================================
+# =============================================================================\
 # Message Serializer Registration Helper
 # =============================================================================
 

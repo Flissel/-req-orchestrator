@@ -3,7 +3,7 @@ import './ValidationDetailPanel.css'
 import CriteriaGrid from './CriteriaGrid'
 import RequirementDiffView from './RequirementDiffView'
 
-const ValidationDetailPanel = ({ requirement, onValidationComplete, onValidationStart }) => {
+const ValidationDetailPanel = ({ requirement, onValidationComplete, onValidationStart, onEnhanceRequirement }) => {
   const [activeTab, setActiveTab] = useState('overview')
 
   // Validation state - inline validation process
@@ -170,9 +170,10 @@ const ValidationDetailPanel = ({ requirement, onValidationComplete, onValidation
     )
   }
 
-  const score = requirement.validation_score || 0
+  // Use validationResult score if available (after validation), otherwise use requirement prop
+  const score = validationResult?.final_score ?? requirement.validation_score ?? 0
   const percentage = Math.round(score * 100)
-  const passed = requirement.validation_passed || false
+  const passed = validationResult?.passed ?? requirement.validation_passed ?? false
 
   // Count fixes/improvements if available
   const fixCount = requirement.evaluation
@@ -212,6 +213,17 @@ const ValidationDetailPanel = ({ requirement, onValidationComplete, onValidation
           >
             {isValidating ? 'Validating...' : 'Validate'}
           </button>
+          {/* Enhance Button */}
+          {onEnhanceRequirement && (
+            <button
+              className="btn-enhance-inline"
+              onClick={() => onEnhanceRequirement(requirement)}
+              disabled={isValidating}
+              title="Interactive enhancement with SocietyOfMind"
+            >
+              🧠 Enhance
+            </button>
+          )}
         </div>
       </div>
 

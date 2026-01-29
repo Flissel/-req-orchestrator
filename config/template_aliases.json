@@ -1,0 +1,180 @@
+{
+  "_description": "Mapping von alternativen Namen auf offizielle Template-IDs",
+  "_usage": "template_id = aliases.get(user_input, user_input)",
+  
+  "aliases": {
+    "web_app": "01-web-app",
+    "web_app_react": "01-web-app",
+    "nextjs": "01-web-app",
+    "react": "01-web-app",
+    "webapp": "01-web-app",
+    "fullstack": "01-web-app",
+    "saas": "01-web-app",
+    
+    "api": "02-api-service",
+    "api_service": "02-api-service",
+    "backend": "02-api-service",
+    "fastapi": "02-api-service",
+    "rest_api": "02-api-service",
+    "microservice": "02-api-service",
+    
+    "desktop": "03-desktop-electron",
+    "electron": "03-desktop-electron",
+    "desktop_app": "03-desktop-electron",
+    "native_app": "03-desktop-electron",
+    
+    "mobile": "04-mobile-expo",
+    "mobile_app": "04-mobile-expo",
+    "expo": "04-mobile-expo",
+    "react_native": "04-mobile-expo",
+    "ios": "04-mobile-expo",
+    "android": "04-mobile-expo",
+    
+    "static": "05-static-site",
+    "static_site": "05-static-site",
+    "blog": "05-static-site",
+    "landing_page": "05-static-site",
+    "docs": "05-static-site",
+    "documentation": "05-static-site",
+    
+    "web3": "06-web3-dapp",
+    "dapp": "06-web3-dapp",
+    "blockchain": "06-web3-dapp",
+    "ethereum": "06-web3-dapp",
+    "smart_contract": "06-web3-dapp",
+    "crypto": "06-web3-dapp",
+    
+    "ml": "07-data-ml",
+    "data": "07-data-ml",
+    "machine_learning": "07-data-ml",
+    "ai": "07-data-ml",
+    "data_science": "07-data-ml",
+    "jupyter": "07-data-ml",
+    "analytics": "07-data-ml",
+    
+    "simulation": "08-simulation-cpp",
+    "cpp": "08-simulation-cpp",
+    "c++": "08-simulation-cpp",
+    "physics": "08-simulation-cpp",
+    "scientific": "08-simulation-cpp",
+    
+    "cli": "09-cli-tool",
+    "cli_tool": "09-cli-tool",
+    "command_line": "09-cli-tool",
+    "terminal": "09-cli-tool",
+    "tool": "09-cli-tool",
+    
+    "extension": "10-browser-extension",
+    "browser_extension": "10-browser-extension",
+    "chrome_extension": "10-browser-extension",
+    "plugin": "10-browser-extension",
+    "addon": "10-browser-extension",
+    
+    "chatbot": "11-chatbot",
+    "bot": "11-chatbot",
+    "chat": "11-chatbot",
+    "llm": "11-chatbot",
+    "assistant": "11-chatbot",
+    
+    "realtime": "12-realtime-socketio",
+    "socketio": "12-realtime-socketio",
+    "websocket": "12-realtime-socketio",
+    "live": "12-realtime-socketio",
+    "streaming": "12-realtime-socketio",
+    
+    "os": "13-operating-system",
+    "operating_system": "13-operating-system",
+    "kernel": "13-operating-system",
+    "system": "13-operating-system",
+    
+    "vr": "14-vr-webxr",
+    "webxr": "14-vr-webxr",
+    "ar": "14-vr-webxr",
+    "virtual_reality": "14-vr-webxr",
+    "3d": "14-vr-webxr",
+    
+    "iot": "15-iot-wokwi",
+    "embedded": "15-iot-wokwi",
+    "arduino": "15-iot-wokwi",
+    "esp32": "15-iot-wokwi",
+    "hardware": "15-iot-wokwi"
+  },
+  
+  "templates": {
+    "01-web-app": {
+      "name": "Web Application",
+      "category": "web",
+      "keywords": ["nextjs", "react", "web", "fullstack", "saas"]
+    },
+    "02-api-service": {
+      "name": "API Backend Service", 
+      "category": "backend",
+      "keywords": ["fastapi", "python", "rest", "api", "microservice"]
+    },
+    "03-desktop-electron": {
+      "name": "Desktop App (Electron + Python)",
+      "category": "desktop",
+      "keywords": ["electron", "desktop", "native", "cross-platform"]
+    },
+    "04-mobile-expo": {
+      "name": "Mobile App (Expo)",
+      "category": "mobile",
+      "keywords": ["expo", "react-native", "ios", "android", "mobile"]
+    },
+    "05-static-site": {
+      "name": "Static Site",
+      "category": "web",
+      "keywords": ["static", "blog", "docs", "landing"]
+    },
+    "06-web3-dapp": {
+      "name": "Web3 DApp",
+      "category": "blockchain",
+      "keywords": ["web3", "ethereum", "solidity", "dapp"]
+    },
+    "07-data-ml": {
+      "name": "Data/ML Pipeline",
+      "category": "data-science",
+      "keywords": ["ml", "ai", "data", "jupyter", "analytics"]
+    },
+    "08-simulation-cpp": {
+      "name": "Simulation System (C++)",
+      "category": "simulation",
+      "keywords": ["c++", "simulation", "physics", "scientific"]
+    },
+    "09-cli-tool": {
+      "name": "CLI Tool (Python)",
+      "category": "cli",
+      "keywords": ["cli", "command-line", "tool", "python"]
+    },
+    "10-browser-extension": {
+      "name": "Browser Extension",
+      "category": "browser",
+      "keywords": ["extension", "chrome", "firefox", "plugin"]
+    },
+    "11-chatbot": {
+      "name": "Chat Bot (AI)",
+      "category": "ai",
+      "keywords": ["chatbot", "llm", "ai", "assistant"]
+    },
+    "12-realtime-socketio": {
+      "name": "Realtime App (Socket.io)",
+      "category": "realtime",
+      "keywords": ["websocket", "realtime", "live", "streaming"]
+    },
+    "13-operating-system": {
+      "name": "Operating System (QEMU)",
+      "category": "systems",
+      "keywords": ["os", "kernel", "system", "low-level"]
+    },
+    "14-vr-webxr": {
+      "name": "VR Experience (WebXR)",
+      "category": "vr",
+      "keywords": ["vr", "ar", "webxr", "3d", "immersive"]
+    },
+    "15-iot-wokwi": {
+      "name": "IoT/Embedded (Wokwi)",
+      "category": "iot",
+      "keywords": ["iot", "embedded", "arduino", "esp32"]
+    }
+  }
+}

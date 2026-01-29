@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# LLM Configuration reloaded for OpenRouter: 2025-11-26
 from __future__ import annotations
 
 import json
@@ -56,7 +57,7 @@ if DEBUG_LLM:
             "openai_version": OPENAI_VERSION,
             "openai_v1_client_available": bool(_OpenAIClient),
             "openai_is_v1_runtime": OPENAI_IS_V1_RUNTIME,
-            "api_key_present": bool(os.environ.get("OPENAI_API_KEY") or ""),
+            "api_key_present": bool(os.environ.get("OPENROUTER_API_KEY") or ""),
             "model": os.environ.get("OPENAI_MODEL"),
             "mock_mode": os.environ.get("MOCK_MODE")
         }))
@@ -156,7 +157,7 @@ def llm_evaluate(requirement_text: str, criteria_keys: List[str], context: Dict[
         try:
             LOGGER.info(json.dumps({
                 "event": "llm.evaluate.start",
-                "api_key_present": bool(settings.OPENAI_API_KEY),
+                "api_key_present": bool(settings.OPENROUTER_API_KEY),
                 "openai_import_ok": OPENAI_IMPORT_OK,
                 "openai_v1_client_available": bool(_OpenAIClient),
                 "openai_is_v1_runtime": OPENAI_IS_V1_RUNTIME,
@@ -167,7 +168,7 @@ def llm_evaluate(requirement_text: str, criteria_keys: List[str], context: Dict[
         except Exception:
             pass
 
-    if not settings.OPENAI_API_KEY:
+    if not settings.OPENROUTER_API_KEY:
         if DEBUG_LLM:
             LOGGER.warning(json.dumps({"event": "llm.evaluate.fallback", "reason": "no_api_key"}))
         return _heuristic_mock_evaluation(requirement_text, criteria_keys)
@@ -196,7 +197,11 @@ def llm_evaluate(requirement_text: str, criteria_keys: List[str], context: Dict[
 
         # v1.x Client-Pfad erzwungen bei v1-Runtime
         if OPENAI_IS_V1_RUNTIME and _OpenAIClient is not None:
-            client = _OpenAIClient(api_key=settings.OPENAI_API_KEY)
+            llm_config = settings.get_llm_config()
+            client = _OpenAIClient(
+                api_key=llm_config["api_key"],
+                base_url=llm_config["base_url"]
+            )
             if DEBUG_LLM:
                 try:
                     LOGGER.info(json.dumps({"event": "llm.evaluate.call", "model": settings.OPENAI_MODEL, "sdk": "v1", "openai_version": OPENAI_VERSION}))
@@ -210,7 +215,7 @@ def llm_evaluate(requirement_text: str, criteria_keys: List[str], context: Dict[
             }
             if "response_format" in chat_args:
                 v1_kwargs["response_format"] = chat_args["response_format"]
-            resp = client.chat.completions.create(**v1_kwargs)  # type: ignore[arg-type]
+            resp = client.chat.completions.create(**v1_kwargs)
             content_raw = resp.choices[0].message.content or ""
         else:
             if OPENAI_IS_V1_RUNTIME:
@@ -223,7 +228,7 @@ def llm_evaluate(requirement_text: str, criteria_keys: List[str], context: Dict[
                 raise RuntimeError("OpenAI>=1.x detected but OpenAI client unavailable")
             # Legacy 0.28.x Pfad (nur bei openai<1.0)
             if OPENAI_IMPORT_OK:
-                openai.api_key = settings.OPENAI_API_KEY  # type: ignore[attr-defined]
+                openai.api_key = settings.OPENROUTER_API_KEY  # type: ignore[attr-defined]
             if DEBUG_LLM:
                 try:
                     LOGGER.info(json.dumps({"event": "llm.evaluate.call", "model": chat_args.get("model"), "sdk": "legacy", "openai_version": OPENAI_VERSION}))
@@ -261,6 +266,213 @@ def llm_evaluate(requirement_text: str, criteria_keys: List[str], context: Dict[
         return _heuristic_mock_evaluation(requirement_text, criteria_keys)
 
 
+def llm_evaluate_batch(
+    requirements: List[Dict[str, Any]],
+    criteria_keys: List[str],
+    context: Dict[str, Any]
+) -> List[Dict[str, Any]]:
+    """
+    Batch-evaluiert mehrere Requirements in einem einzigen LLM-Call.
+    
+    Args:
+        requirements: Liste von Dicts mit {id, text}
+        criteria_keys: Liste der Kriterien
+        context: Zusätzlicher Kontext
+    
+    Returns:
+        Liste von Ergebnissen [{id, details: [{criterion, score, passed, feedback}]}]
+    
+    Performance: ~3-4x schneller als einzelne Calls bei 5 Requirements pro Batch
+    """
+    if DEBUG_LLM:
+        try:
+            LOGGER.info(json.dumps({
+                "event": "llm.evaluate_batch.start",
+                "api_key_present": bool(settings.OPENROUTER_API_KEY),
+                "openai_import_ok": OPENAI_IMPORT_OK,
+                "openai_v1_client_available": bool(_OpenAIClient),
+                "openai_is_v1_runtime": OPENAI_IS_V1_RUNTIME,
+                "mock_mode": getattr(settings, "MOCK_MODE", False),
+                "model": getattr(settings, "OPENAI_MODEL", ""),
+                "batch_size": len(requirements),
+                "criteria_keys": criteria_keys
+            }))
+        except Exception:
+            pass
+
+    # Fallback auf Einzelbewertungen wenn kein LLM verfügbar
+    if not settings.OPENROUTER_API_KEY:
+        if DEBUG_LLM:
+            LOGGER.warning(json.dumps({"event": "llm.evaluate_batch.fallback", "reason": "no_api_key"}))
+        return [
+            {"id": req.get("id", f"REQ-{i}"), "details": _heuristic_mock_evaluation(req.get("text", ""), criteria_keys)}
+            for i, req in enumerate(requirements)
+        ]
+    if not OPENAI_IMPORT_OK and not _OpenAIClient:
+        if DEBUG_LLM:
+            LOGGER.warning(json.dumps({"event": "llm.evaluate_batch.fallback", "reason": "openai_module_missing"}))
+        return [
+            {"id": req.get("id", f"REQ-{i}"), "details": _heuristic_mock_evaluation(req.get("text", ""), criteria_keys)}
+            for i, req in enumerate(requirements)
+        ]
+
+    try:
+        system_prompt = (
+            "Du bist ein Qualitätsprüfer für Software-Requirements nach IEEE 29148. "
+            "Du erhältst mehrere Requirements und bewertest JEDES einzeln nach den vorgegebenen Kriterien. "
+            "Gib für JEDES Requirement eine separate Bewertung mit Score 0.0 bis 1.0 pro Kriterium. "
+            "Gib NUR valides JSON zurück im Format:\n"
+            "{\n"
+            '  "results": [\n'
+            '    {\n'
+            '      "id": "REQ-001",\n'
+            '      "details": [\n'
+            '        {"criterion": "clarity", "score": 0.8, "passed": true, "feedback": "Klare Formulierung"}\n'
+            '      ]\n'
+            '    }\n'
+            '  ]\n'
+            "}\n"
+            "WICHTIG: Du MUSST für JEDES Input-Requirement genau ein Ergebnis-Objekt zurückgeben!"
+        )
+        
+        user_payload = {
+            "requirements": [
+                {"id": req.get("id", f"REQ-{i}"), "text": req.get("text", "")}
+                for i, req in enumerate(requirements)
+            ],
+            "criteriaKeys": criteria_keys,
+            "context": context or {},
+            "outputSchema": {
+                "results": [
+                    {
+                        "id": "string",
+                        "details": [
+                            {"criterion": "string", "score": "float 0..1", "passed": "bool", "feedback": "string"}
+                        ]
+                    }
+                ]
+            },
+        }
+        
+        # Build chat arguments
+        chat_args = _make_chat_args(system_prompt, user_payload)
+
+        # v1.x Client-Pfad
+        if OPENAI_IS_V1_RUNTIME and _OpenAIClient is not None:
+            llm_config = settings.get_llm_config()
+            client = _OpenAIClient(
+                api_key=llm_config["api_key"],
+                base_url=llm_config["base_url"]
+            )
+            if DEBUG_LLM:
+                try:
+                    LOGGER.info(json.dumps({
+                        "event": "llm.evaluate_batch.call",
+                        "model": settings.OPENAI_MODEL,
+                        "sdk": "v1",
+                        "batch_size": len(requirements),
+                        "openai_version": OPENAI_VERSION
+                    }))
+                except Exception:
+                    pass
+            v1_kwargs: Dict[str, Any] = {
+                "model": settings.OPENAI_MODEL,
+                "messages": chat_args["messages"],
+                "temperature": chat_args.get("temperature", 0.0),
+                "top_p": chat_args.get("top_p", 1.0),
+            }
+            if "response_format" in chat_args:
+                v1_kwargs["response_format"] = chat_args["response_format"]
+            resp = client.chat.completions.create(**v1_kwargs)
+            content_raw = resp.choices[0].message.content or ""
+        else:
+            if OPENAI_IS_V1_RUNTIME:
+                if DEBUG_LLM:
+                    try:
+                        LOGGER.error(json.dumps({"event": "llm.evaluate_batch.path_blocked", "reason": "v1_runtime_no_client"}))
+                    except Exception:
+                        pass
+                raise RuntimeError("OpenAI>=1.x detected but OpenAI client unavailable")
+            # Legacy 0.28.x
+            if OPENAI_IMPORT_OK:
+                openai.api_key = settings.OPENROUTER_API_KEY
+            if DEBUG_LLM:
+                try:
+                    LOGGER.info(json.dumps({"event": "llm.evaluate_batch.call", "model": chat_args.get("model"), "sdk": "legacy", "batch_size": len(requirements)}))
+                except Exception:
+                    pass
+            resp = openai.ChatCompletion.create(**chat_args)
+            content_raw = resp["choices"][0]["message"]["content"]
+
+        if DEBUG_LLM_RAW:
+            print("[LLM][evaluate_batch][RAW]", content_raw[:500], "..." if len(content_raw) > 500 else "")
+
+        content = _extract_json_string(content_raw)
+        parsed = json.loads(content)
+        
+        if DEBUG_LLM_RAW:
+            print("[LLM][evaluate_batch][PARSED]", json.dumps(parsed, ensure_ascii=False)[:500])
+        
+        raw_results = parsed.get("results", [])
+        
+        # Normalize results
+        normalized_results: List[Dict[str, Any]] = []
+        for result in raw_results:
+            req_id = result.get("id", "")
+            details = result.get("details", [])
+            
+            norm_details: List[Dict[str, Any]] = []
+            for d in details:
+                crit = d.get("criterion")
+                if crit in criteria_keys:
+                    sc = float(d.get("score", 0.0))
+                    norm_details.append({
+                        "criterion": crit,
+                        "score": max(0.0, min(1.0, sc)),
+                        "passed": bool(d.get("passed", sc >= 0.7)),
+                        "feedback": str(d.get("feedback", ""))
+                    })
+            
+            normalized_results.append({
+                "id": req_id,
+                "details": norm_details
+            })
+        
+        # Verify all requirements have results
+        input_ids = {req.get("id", f"REQ-{i}") for i, req in enumerate(requirements)}
+        result_ids = {r.get("id") for r in normalized_results}
+        
+        # Add missing results with heuristic fallback
+        missing_ids = input_ids - result_ids
+        if missing_ids:
+            if DEBUG_LLM:
+                LOGGER.warning(json.dumps({"event": "llm.evaluate_batch.missing_results", "missing_ids": list(missing_ids)}))
+            for missing_id in missing_ids:
+                req_text = next((r.get("text", "") for r in requirements if r.get("id") == missing_id), "")
+                normalized_results.append({
+                    "id": missing_id,
+                    "details": _heuristic_mock_evaluation(req_text, criteria_keys)
+                })
+        
+        if DEBUG_LLM:
+            LOGGER.info(json.dumps({
+                "event": "llm.evaluate_batch.complete",
+                "input_count": len(requirements),
+                "output_count": len(normalized_results)
+            }))
+        
+        return normalized_results
+        
+    except Exception as e:
+        if DEBUG_LLM:
+            LOGGER.error(json.dumps({"event": "llm.evaluate_batch.error", "message": str(e)}))
+        # Fallback to individual heuristic evaluations
+        return [
+            {"id": req.get("id", f"REQ-{i}"), "details": _heuristic_mock_evaluation(req.get("text", ""), criteria_keys)}
+            for i, req in enumerate(requirements)
+        ]
+
+
 def llm_suggest(requirement_text: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Liefert atomare Verbesserungsvorschläge ("Atoms") als Liste von Dicts.
@@ -271,7 +483,7 @@ def llm_suggest(requirement_text: str, context: Dict[str, Any]) -> List[Dict[str
         try:
             LOGGER.info(json.dumps({
                 "event": "llm.suggest.start",
-                "api_key_present": bool(settings.OPENAI_API_KEY),
+                "api_key_present": bool(settings.OPENROUTER_API_KEY),
                 "openai_import_ok": OPENAI_IMPORT_OK,
                 "openai_v1_client_available": bool(_OpenAIClient),
                 "openai_is_v1_runtime": OPENAI_IS_V1_RUNTIME,
@@ -318,7 +530,7 @@ def llm_suggest(requirement_text: str, context: Dict[str, Any]) -> List[Dict[str
         return atoms
 
     # Kein API/Client
-    if not settings.OPENAI_API_KEY or (not OPENAI_IMPORT_OK and not _OpenAIClient):
+    if not settings.OPENROUTER_API_KEY or (not OPENAI_IMPORT_OK and not _OpenAIClient):
         if DEBUG_LLM:
             LOGGER.warning(json.dumps({"event": "llm.suggest.path", "mode": "fallback_empty", "reason": "no_api_key_or_openai_missing"}))
         return []
@@ -351,7 +563,11 @@ def llm_suggest(requirement_text: str, context: Dict[str, Any]) -> List[Dict[str
         ]
 
         if OPENAI_IS_V1_RUNTIME and _OpenAIClient is not None:
-            client = _OpenAIClient(api_key=settings.OPENAI_API_KEY)
+            llm_config = settings.get_llm_config()
+            client = _OpenAIClient(
+                api_key=llm_config["api_key"],
+                base_url=llm_config["base_url"]
+            )
             if DEBUG_LLM:
                 try:
                     LOGGER.info(json.dumps({"event": "llm.suggest.call", "model": settings.OPENAI_MODEL, "sdk": "v1", "openai_version": OPENAI_VERSION}))
@@ -363,7 +579,7 @@ def llm_suggest(requirement_text: str, context: Dict[str, Any]) -> List[Dict[str
                 "temperature": getattr(settings, "LLM_TEMPERATURE", 0.0),
                 "top_p": getattr(settings, "LLM_TOP_P", 1.0),
             }
-            resp = client.chat.completions.create(**v1_kwargs)  # type: ignore[arg-type]
+            resp = client.chat.completions.create(**v1_kwargs)
             content_raw = resp.choices[0].message.content or ""
         else:
             if OPENAI_IS_V1_RUNTIME:
@@ -374,7 +590,7 @@ def llm_suggest(requirement_text: str, context: Dict[str, Any]) -> List[Dict[str
                         pass
                 raise RuntimeError("OpenAI>=1.x detected but OpenAI client unavailable")
             if OPENAI_IMPORT_OK:
-                openai.api_key = settings.OPENAI_API_KEY  # type: ignore[attr-defined]
+                openai.api_key = settings.OPENROUTER_API_KEY  # type: ignore[attr-defined]
             if DEBUG_LLM:
                 try:
                     LOGGER.info(json.dumps({"event": "llm.suggest.call", "model": settings.OPENAI_MODEL, "sdk": "legacy", "openai_version": OPENAI_VERSION}))
@@ -438,7 +654,7 @@ def llm_rewrite(requirement_text: str, context: Dict[str, Any]) -> str:
         try:
             LOGGER.info(json.dumps({
                 "event": "llm.rewrite.start",
-                "api_key_present": bool(settings.OPENAI_API_KEY),
+                "api_key_present": bool(settings.OPENROUTER_API_KEY),
                 "openai_import_ok": OPENAI_IMPORT_OK,
                 "openai_v1_client_available": bool(_OpenAIClient),
                 "openai_is_v1_runtime": OPENAI_IS_V1_RUNTIME,
@@ -448,7 +664,7 @@ def llm_rewrite(requirement_text: str, context: Dict[str, Any]) -> str:
         except Exception:
             pass
 
-    if not settings.OPENAI_API_KEY or (not OPENAI_IMPORT_OK and not _OpenAIClient):
+    if not settings.OPENROUTER_API_KEY or (not OPENAI_IMPORT_OK and not _OpenAIClient):
         if DEBUG_LLM:
             LOGGER.warning(json.dumps({"event": "llm.rewrite.path", "mode": "heuristic_original", "reason": "no_api_key_or_openai_missing"}))
         return requirement_text
@@ -466,7 +682,11 @@ def llm_rewrite(requirement_text: str, context: Dict[str, Any]) -> str:
         }
 
         if OPENAI_IS_V1_RUNTIME and _OpenAIClient is not None:
-            client = _OpenAIClient(api_key=settings.OPENAI_API_KEY)
+            llm_config = settings.get_llm_config()
+            client = _OpenAIClient(
+                api_key=llm_config["api_key"],
+                base_url=llm_config["base_url"]
+            )
             chat_kwargs: Dict[str, Any] = {
                 "model": settings.OPENAI_MODEL,
                 "messages": [
@@ -481,7 +701,7 @@ def llm_rewrite(requirement_text: str, context: Dict[str, Any]) -> str:
                     LOGGER.info(json.dumps({"event": "llm.rewrite.call", "model": chat_kwargs.get("model"), "sdk": "v1", "openai_version": OPENAI_VERSION}))
                 except Exception:
                     pass
-            resp = client.chat.completions.create(**chat_kwargs)  # type: ignore[arg-type]
+            resp = client.chat.completions.create(**chat_kwargs)
             content = resp.choices[0].message.content or ""
         else:
             if OPENAI_IS_V1_RUNTIME:
@@ -492,7 +712,7 @@ def llm_rewrite(requirement_text: str, context: Dict[str, Any]) -> str:
                         pass
                 raise RuntimeError("OpenAI>=1.x detected but OpenAI client unavailable")
             if OPENAI_IMPORT_OK:
-                openai.api_key = settings.OPENAI_API_KEY  # type: ignore[attr-defined]
+                openai.api_key = settings.OPENROUTER_API_KEY  # type: ignore[attr-defined]
             chat_args = _make_chat_args(system_prompt, user_payload)
             if DEBUG_LLM:
                 try:
@@ -589,7 +809,7 @@ def llm_apply_with_suggestions(
         try:
             LOGGER.info(json.dumps({
                 "event": "llm.apply.start",
-                "api_key_present": bool(settings.OPENAI_API_KEY),
+                "api_key_present": bool(settings.OPENROUTER_API_KEY),
                 "openai_import_ok": OPENAI_IMPORT_OK,
                 "openai_v1_client_available": bool(_OpenAIClient),
                 "openai_is_v1_runtime": OPENAI_IS_V1_RUNTIME,
@@ -637,7 +857,7 @@ def llm_apply_with_suggestions(
         return _mock_split(selected_atoms) if str(mode).lower() == "split" else _mock_merge(selected_atoms)
 
     # Kein API/Client
-    if not settings.OPENAI_API_KEY or (not OPENAI_IMPORT_OK and not _OpenAIClient):
+    if not settings.OPENROUTER_API_KEY or (not OPENAI_IMPORT_OK and not _OpenAIClient):
         if DEBUG_LLM:
             LOGGER.warning(json.dumps({"event": "llm.apply.path", "mode": "mock_like", "reason": "no_api_key_or_openai_missing"}))
         return _mock_split(selected_atoms) if str(mode).lower() == "split" else _mock_merge(selected_atoms)
@@ -681,7 +901,11 @@ def llm_apply_with_suggestions(
         }
 
         if OPENAI_IS_V1_RUNTIME and _OpenAIClient is not None:
-            client = _OpenAIClient(api_key=settings.OPENAI_API_KEY)
+            llm_config = settings.get_llm_config()
+            client = _OpenAIClient(
+                api_key=llm_config["api_key"],
+                base_url=llm_config["base_url"]
+            )
             if DEBUG_LLM:
                 try:
                     LOGGER.info(json.dumps({"event": "llm.apply.call", "model": settings.OPENAI_MODEL, "mode": user_payload.get("mode"), "sdk": "v1", "openai_version": OPENAI_VERSION}))
@@ -706,7 +930,7 @@ def llm_apply_with_suggestions(
                         pass
                 raise RuntimeError("OpenAI>=1.x detected but OpenAI client unavailable")
             if OPENAI_IMPORT_OK:
-                openai.api_key = settings.OPENAI_API_KEY  # type: ignore[attr-defined]
+                openai.api_key = settings.OPENROUTER_API_KEY  # type: ignore[attr-defined]
             if DEBUG_LLM:
                 try:
                     LOGGER.info(json.dumps({"event": "llm.apply.call", "model": settings.OPENAI_MODEL, "mode": user_payload.get("mode"), "sdk": "legacy", "openai_version": OPENAI_VERSION}))

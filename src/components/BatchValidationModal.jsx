@@ -29,6 +29,8 @@ export default function BatchValidationModal({
   const sessionId = sessionIdRef.current
   const eventSourceRef = useRef(null)
   const currentIndexRef = useRef(0)
+  const abortControllerRef = useRef(null)
+  const isCancelledRef = useRef(false)
 
   const addEvent = (type, message) => {
     const timestamp = new Date().toLocaleTimeString()
@@ -48,6 +50,7 @@ export default function BatchValidationModal({
     const eventSource = new EventSource(`/api/v1/validation/stream/${sessionId}`)
 
     eventSource.addEventListener('requirement_updated', (e) => {
+      if (isCancelledRef.current) return
       const data = JSON.parse(e.data)
       addEvent('update', `Fixed ${data.criterion}: ${data.score_before.toFixed(2)} → ${data.score_after.toFixed(2)}`)
       addDiff({
@@ -61,12 +64,14 @@ export default function BatchValidationModal({
     })
 
     eventSource.addEventListener('requirement_split', (e) => {
+      if (isCancelledRef.current) return
       const data = JSON.parse(e.data)
       const newIds = data.new_requirement_ids || []
       addEvent('split', `Split into ${newIds.length} requirements: ${newIds.join(', ')}`)
     })
 
     eventSource.addEventListener('validation_complete', (e) => {
+      if (isCancelledRef.current) return
       const data = JSON.parse(e.data)
       addEvent('complete', `Completed ${data.requirement_id}: Score ${(data.final_score * 100).toFixed(0)}% (${data.passed ? 'PASS' : 'FAIL'})`)
       addResult({
@@ -82,12 +87,13 @@ export default function BatchValidationModal({
       currentIndexRef.current += 1
       setProgress({ current: currentIndexRef.current, total: requirements.length })
 
-      if (currentIndexRef.current < requirements.length) {
+      if (currentIndexRef.current < requirements.length && !isCancelledRef.current) {
         validateNext()
       }
     })
 
     eventSource.addEventListener('validation_error', (e) => {
+      if (isCancelledRef.current) return
       const data = JSON.parse(e.data)
       addEvent('error', `Error: ${data.message}`)
       setError(data.message)
@@ -95,11 +101,13 @@ export default function BatchValidationModal({
     })
 
     eventSource.addEventListener('agent_message', (e) => {
+      if (isCancelledRef.current) return
       const data = JSON.parse(e.data)
       addEvent('agent', `${data.agent}: ${data.message}`)
     })
 
     eventSource.onerror = (err) => {
+      if (isCancelledRef.current) return
       console.error('[BatchValidationModal] SSE error:', err)
       addEvent('error', 'Connection lost, retrying...')
     }
@@ -110,6 +118,11 @@ export default function BatchValidationModal({
 
   // Validate next requirement in queue
   const validateNext = async () => {
+    // Check if cancelled before proceeding
+    if (isCancelledRef.current) {
+      return
+    }
+
     if (isPaused) {
       addEvent('info', 'Validation paused')
       return
@@ -131,6 +144,9 @@ export default function BatchValidationModal({
     addEvent('start', `Validating ${req.req_id}: ${req.title?.substring(0, 50) || 'No title'}...`)
 
     try {
+      // Create new AbortController for this request
+      abortControllerRef.current = new AbortController()
+
       const response = await fetch('/api/v1/validate/auto', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -140,8 +156,14 @@ export default function BatchValidationModal({
           session_id: sessionId,
           threshold: 0.7,
           max_iterations: 3
-        })
+        }),
+        signal: abortControllerRef.current.signal
       })
+
+      // Check if cancelled after fetch completes
+      if (isCancelledRef.current) {
+        return
+      }
 
       const result = await response.json()
 
@@ -152,8 +174,19 @@ export default function BatchValidationModal({
       // SSE events will handle the rest (updates, completion)
       setStatus('running')
     } catch (error) {
+      // Don't log abort errors as failures
+      if (error.name === 'AbortError') {
+        addEvent('info', 'Validation request cancelled')
+        return
+      }
+
       addEvent('error', `Failed to start validation for ${req.req_id}: ${error.message}`)
       setError(error.message)
+
+      // Check if cancelled before continuing
+      if (isCancelledRef.current) {
+        return
+      }
 
       // Skip to next requirement
       currentIndexRef.current += 1
@@ -174,9 +207,20 @@ export default function BatchValidationModal({
     validateNext()
 
     return () => {
+      // Mark as cancelled to stop any ongoing operations
+      isCancelledRef.current = true
+
+      // Abort any in-flight fetch
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+
+      // Close SSE connection
       if (eventSourceRef.current) {
         console.log('[BatchValidationModal] Closing SSE connection')
         eventSourceRef.current.close()
+        eventSourceRef.current = null
       }
     }
   }, [])
@@ -191,11 +235,23 @@ export default function BatchValidationModal({
   }
 
   const handleCancel = () => {
-    addEvent('info', 'Batch validation cancelled by user')
-    setStatus('completed')
+    // Set cancelled flag first to stop any ongoing loops
+    isCancelledRef.current = true
+
+    // Abort any in-flight fetch request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+
+    // Close SSE connection
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
+      eventSourceRef.current = null
     }
+
+    addEvent('info', 'Batch validation cancelled by user')
+    setStatus('completed')
     onClose()
   }
 

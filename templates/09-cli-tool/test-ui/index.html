@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CLI Tool - Terminal Emulator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <style>
+    .xterm { padding: 12px; }
+    .xterm-viewport::-webkit-scrollbar { width: 8px; }
+    .xterm-viewport::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <!-- Status Bar -->
+  <header class="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <h1 class="text-lg font-semibold flex items-center gap-2">
+        <span class="text-2xl">⚡</span> CLI Tool Terminal
+      </h1>
+      <div id="status" class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-green-500"></span>
+        <span class="text-sm text-green-400">Ready</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="clearTerminal()" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium">
+        Clear
+      </button>
+      <button onclick="exportOutput()" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium">
+        Export
+      </button>
+      <button onclick="toggleTheme()" id="themeBtn" class="p-2 hover:bg-gray-800 rounded">🌙</button>
+    </div>
+  </header>
+
+  <div class="flex h-[calc(100vh-57px)]">
+    <!-- Sidebar: Commands -->
+    <aside class="w-80 bg-gray-900 border-r border-gray-800 overflow-y-auto">
+      <div class="p-4 space-y-6">
+        <!-- Quick Commands -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Quick Commands</h2>
+          <div class="space-y-1">
+            <button onclick="runCommand('mycli --help')" class="w-full text-left px-3 py-2 rounded hover:bg-gray-800 text-sm font-mono flex items-center gap-2">
+              <span class="text-blue-400">$</span> mycli --help
+            </button>
+            <button onclick="runCommand('mycli --version')" class="w-full text-left px-3 py-2 rounded hover:bg-gray-800 text-sm font-mono flex items-center gap-2">
+              <span class="text-blue-400">$</span> mycli --version
+            </button>
+            <button onclick="runCommand('mycli config show')" class="w-full text-left px-3 py-2 rounded hover:bg-gray-800 text-sm font-mono flex items-center gap-2">
+              <span class="text-blue-400">$</span> mycli config show
+            </button>
+          </div>
+        </div>
+
+        <!-- Available Commands -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Available Commands</h2>
+          <div id="commands-list" class="space-y-1 text-sm">
+            <div class="px-3 py-2 rounded bg-gray-800/50">
+              <div class="font-mono text-green-400">init</div>
+              <div class="text-gray-500 text-xs mt-1">Initialize a new project</div>
+            </div>
+            <div class="px-3 py-2 rounded bg-gray-800/50">
+              <div class="font-mono text-green-400">run</div>
+              <div class="text-gray-500 text-xs mt-1">Run the main process</div>
+            </div>
+            <div class="px-3 py-2 rounded bg-gray-800/50">
+              <div class="font-mono text-green-400">config</div>
+              <div class="text-gray-500 text-xs mt-1">Manage configuration</div>
+            </div>
+            <div class="px-3 py-2 rounded bg-gray-800/50">
+              <div class="font-mono text-green-400">status</div>
+              <div class="text-gray-500 text-xs mt-1">Show current status</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Command History -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide flex items-center justify-between">
+            History
+            <button onclick="clearHistory()" class="text-xs text-gray-500 hover:text-gray-300">Clear</button>
+          </h2>
+          <div id="history-list" class="space-y-1 text-sm">
+            <p class="text-gray-500 text-xs">No commands yet</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Terminal -->
+    <main class="flex-1 flex flex-col">
+      <div id="terminal" class="flex-1 bg-gray-950"></div>
+
+      <!-- Input Bar -->
+      <div class="bg-gray-900 border-t border-gray-800 p-3 flex items-center gap-3">
+        <span class="text-green-400 font-mono">$</span>
+        <input
+          type="text"
+          id="command-input"
+          class="flex-1 bg-transparent border-none outline-none font-mono text-sm"
+          placeholder="Type a command..."
+          onkeydown="handleKeyDown(event)"
+          autocomplete="off"
+        />
+        <button onclick="executeInput()" class="px-4 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">
+          Run
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let term;
+    let fitAddon;
+    let commandHistory = [];
+    let historyIndex = -1;
+    let outputBuffer = '';
+
+    // Initialize xterm.js
+    document.addEventListener('DOMContentLoaded', () => {
+      term = new Terminal({
+        theme: {
+          background: '#0a0a0a',
+          foreground: '#e5e5e5',
+          cursor: '#22c55e',
+          cursorAccent: '#0a0a0a',
+          selection: 'rgba(59, 130, 246, 0.3)',
+          black: '#1f2937',
+          red: '#ef4444',
+          green: '#22c55e',
+          yellow: '#eab308',
+          blue: '#3b82f6',
+          magenta: '#a855f7',
+          cyan: '#06b6d4',
+          white: '#e5e5e5',
+        },
+        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+        fontSize: 14,
+        lineHeight: 1.4,
+        cursorBlink: true,
+        scrollback: 5000,
+      });
+
+      fitAddon = new FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(document.getElementById('terminal'));
+      fitAddon.fit();
+
+      // Welcome message
+      term.writeln('\x1b[1;32m╔════════════════════════════════════════╗\x1b[0m');
+      term.writeln('\x1b[1;32m║     CLI Tool Terminal Emulator         ║\x1b[0m');
+      term.writeln('\x1b[1;32m╚════════════════════════════════════════╝\x1b[0m');
+      term.writeln('');
+      term.writeln('\x1b[90mType "mycli --help" to get started\x1b[0m');
+      term.writeln('');
+
+      window.addEventListener('resize', () => fitAddon.fit());
+
+      // Focus input on click
+      document.getElementById('terminal').addEventListener('click', () => {
+        document.getElementById('command-input').focus();
+      });
+    });
+
+    function handleKeyDown(e) {
+      if (e.key === 'Enter') {
+        executeInput();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (historyIndex < commandHistory.length - 1) {
+          historyIndex++;
+          document.getElementById('command-input').value = commandHistory[commandHistory.length - 1 - historyIndex];
+        }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (historyIndex > 0) {
+          historyIndex--;
+          document.getElementById('command-input').value = commandHistory[commandHistory.length - 1 - historyIndex];
+        } else {
+          historyIndex = -1;
+          document.getElementById('command-input').value = '';
+        }
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        autocomplete();
+      }
+    }
+
+    function executeInput() {
+      const input = document.getElementById('command-input');
+      const cmd = input.value.trim();
+      if (cmd) {
+        runCommand(cmd);
+        input.value = '';
+        historyIndex = -1;
+      }
+    }
+
+    function runCommand(cmd) {
+      // Add to history
+      commandHistory.push(cmd);
+      updateHistoryList();
+
+      // Echo command
+      term.writeln(`\x1b[32m$ \x1b[0m${cmd}`);
+      outputBuffer += `$ ${cmd}\n`;
+
+      // Simulate command execution
+      setTimeout(() => {
+        const output = simulateCommand(cmd);
+        if (output) {
+          term.writeln(output);
+          outputBuffer += output.replace(/\x1b\[[0-9;]*m/g, '') + '\n';
+        }
+        term.writeln('');
+      }, 100);
+    }
+
+    function simulateCommand(cmd) {
+      const parts = cmd.split(' ');
+      const base = parts[0];
+      const args = parts.slice(1);
+
+      if (base === 'mycli') {
+        if (args.includes('--help') || args.includes('-h')) {
+          return `\x1b[1mUsage:\x1b[0m mycli [OPTIONS] COMMAND [ARGS]...
+
+\x1b[1mOptions:\x1b[0m
+  --version  Show version and exit
+  --help     Show this message and exit
+
+\x1b[1mCommands:\x1b[0m
+  \x1b[36minit\x1b[0m      Initialize a new project
+  \x1b[36mrun\x1b[0m       Run the main process
+  \x1b[36mconfig\x1b[0m    Manage configuration
+  \x1b[36mstatus\x1b[0m    Show current status`;
+        }
+
+        if (args.includes('--version')) {
+          return 'mycli version \x1b[33m1.0.0\x1b[0m';
+        }
+
+        if (args[0] === 'init') {
+          return `\x1b[32m✓\x1b[0m Project initialized successfully!
+  Created: config.toml
+  Created: src/
+  Created: tests/`;
+        }
+
+        if (args[0] === 'run') {
+          return `\x1b[34m▶\x1b[0m Starting process...
+\x1b[90m[00:00:01]\x1b[0m Loading configuration...
+\x1b[90m[00:00:02]\x1b[0m Connecting to database...
+\x1b[90m[00:00:03]\x1b[0m Processing data...
+\x1b[32m✓\x1b[0m Completed successfully in 3.2s`;
+        }
+
+        if (args[0] === 'config') {
+          if (args[1] === 'show') {
+            return `\x1b[1mConfiguration:\x1b[0m
+  \x1b[36mname\x1b[0m     = "my-project"
+  \x1b[36mversion\x1b[0m  = "1.0.0"
+  \x1b[36mdebug\x1b[0m    = false
+  \x1b[36mlog_level\x1b[0m = "info"`;
+          }
+          return 'Usage: mycli config [show|set|get]';
+        }
+
+        if (args[0] === 'status') {
+          return `\x1b[1mStatus:\x1b[0m
+  \x1b[32m●\x1b[0m Service: Running
+  \x1b[32m●\x1b[0m Database: Connected
+  \x1b[33m●\x1b[0m Queue: 3 pending tasks
+  \x1b[90mUptime: 2h 34m\x1b[0m`;
+        }
+
+        return `\x1b[31mError:\x1b[0m Unknown command "${args[0]}". Run "mycli --help" for usage.`;
+      }
+
+      if (base === 'clear') {
+        term.clear();
+        return null;
+      }
+
+      if (base === 'echo') {
+        return args.join(' ');
+      }
+
+      return `\x1b[31mCommand not found:\x1b[0m ${base}`;
+    }
+
+    function updateHistoryList() {
+      const list = document.getElementById('history-list');
+      if (commandHistory.length === 0) {
+        list.innerHTML = '<p class="text-gray-500 text-xs">No commands yet</p>';
+        return;
+      }
+
+      list.innerHTML = commandHistory.slice(-10).reverse().map(cmd =>
+        `<button onclick="runCommand('${cmd.replace(/'/g, "\\'")}')"
+                class="w-full text-left px-2 py-1 rounded hover:bg-gray-800 font-mono text-xs text-gray-400 truncate">
+          ${cmd}
+        </button>`
+      ).join('');
+    }
+
+    function clearHistory() {
+      commandHistory = [];
+      updateHistoryList();
+    }
+
+    function clearTerminal() {
+      term.clear();
+      outputBuffer = '';
+    }
+
+    function exportOutput() {
+      const blob = new Blob([outputBuffer], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'terminal-output.txt';
+      a.click();
+    }
+
+    function autocomplete() {
+      const input = document.getElementById('command-input');
+      const value = input.value;
+      const commands = ['mycli', 'mycli --help', 'mycli --version', 'mycli init', 'mycli run', 'mycli config show', 'mycli status', 'clear', 'echo'];
+
+      const matches = commands.filter(c => c.startsWith(value));
+      if (matches.length === 1) {
+        input.value = matches[0];
+      } else if (matches.length > 1) {
+        term.writeln('');
+        term.writeln('\x1b[90mSuggestions: ' + matches.join(', ') + '\x1b[0m');
+      }
+    }
+
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      document.getElementById('themeBtn').textContent =
+        document.documentElement.classList.contains('dark') ? '🌙' : '☀️';
+    }
+  </script>
+</body>
+</html>

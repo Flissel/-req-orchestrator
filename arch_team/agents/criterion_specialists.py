@@ -90,12 +90,20 @@ class CriterionSpecialistAgent(ABC):
 
         # Initialize OpenAI client if available
         if OPENAI_AVAILABLE and not MOCK_MODE:
-            api_key = os.environ.get("OPENAI_API_KEY", "")
-            if api_key and api_key.startswith("sk-"):
-                self.client = _OpenAIClient(api_key=api_key)
-                logger.info(f"{self.__class__.__name__} initialized with OpenAI API (tier={self.tier}, threshold={self.threshold})")
+            # Use dynamic provider configuration (supports OpenAI and OpenRouter)
+            llm_config = settings.get_llm_config()
+            api_key = llm_config.get("api_key", "")
+            base_url = llm_config.get("base_url")
+
+            if api_key:
+                # Initialize client with OpenRouter configuration
+                self.client = _OpenAIClient(
+                    api_key=api_key,
+                    base_url=base_url
+                )
+                logger.info(f"{self.__class__.__name__} initialized with OpenRouter API (tier={self.tier}, threshold={self.threshold})")
             else:
-                logger.warning(f"{self.__class__.__name__}: No valid OpenAI API key, falling back to mock mode")
+                logger.warning(f"{self.__class__.__name__}: OPENROUTER_API_KEY not configured, falling back to mock mode")
         else:
             logger.info(f"{self.__class__.__name__} initialized in mock mode (tier={self.tier})")
 
@@ -253,6 +261,109 @@ class CriterionSpecialistAgent(ABC):
             logger.error(f"Error applying fix for {self.criterion_name}: {e}")
             return requirement_text  # Return original on error
 
+    async def generate_clarifying_questions(
+        self,
+        requirement_text: str,
+        score: float,
+        feedback: str = "",
+        context: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Generate clarifying questions when automatic fixing cannot proceed.
+        Called when score is below threshold AND automatic fix is not feasible.
+
+        Args:
+            requirement_text: The requirement text
+            score: Current criterion score
+            feedback: LLM feedback explaining why it failed
+            context: Optional context
+
+        Returns:
+            List of question dicts:
+            [
+                {
+                    "criterion": "clarity",
+                    "question": "Who is the intended user/role for this requirement?",
+                    "suggested_answers": ["End User", "Administrator", "API Consumer"],
+                    "context_hint": "The requirement doesn't specify a clear user role"
+                }
+            ]
+        """
+        if MOCK_MODE or not self.client:
+            return self._mock_generate_questions(requirement_text, score, context)
+
+        try:
+            system_prompt = self._get_clarification_prompt()
+            user_payload = {
+                "requirement": requirement_text,
+                "criterion": self.criterion_name,
+                "current_score": score,
+                "feedback": feedback,
+                "context": context or {}
+            }
+
+            chat_args = _make_chat_args(system_prompt, user_payload)
+            response = self.client.chat.completions.create(**chat_args)
+
+            content = response.choices[0].message.content or "{}"
+            json_str = _extract_json_string(content)
+            result = json.loads(json_str)
+
+            questions = result.get("questions", [])
+            # Add criterion to each question
+            for q in questions:
+                q["criterion"] = self.criterion_name
+
+            logger.info(f"{self.criterion_name}: Generated {len(questions)} clarifying question(s)")
+            return questions
+
+        except Exception as e:
+            logger.error(f"Error generating questions for {self.criterion_name}: {e}")
+            # Return a default question based on criterion
+            return [{
+                "criterion": self.criterion_name,
+                "question": f"Please provide more details to improve {self.criterion_name}",
+                "suggested_answers": [],
+                "context_hint": f"The requirement scored {score:.0%} on {self.criterion_name}"
+            }]
+
+    def _get_clarification_prompt(self) -> str:
+        """Return the system prompt for generating clarifying questions"""
+        return f"""You are a requirements engineering expert specialized in {self.criterion_name}.
+
+The requirement below fails the {self.criterion_name} criterion and cannot be automatically fixed.
+Generate 1-2 specific clarifying questions to ask the user for missing information.
+
+Criterion: {self.criterion_name}
+Description: {self.description}
+
+Return JSON:
+{{
+  "questions": [
+    {{
+      "question": "Specific question in German (user's language)",
+      "suggested_answers": ["option1", "option2", "option3"],
+      "context_hint": "Brief explanation of what triggered this question"
+    }}
+  ]
+}}
+
+Keep questions focused on getting the SPECIFIC missing information needed to fix the {self.criterion_name} issue."""
+
+    def _mock_generate_questions(
+        self,
+        requirement_text: str,
+        score: float,
+        context: Optional[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Default mock question generation - subclasses can override for better mocks"""
+        return [{
+            "criterion": self.criterion_name,
+            "question": f"Bitte geben Sie mehr Details an, um {self.criterion_name} zu verbessern.",
+            "suggested_answers": [],
+            "context_hint": f"Score: {score:.0%} - unter Schwellenwert {self.threshold:.0%}"
+        }]
+
     # Abstract methods for subclasses to implement
 
     @abstractmethod
@@ -367,6 +478,34 @@ Return JSON:
             return f"As a user, I want {requirement_text.lower()} so that I can use the system effectively"
         return requirement_text
 
+    def _mock_generate_questions(
+        self,
+        requirement_text: str,
+        score: float,
+        context: Optional[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Generate clarity-specific mock questions"""
+        questions = []
+        text = requirement_text.lower()
+
+        if "as a" not in text and "als" not in text:
+            questions.append({
+                "criterion": "clarity",
+                "question": "Wer ist der primäre Benutzer/Akteur für diese Anforderung?",
+                "suggested_answers": ["Endbenutzer", "Administrator", "Systemintegrator", "API-Konsument"],
+                "context_hint": "Die Anforderung spezifiziert keine klare Benutzerrolle"
+            })
+
+        if not questions:
+            questions.append({
+                "criterion": "clarity",
+                "question": "Können Sie das gewünschte Verhalten genauer beschreiben?",
+                "suggested_answers": [],
+                "context_hint": f"Die Anforderung ist zu vage formuliert (Score: {score:.0%})"
+            })
+
+        return questions[:2]
+
 
 # ============================================================================
 # TESTABILITY AGENT - Ensures acceptance criteria are defined
@@ -448,6 +587,49 @@ Return JSON:
         if "given" not in requirement_text.lower():
             return f"{requirement_text}\n\nAcceptance Criteria:\n- Given the system is operational\n- When the user performs the action\n- Then the expected result occurs"
         return requirement_text
+
+    def _mock_generate_questions(
+        self,
+        requirement_text: str,
+        score: float,
+        context: Optional[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Generate testability-specific mock questions"""
+        questions = []
+        text = requirement_text.lower()
+
+        # Check for acceptance criteria
+        if not any(term in text for term in ["given", "when", "then", "akzeptanz", "kriterium"]):
+            questions.append({
+                "criterion": "testability",
+                "question": "Wie kann diese Anforderung verifiziert werden? Was sind die Akzeptanzkriterien?",
+                "suggested_answers": [],
+                "context_hint": "Die Anforderung enthält keine testbaren Akzeptanzkriterien"
+            })
+
+        # Check for untestable qualitative terms
+        if any(term in text for term in ["benutzerfreundlich", "intuitiv", "elegant", "einfach"]):
+            questions.append({
+                "criterion": "testability",
+                "question": "Wie können wir 'benutzerfreundlich' messen? Welche konkreten Testfälle gelten?",
+                "suggested_answers": [
+                    "Aufgabe in < 3 Schritten erledigt",
+                    "Fehlerrate < 5%",
+                    "Benutzer braucht keine Anleitung"
+                ],
+                "context_hint": "Qualitative Begriffe wie 'benutzerfreundlich' sind nicht direkt testbar"
+            })
+
+        # Default question
+        if not questions:
+            questions.append({
+                "criterion": "testability",
+                "question": "Bitte beschreiben Sie einen konkreten Testfall für diese Anforderung (Given-When-Then)",
+                "suggested_answers": [],
+                "context_hint": f"Die Anforderung ist nicht ausreichend testbar (Score: {score:.0%})"
+            })
+
+        return questions[:2]
 
 
 # ============================================================================
@@ -533,6 +715,52 @@ Return JSON:
         elif "skalierbar" in text.lower():
             text = text.replace("skalierbar", "handling >= 1000 concurrent users")
         return text
+
+    def _mock_generate_questions(
+        self,
+        requirement_text: str,
+        score: float,
+        context: Optional[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Generate measurability-specific mock questions"""
+        questions = []
+        text = requirement_text.lower()
+
+        # Check for vague performance terms
+        if any(term in text for term in ["schnell", "fast", "quick", "performant"]):
+            questions.append({
+                "criterion": "measurability",
+                "question": "Welche Antwortzeit ist akzeptabel?",
+                "suggested_answers": ["< 100ms", "< 200ms", "< 500ms", "< 1 Sekunde"],
+                "context_hint": "Die Anforderung erwähnt Geschwindigkeit ohne konkreten Zielwert"
+            })
+
+        if any(term in text for term in ["skalierbar", "scalable", "viele"]):
+            questions.append({
+                "criterion": "measurability",
+                "question": "Wie viele gleichzeitige Benutzer sollen unterstützt werden?",
+                "suggested_answers": ["100", "1.000", "10.000", "100.000"],
+                "context_hint": "Die Anforderung erwähnt Skalierbarkeit ohne konkreten Zielwert"
+            })
+
+        if any(term in text for term in ["verfügbar", "available", "uptime"]):
+            questions.append({
+                "criterion": "measurability",
+                "question": "Welche Verfügbarkeit wird erwartet?",
+                "suggested_answers": ["95%", "99%", "99.9%", "99.99%"],
+                "context_hint": "Die Anforderung erwähnt Verfügbarkeit ohne konkreten SLA"
+            })
+
+        # Default if no specific pattern matched
+        if not questions:
+            questions.append({
+                "criterion": "measurability",
+                "question": "Welche quantifizierbaren Erfolgskriterien gelten für diese Anforderung?",
+                "suggested_answers": [],
+                "context_hint": f"Die Anforderung enthält keine messbaren Metriken (Score: {score:.0%})"
+            })
+
+        return questions[:2]
 
 
 # ============================================================================

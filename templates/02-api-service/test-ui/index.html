@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Service - Test Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            gray: {
+              950: '#0a0a0a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <style>
+    .method-get { background: #22c55e; }
+    .method-post { background: #3b82f6; }
+    .method-put { background: #eab308; }
+    .method-patch { background: #f97316; }
+    .method-delete { background: #ef4444; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <div id="app">
+    <!-- Status Bar -->
+    <header class="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+      <div class="flex items-center gap-4">
+        <h1 class="text-lg font-semibold">API Service Test Dashboard</h1>
+        <div id="status" class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-gray-500"></span>
+          <span class="text-sm text-gray-400">Checking...</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <input
+          type="text"
+          id="baseUrl"
+          value="http://localhost:8000"
+          class="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm w-64"
+          placeholder="Base URL"
+        />
+        <button onclick="checkHealth()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium">
+          Check Health
+        </button>
+        <button onclick="openSwagger()" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium">
+          Swagger UI
+        </button>
+        <button onclick="toggleTheme()" id="themeBtn" class="p-2 hover:bg-gray-800 rounded">
+          🌙
+        </button>
+      </div>
+    </header>
+
+    <div class="flex">
+      <!-- Sidebar: Endpoints -->
+      <aside class="w-80 bg-gray-900 border-r border-gray-800 h-[calc(100vh-57px)] overflow-y-auto">
+        <div class="p-4">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-semibold">Endpoints</h2>
+            <button onclick="loadOpenAPI()" class="text-xs text-blue-400 hover:text-blue-300">
+              Reload Schema
+            </button>
+          </div>
+          <div id="endpoints" class="space-y-1">
+            <p class="text-sm text-gray-500">Loading...</p>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="flex-1 p-6">
+        <!-- Request Builder -->
+        <div class="bg-gray-900 rounded-lg border border-gray-800 mb-6">
+          <div class="px-4 py-3 border-b border-gray-800 flex items-center gap-3">
+            <select id="method" class="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm font-medium">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="PATCH">PATCH</option>
+              <option value="DELETE">DELETE</option>
+            </select>
+            <input
+              type="text"
+              id="endpoint"
+              value="/api/v1/"
+              class="flex-1 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm font-mono"
+              placeholder="/api/v1/endpoint"
+            />
+            <button onclick="sendRequest()" class="px-4 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">
+              Send
+            </button>
+          </div>
+
+          <!-- Tabs: Headers, Body, Auth -->
+          <div class="border-b border-gray-800">
+            <nav class="flex">
+              <button onclick="showTab('headers')" class="tab-btn px-4 py-2 text-sm border-b-2 border-blue-500 text-blue-400" data-tab="headers">
+                Headers
+              </button>
+              <button onclick="showTab('body')" class="tab-btn px-4 py-2 text-sm border-b-2 border-transparent text-gray-400 hover:text-gray-200" data-tab="body">
+                Body
+              </button>
+              <button onclick="showTab('auth')" class="tab-btn px-4 py-2 text-sm border-b-2 border-transparent text-gray-400 hover:text-gray-200" data-tab="auth">
+                Auth
+              </button>
+              <button onclick="showTab('params')" class="tab-btn px-4 py-2 text-sm border-b-2 border-transparent text-gray-400 hover:text-gray-200" data-tab="params">
+                Params
+              </button>
+            </nav>
+          </div>
+
+          <!-- Tab Content -->
+          <div class="p-4">
+            <div id="tab-headers" class="tab-content">
+              <div id="headers-list" class="space-y-2">
+                <div class="flex gap-2">
+                  <input type="text" placeholder="Content-Type" class="flex-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm" value="Content-Type" />
+                  <input type="text" placeholder="application/json" class="flex-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm" value="application/json" />
+                  <button class="text-red-400 px-2">✕</button>
+                </div>
+              </div>
+              <button onclick="addHeader()" class="mt-2 text-sm text-blue-400 hover:text-blue-300">+ Add Header</button>
+            </div>
+
+            <div id="tab-body" class="tab-content hidden">
+              <textarea
+                id="requestBody"
+                class="w-full h-48 px-3 py-2 bg-gray-800 border border-gray-700 rounded font-mono text-sm"
+                placeholder='{"key": "value"}'
+              ></textarea>
+              <div class="mt-2 flex gap-2">
+                <button onclick="formatJSON()" class="text-sm text-blue-400 hover:text-blue-300">Format JSON</button>
+                <button onclick="clearBody()" class="text-sm text-gray-400 hover:text-gray-300">Clear</button>
+              </div>
+            </div>
+
+            <div id="tab-auth" class="tab-content hidden">
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm text-gray-400 mb-1">Auth Type</label>
+                  <select id="authType" class="w-full px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm" onchange="updateAuthUI()">
+                    <option value="none">No Auth</option>
+                    <option value="bearer">Bearer Token</option>
+                    <option value="basic">Basic Auth</option>
+                    <option value="apikey">API Key</option>
+                  </select>
+                </div>
+                <div id="auth-bearer" class="hidden">
+                  <label class="block text-sm text-gray-400 mb-1">Token</label>
+                  <input type="text" id="bearerToken" class="w-full px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm font-mono" placeholder="eyJhbGciOiJIUzI1NiIs..." />
+                </div>
+                <div id="auth-basic" class="hidden">
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-sm text-gray-400 mb-1">Username</label>
+                      <input type="text" id="basicUser" class="w-full px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm" />
+                    </div>
+                    <div>
+                      <label class="block text-sm text-gray-400 mb-1">Password</label>
+                      <input type="password" id="basicPass" class="w-full px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm" />
+                    </div>
+                  </div>
+                </div>
+                <div id="auth-apikey" class="hidden">
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-sm text-gray-400 mb-1">Header Name</label>
+                      <input type="text" id="apiKeyHeader" class="w-full px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm" value="X-API-Key" />
+                    </div>
+                    <div>
+                      <label class="block text-sm text-gray-400 mb-1">API Key</label>
+                      <input type="text" id="apiKeyValue" class="w-full px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="tab-params" class="tab-content hidden">
+              <div id="params-list" class="space-y-2"></div>
+              <button onclick="addParam()" class="mt-2 text-sm text-blue-400 hover:text-blue-300">+ Add Parameter</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Response -->
+        <div class="bg-gray-900 rounded-lg border border-gray-800">
+          <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <h3 class="font-semibold">Response</h3>
+              <span id="response-status" class="text-sm"></span>
+              <span id="response-time" class="text-sm text-gray-500"></span>
+              <span id="response-size" class="text-sm text-gray-500"></span>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="copyResponse()" class="text-sm text-gray-400 hover:text-gray-200">Copy</button>
+              <button onclick="downloadResponse()" class="text-sm text-gray-400 hover:text-gray-200">Download</button>
+            </div>
+          </div>
+          <div class="p-4">
+            <pre id="response-body" class="bg-gray-800 rounded p-4 overflow-auto max-h-96 text-sm"><code class="language-json text-gray-400">// Response will appear here</code></pre>
+          </div>
+        </div>
+
+        <!-- History -->
+        <div class="mt-6 bg-gray-900 rounded-lg border border-gray-800">
+          <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+            <h3 class="font-semibold">History</h3>
+            <button onclick="clearHistory()" class="text-sm text-gray-400 hover:text-gray-200">Clear</button>
+          </div>
+          <div id="history" class="divide-y divide-gray-800 max-h-64 overflow-y-auto">
+            <p class="p-4 text-sm text-gray-500">No requests yet</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    let history = [];
+    let lastResponse = null;
+
+    // Theme Toggle
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      const btn = document.getElementById('themeBtn');
+      btn.textContent = document.documentElement.classList.contains('dark') ? '🌙' : '☀️';
+    }
+
+    // Check Health
+    async function checkHealth() {
+      const baseUrl = document.getElementById('baseUrl').value;
+      const statusEl = document.getElementById('status');
+
+      try {
+        const response = await fetch(`${baseUrl}/health`, { method: 'GET' });
+        if (response.ok) {
+          statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-sm text-green-400">Connected</span>';
+        } else {
+          statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-yellow-500"></span><span class="text-sm text-yellow-400">Unhealthy</span>';
+        }
+      } catch (e) {
+        statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-sm text-red-400">Disconnected</span>';
+      }
+    }
+
+    // Open Swagger
+    function openSwagger() {
+      const baseUrl = document.getElementById('baseUrl').value;
+      window.open(`${baseUrl}/docs`, '_blank');
+    }
+
+    // Load OpenAPI Schema
+    async function loadOpenAPI() {
+      const baseUrl = document.getElementById('baseUrl').value;
+      const endpointsEl = document.getElementById('endpoints');
+
+      try {
+        const response = await fetch(`${baseUrl}/openapi.json`);
+        const schema = await response.json();
+
+        let html = '';
+        for (const [path, methods] of Object.entries(schema.paths || {})) {
+          for (const [method, details] of Object.entries(methods)) {
+            if (['get', 'post', 'put', 'patch', 'delete'].includes(method)) {
+              html += `
+                <button onclick="setEndpoint('${method.toUpperCase()}', '${path}')"
+                        class="w-full flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-800 text-left text-sm">
+                  <span class="method-${method} px-1.5 py-0.5 rounded text-xs font-bold text-white uppercase">${method}</span>
+                  <span class="font-mono text-gray-300 truncate">${path}</span>
+                </button>
+              `;
+            }
+          }
+        }
+
+        endpointsEl.innerHTML = html || '<p class="text-sm text-gray-500">No endpoints found</p>';
+      } catch (e) {
+        endpointsEl.innerHTML = '<p class="text-sm text-red-400">Failed to load schema</p>';
+      }
+    }
+
+    function setEndpoint(method, path) {
+      document.getElementById('method').value = method;
+      document.getElementById('endpoint').value = path;
+    }
+
+    // Tab Switching
+    function showTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('border-blue-500', 'text-blue-400');
+        el.classList.add('border-transparent', 'text-gray-400');
+      });
+
+      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+      document.querySelector(`[data-tab="${tabName}"]`).classList.remove('border-transparent', 'text-gray-400');
+      document.querySelector(`[data-tab="${tabName}"]`).classList.add('border-blue-500', 'text-blue-400');
+    }
+
+    // Auth UI
+    function updateAuthUI() {
+      const authType = document.getElementById('authType').value;
+      ['bearer', 'basic', 'apikey'].forEach(type => {
+        document.getElementById(`auth-${type}`).classList.add('hidden');
+      });
+      if (authType !== 'none') {
+        document.getElementById(`auth-${authType}`).classList.remove('hidden');
+      }
+    }
+
+    // Get Auth Headers
+    function getAuthHeaders() {
+      const authType = document.getElementById('authType').value;
+      const headers = {};
+
+      switch (authType) {
+        case 'bearer':
+          const token = document.getElementById('bearerToken').value;
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+          break;
+        case 'basic':
+          const user = document.getElementById('basicUser').value;
+          const pass = document.getElementById('basicPass').value;
+          if (user) headers['Authorization'] = `Basic ${btoa(`${user}:${pass}`)}`;
+          break;
+        case 'apikey':
+          const headerName = document.getElementById('apiKeyHeader').value;
+          const apiKey = document.getElementById('apiKeyValue').value;
+          if (headerName && apiKey) headers[headerName] = apiKey;
+          break;
+      }
+
+      return headers;
+    }
+
+    // Send Request
+    async function sendRequest() {
+      const baseUrl = document.getElementById('baseUrl').value;
+      const method = document.getElementById('method').value;
+      const endpoint = document.getElementById('endpoint').value;
+      const body = document.getElementById('requestBody').value;
+
+      const headers = {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      };
+
+      const startTime = performance.now();
+
+      try {
+        const options = { method, headers };
+        if (['POST', 'PUT', 'PATCH'].includes(method) && body) {
+          options.body = body;
+        }
+
+        const response = await fetch(`${baseUrl}${endpoint}`, options);
+        const endTime = performance.now();
+        const duration = Math.round(endTime - startTime);
+
+        const text = await response.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+
+        displayResponse(response.status, data, duration, text.length);
+        addToHistory(method, endpoint, response.status, duration);
+
+      } catch (e) {
+        displayResponse(0, { error: e.message }, 0, 0);
+      }
+    }
+
+    // Display Response
+    function displayResponse(status, data, duration, size) {
+      const statusEl = document.getElementById('response-status');
+      const timeEl = document.getElementById('response-time');
+      const sizeEl = document.getElementById('response-size');
+      const bodyEl = document.getElementById('response-body');
+
+      const statusColor = status >= 200 && status < 300 ? 'text-green-400' :
+                         status >= 400 ? 'text-red-400' : 'text-yellow-400';
+
+      statusEl.innerHTML = `<span class="${statusColor} font-medium">${status || 'Error'}</span>`;
+      timeEl.textContent = `${duration}ms`;
+      sizeEl.textContent = `${(size / 1024).toFixed(2)} KB`;
+
+      const formatted = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+      bodyEl.innerHTML = `<code class="language-json">${escapeHtml(formatted)}</code>`;
+      hljs.highlightAll();
+
+      lastResponse = formatted;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // History
+    function addToHistory(method, endpoint, status, duration) {
+      history.unshift({ method, endpoint, status, duration, time: new Date() });
+      if (history.length > 50) history.pop();
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const el = document.getElementById('history');
+      if (history.length === 0) {
+        el.innerHTML = '<p class="p-4 text-sm text-gray-500">No requests yet</p>';
+        return;
+      }
+
+      el.innerHTML = history.map(h => `
+        <button onclick="setEndpoint('${h.method}', '${h.endpoint}')"
+                class="w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-800 text-left">
+          <span class="method-${h.method.toLowerCase()} px-1.5 py-0.5 rounded text-xs font-bold text-white">${h.method}</span>
+          <span class="flex-1 font-mono text-sm text-gray-300 truncate">${h.endpoint}</span>
+          <span class="${h.status >= 200 && h.status < 300 ? 'text-green-400' : 'text-red-400'} text-sm">${h.status}</span>
+          <span class="text-gray-500 text-sm">${h.duration}ms</span>
+        </button>
+      `).join('');
+    }
+
+    function clearHistory() {
+      history = [];
+      renderHistory();
+    }
+
+    // Helpers
+    function formatJSON() {
+      const textarea = document.getElementById('requestBody');
+      try {
+        const parsed = JSON.parse(textarea.value);
+        textarea.value = JSON.stringify(parsed, null, 2);
+      } catch (e) {
+        alert('Invalid JSON');
+      }
+    }
+
+    function clearBody() {
+      document.getElementById('requestBody').value = '';
+    }
+
+    function copyResponse() {
+      if (lastResponse) {
+        navigator.clipboard.writeText(lastResponse);
+      }
+    }
+
+    function downloadResponse() {
+      if (lastResponse) {
+        const blob = new Blob([lastResponse], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'response.json';
+        a.click();
+      }
+    }
+
+    function addHeader() {
+      const list = document.getElementById('headers-list');
+      list.insertAdjacentHTML('beforeend', `
+        <div class="flex gap-2">
+          <input type="text" placeholder="Header" class="flex-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm" />
+          <input type="text" placeholder="Value" class="flex-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm" />
+          <button onclick="this.parentElement.remove()" class="text-red-400 px-2">✕</button>
+        </div>
+      `);
+    }
+
+    function addParam() {
+      const list = document.getElementById('params-list');
+      list.insertAdjacentHTML('beforeend', `
+        <div class="flex gap-2">
+          <input type="text" placeholder="Key" class="flex-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm" />
+          <input type="text" placeholder="Value" class="flex-1 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm" />
+          <button onclick="this.parentElement.remove()" class="text-red-400 px-2">✕</button>
+        </div>
+      `);
+    }
+
+    // Init
+    document.addEventListener('DOMContentLoaded', () => {
+      checkHealth();
+      loadOpenAPI();
+    });
+  </script>
+</body>
+</html>

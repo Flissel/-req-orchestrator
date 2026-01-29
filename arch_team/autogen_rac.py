@@ -6,8 +6,8 @@ AutoGen 0.4+ RAC-Team (Planner, Solver, Verifier) für Requirements Architecture
 
 - Verwendet moderne AutoGen 0.4+ APIs:
   - AssistantAgent, RoundRobinGroupChat, Termination-Conditions, Console-Streaming
-  - OpenAIChatCompletionClient (autogen-ext)
-- .env wird automatisch geladen (OPENAI_API_KEY Pflicht, MODEL_NAME optional)
+  - OpenAIChatCompletionClient (autogen-ext) with OpenRouter
+- .env wird automatisch geladen (OPENROUTER_API_KEY Pflicht, MODEL_NAME optional)
 - Tools: RAG-Suche via arch_team.autogen_tools.search_requirements (nutzt internen Retriever)
 - Termination: TextMentionTermination("COVERAGE_OK") ODER MaxMessageTermination(10)
 
@@ -42,23 +42,26 @@ def _import_openai_client():
         return None
 
 class _DummyClient:
-    def __init__(self, model: str, api_key: str, temperature: float = 0.0):
+    def __init__(self, model: str, api_key: str, temperature: float = 0.0, base_url: str | None = None):
         self.model = model
         self.api_key = api_key
         self.temperature = temperature
+        self.base_url = base_url
         # ensure interface expected by AssistantAgent when tools are present
         self.model_info = {"function_calling": True}
 
     async def close(self):
         return None
 
-def create_model_client(model_name: str, api_key: str, temperature: float):
+def create_model_client(model_name: str, api_key: str, temperature: float, base_url: str | None = None):
     # Wenn Tests das Symbol per monkeypatch setzen, dieses bevorzugen
     if OpenAIChatCompletionClient is not None:
         try:
-            client = OpenAIChatCompletionClient(  # type: ignore
-                model=model_name, api_key=api_key, temperature=temperature
-            )
+            # Pass base_url for OpenRouter support
+            client_kwargs = {"model": model_name, "api_key": api_key, "temperature": temperature}
+            if base_url:
+                client_kwargs["base_url"] = base_url
+            client = OpenAIChatCompletionClient(**client_kwargs)  # type: ignore
             # Ensure expected interface for tool support
             if not hasattr(client, "model_info") or "function_calling" not in getattr(client, "model_info", {}):
                 try:
@@ -71,7 +74,10 @@ def create_model_client(model_name: str, api_key: str, temperature: float):
             pass
     _Client = _import_openai_client()
     if _Client is not None:
-        client = _Client(model=model_name, api_key=api_key, temperature=temperature)
+        client_kwargs = {"model": model_name, "api_key": api_key, "temperature": temperature}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        client = _Client(**client_kwargs)
         if not hasattr(client, "model_info") or "function_calling" not in getattr(client, "model_info", {}):
             try:
                 client.model_info = {"function_calling": True}  # type: ignore[attr-defined]
@@ -80,10 +86,17 @@ def create_model_client(model_name: str, api_key: str, temperature: float):
         return client
     logger = logging.getLogger("arch_team.autogen_rac")
     logger.info("RAC: Using Dummy model client (no real LLM calls).")
-    return _DummyClient(model=model_name, api_key=api_key, temperature=temperature)
+    return _DummyClient(model=model_name, api_key=api_key, temperature=temperature, base_url=base_url)
 
 # Tools im Namespace arch_team.autogen_tools
 from . import autogen_tools as rac_tools
+
+# Try to import backend settings for provider config
+try:
+    from backend.core.settings import get_llm_config
+    _has_backend_settings = True
+except ImportError:
+    _has_backend_settings = False
 
 # .env laden (optional/robust)
 # Use override=True to force loading even if empty env var exists
@@ -97,16 +110,25 @@ logger = logging.getLogger("arch_team.autogen_rac")
 
 
 async def main() -> None:
-    # API-Key robust lesen und prüfen
-    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    # Get OpenRouter configuration
+    if _has_backend_settings:
+        llm_config = get_llm_config()
+        api_key = llm_config["api_key"]
+        base_url = llm_config["base_url"]
+        model_name = llm_config["model"]
+    else:
+        # Fallback to direct env vars (OpenRouter only)
+        api_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+        base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        model_name = os.getenv("MODEL_NAME", "google/gemini-2.5-flash:nitro")
+
     if not api_key:
-        print("ERROR: OPENAI_API_KEY ist leer oder nicht gesetzt. Bitte in .env oder Umgebung setzen. Abbruch.")
+        print("ERROR: OPENROUTER_API_KEY ist leer oder nicht gesetzt.")
         return
 
-    model_name = os.getenv("MODEL_NAME", "gpt-4o")
     # Temperatur leicht reduziert für deterministischere REQs
     temperature = float(os.getenv("MODEL_TEMPERATURE", "0.2"))
-    model_client = create_model_client(model_name=model_name, api_key=api_key, temperature=temperature)
+    model_client = create_model_client(model_name=model_name, api_key=api_key, temperature=temperature, base_url=base_url)
 
     # Konfigurationen
     rag_enabled = os.getenv("RAC_RAG_ENABLED", "1").lower() not in ("0", "false", "")

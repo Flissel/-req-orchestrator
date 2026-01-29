@@ -1,0 +1,38 @@
+{
+  "id": "15-iot-wokwi",
+  "name": "IoT/Embedded (Wokwi)",
+  "description": "IoT und Embedded Systems Entwicklung mit Wokwi Emulator. Arduino/ESP32 Simulationen im Browser.",
+  "version": "1.0.0",
+  "category": "iot",
+  "tags": ["iot", "embedded", "wokwi", "arduino", "esp32", "microcontroller"],
+  "difficulty": "intermediate",
+  "estimated_setup_time": "5 minutes",
+  "tech_stack": {
+    "backend": {
+      "platforms": ["Arduino", "ESP32", "Raspberry Pi Pico"],
+      "languages": ["C/C++", "MicroPython"],
+      "framework": "PlatformIO / Arduino IDE"
+    },
+    "emulation": {
+      "emulator": "Wokwi",
+      "mode": "Browser-based"
+    },
+    "deployment": {
+      "simulation": "Wokwi Online",
+      "hardware": "Flash to Real Device"
+    }
+  },
+  "prerequisites": ["Node.js 20+ (für Wokwi CLI)", "VS Code mit PlatformIO"],
+  "features": [
+    "Browser-basierte Simulation",
+    "Arduino/ESP32 Support",
+    "Virtuelle Sensoren",
+    "Serial Monitor",
+    "Keine Hardware nötig"
+  ],
+  "placeholders": {
+    "PROJECT_NAME": "My IoT Project",
+    "PROJECT_NAME_SNAKE": "my_iot_project",
+    "BOARD": "esp32"
+  }
+}

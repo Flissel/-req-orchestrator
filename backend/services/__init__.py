@@ -36,6 +36,9 @@ def __getattr__(name):
     elif name == "ManifestService":
         from .manifest_service import ManifestService
         return ManifestService
+    elif name == "ProjectService":
+        from .project_service import ProjectService
+        return ProjectService
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
@@ -57,4 +60,5 @@ __all__ = [
     "EvaluationService",
     "CorrectionsService",
     "ManifestService",
+    "ProjectService",
 ]

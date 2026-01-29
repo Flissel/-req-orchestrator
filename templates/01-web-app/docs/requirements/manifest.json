@@ -1,0 +1,40 @@
+{
+  "template_id": "01-web-app",
+  "template_name": "Web Application",
+  "version": "1.0.0",
+  "total_requirements": 12,
+  "by_type": {
+    "functional": 8,
+    "non-functional": 3,
+    "constraint": 1
+  },
+  "by_priority": {
+    "must": 5,
+    "should": 5,
+    "could": 2
+  },
+  "requirements": [
+    "REQ-WEB-0001",
+    "REQ-WEB-0002",
+    "REQ-WEB-0003",
+    "REQ-WEB-0004",
+    "REQ-WEB-0005",
+    "REQ-WEB-0006",
+    "REQ-WEB-0007",
+    "REQ-WEB-0008",
+    "REQ-WEB-0009",
+    "REQ-WEB-0010",
+    "REQ-WEB-0011",
+    "REQ-WEB-0012"
+  ],
+  "categories": [
+    "authentication",
+    "database",
+    "ui",
+    "api",
+    "performance",
+    "security"
+  ],
+  "created_at": "2024-01-01T00:00:00Z",
+  "description": "Standard requirements for a full-stack web application with Next.js, Prisma, and PostgreSQL"
+}

@@ -1,0 +1,46 @@
+{
+  "id": "REQ-WEB-0001",
+  "text": "Das System muss Benutzer-Authentifizierung mit E-Mail und Passwort unterstützen",
+  "type": "functional",
+  "template_id": "01-web-app",
+  "priority": "must",
+  "status": "validated",
+  "category": "authentication",
+  "component": "auth",
+  "acceptance_criteria": [
+    "Benutzer können sich mit E-Mail und Passwort registrieren",
+    "Benutzer können sich mit bestehenden Zugangsdaten anmelden",
+    "Passwörter werden sicher gehasht gespeichert (bcrypt)",
+    "Bei falschen Zugangsdaten wird eine Fehlermeldung angezeigt",
+    "Nach erfolgreicher Anmeldung wird ein JWT-Token erstellt"
+  ],
+  "traces": [
+    {
+      "type": "implements",
+      "target": "lib/auth.ts",
+      "description": "NextAuth.js Konfiguration"
+    },
+    {
+      "type": "implements",
+      "target": "app/api/auth/[...nextauth]/route.ts",
+      "description": "Auth API Route"
+    }
+  ],
+  "implementation_hints": {
+    "files": [
+      "lib/auth.ts",
+      "app/api/auth/[...nextauth]/route.ts",
+      "app/(auth)/login/page.tsx",
+      "app/(auth)/register/page.tsx"
+    ],
+    "patterns": ["Credentials Provider", "JWT Strategy"],
+    "libraries": ["next-auth", "bcryptjs"]
+  },
+  "metadata": {
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z",
+    "source": "template",
+    "validation_score": 0.95
+  },
+  "tags": ["auth", "security", "user-management"]
+}

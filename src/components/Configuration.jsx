@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { getAutoValidatePreference, setAutoValidatePreference } from '../utils/preferences'
+import { getAutoValidatePreference, setAutoValidatePreference, getProviderPreference, setProviderPreference, getModelPreference, setModelPreference } from '../utils/preferences'
 
 export default function Configuration({ onStart, onReset, onFilesChange, status, logs, isLoading = false }) {
   const [files, setFiles] = useState(null)
+  const [provider, setProvider] = useState('openai')
   const [model, setModel] = useState('gpt-4o-mini')
   const [neighborRefs, setNeighborRefs] = useState(true)
   const [useLlm, setUseLlm] = useState(false)
@@ -13,11 +14,26 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
   const [autoValidate, setAutoValidate] = useState(false)
   const [selectedExample, setSelectedExample] = useState('')
 
-  // Load auto-validate preference from LocalStorage on mount
+  // Load preferences from LocalStorage on mount
   useEffect(() => {
-    const savedPreference = getAutoValidatePreference()
-    setAutoValidate(savedPreference)
-    console.log('[Configuration] Loaded auto-validate preference:', savedPreference)
+    const savedAutoValidate = getAutoValidatePreference()
+    setAutoValidate(savedAutoValidate)
+
+    const savedProvider = getProviderPreference()
+    if (savedProvider) {
+      setProvider(savedProvider)
+    }
+
+    const savedModel = getModelPreference()
+    if (savedModel) {
+      setModel(savedModel)
+    }
+
+    console.log('[Configuration] Loaded preferences:', {
+      autoValidate: savedAutoValidate,
+      provider: savedProvider || 'openai',
+      model: savedModel || 'gpt-4o-mini'
+    })
   }, [])
 
   const handleFileChange = (e) => {
@@ -88,9 +104,34 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
     console.log('[Configuration] Auto-validate preference changed:', enabled)
   }
 
+  const handleProviderChange = (e) => {
+    const newProvider = e.target.value
+    setProvider(newProvider)
+    setProviderPreference(newProvider)
+
+    // Reset model to appropriate default when switching providers
+    if (newProvider === 'openrouter') {
+      setModel('anthropic/claude-haiku-4.5')
+      setModelPreference('anthropic/claude-haiku-4.5')
+    } else {
+      setModel('gpt-4o-mini')
+      setModelPreference('gpt-4o-mini')
+    }
+
+    console.log('[Configuration] Provider changed:', newProvider)
+  }
+
+  const handleModelChange = (e) => {
+    const newModel = e.target.value
+    setModel(newModel)
+    setModelPreference(newModel)
+    console.log('[Configuration] Model changed:', newModel)
+  }
+
   const handleStart = () => {
     onStart({
       files,
+      provider,
       model,
       neighborRefs,
       useLlm,
@@ -132,6 +173,7 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
           <option value="bad_requirements_example.md">❌ Schlechte Requirements (alle Fehler)</option>
           <option value="good_requirements_example.md">✅ Gute Requirements (sollten passen)</option>
           <option value="mixed_requirements_example.md">🔀 Gemischte Requirements (~50% Pass-Rate)</option>
+          <option value="port_manager_requirements.md">🔌 Port Manager App (33 Reqs, High Quality)</option>
         </select>
         <small className="hint" style={{ display: 'block', marginTop: '4px', color: '#666' }}>
           Vordefinierte Beispiele zum Testen der Auto-Validierung
@@ -149,12 +191,35 @@ export default function Configuration({ onStart, onReset, onFilesChange, status,
       </div>
 
       <div className="form-group">
-        <label htmlFor="model">🧠 Modell:</label>
-        <select id="model" value={model} onChange={(e) => setModel(e.target.value)}>
-          <option value="gpt-4o-mini">gpt-4o-mini (schnell & günstig)</option>
-          <option value="gpt-4o">gpt-4o (präzise)</option>
-          <option value="gpt-4">gpt-4</option>
+        <label htmlFor="provider">🔌 LLM Provider:</label>
+        <select id="provider" value={provider} onChange={handleProviderChange}>
+          <option value="openai">OpenAI</option>
+          <option value="openrouter">OpenRouter</option>
         </select>
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="model">🧠 Modell:</label>
+        <select id="model" value={model} onChange={handleModelChange}>
+          {provider === 'openai' && (
+            <>
+              <option value="gpt-4o-mini">gpt-4o-mini (schnell & günstig)</option>
+              <option value="gpt-4o">gpt-4o (präzise)</option>
+              <option value="gpt-4">gpt-4 (high-end)</option>
+            </>
+          )}
+          {provider === 'openrouter' && (
+            <>
+              <option value="anthropic/claude-haiku-4.5">Claude Haiku 4.5 (schnell, SWE-bench 73%+)</option>
+              <option value="anthropic/claude-sonnet-4-5-20250929">Claude Sonnet 4.5 (ausgewogen)</option>
+              <option value="anthropic/claude-opus-4-20250805">Claude Opus 4 (premium)</option>
+            </>
+          )}
+        </select>
+        <small className="hint" style={{ display: 'block', marginTop: '4px', color: '#666' }}>
+          {provider === 'openai' && 'OpenAI API (direkt)'}
+          {provider === 'openrouter' && 'OpenRouter Proxy - Zugang zu Claude, Llama, etc.'}
+        </small>
       </div>
 
       <div className="form-group">

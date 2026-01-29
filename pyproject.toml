@@ -1,0 +1,121 @@
+[project]
+name = "req-orchestrator"
+version = "1.0.0"
+description = "Requirements Engineering System with MCP Server for Claude CLI orchestration"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Requirements Orchestrator Team"}
+]
+keywords = [
+    "requirements",
+    "engineering",
+    "validation",
+    "ieee-29148",
+    "mcp",
+    "claude",
+    "llm"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+dependencies = [
+    # MCP SDK
+    "mcp>=1.0.0",
+
+    # Backend Framework
+    "Flask>=3.0.0",
+    "Flask-Cors>=4.0.0",
+    "fastapi>=0.115.0",
+    "starlette>=0.41.0",
+    "uvicorn>=0.30.0",
+
+    # Async HTTP Client
+    "httpx>=0.27.0",
+
+    # LLM Integration
+    "openai>=2.0.0",
+
+    # Data Validation
+    "pydantic>=2.10.0,<3",
+
+    # Vector Store
+    "qdrant-client>=1.11.0",
+
+    # Tokenization
+    "tiktoken>=0.7.0",
+
+    # Document Parsing
+    "PyMuPDF>=1.24.0",
+    "python-docx>=1.1.0",
+    "markdown-it-py>=3.0.0",
+
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "tenacity>=8.2.0",
+    "requests>=2.32.0",
+
+    # CLI
+    "rich>=13.0.0",
+
+    # AutoGen
+    "autogen-agentchat>=0.7.0",
+    "autogen-core>=0.7.0",
+    "autogen-ext>=0.7.0",
+
+    # Async SQLite
+    "aiosqlite>=0.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "black>=24.0.0",
+    "ruff>=0.3.0",
+]
+
+[project.scripts]
+req-mcp = "mcp_server.server:main"
+req-cli = "mcp_server.cli.interactive:run_interactive"
+
+[project.urls]
+Documentation = "https://github.com/req-orchestrator/docs"
+Repository = "https://github.com/req-orchestrator"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = [
+    "mcp_server*",
+    "arch_team*",
+    "backend*",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]  # Line length handled by black

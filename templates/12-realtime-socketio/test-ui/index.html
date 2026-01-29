@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Socket.io - Realtime Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" />
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <style>
+    .event-pulse { animation: eventPulse 0.5s ease-out; }
+    @keyframes eventPulse {
+      0% { background-color: rgba(34, 197, 94, 0.3); }
+      100% { background-color: transparent; }
+    }
+    .connection-line {
+      stroke-dasharray: 5, 5;
+      animation: dash 1s linear infinite;
+    }
+    @keyframes dash {
+      to { stroke-dashoffset: -10; }
+    }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <!-- Header -->
+  <header class="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <h1 class="text-lg font-semibold flex items-center gap-2">
+        <span class="text-2xl">⚡</span> Socket.io Realtime Dashboard
+      </h1>
+      <div id="connection-status" class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-red-500"></span>
+        <span class="text-sm text-red-400">Disconnected</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="toggleConnection()" id="connect-btn" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">
+        Connect
+      </button>
+      <button onclick="toggleTheme()" id="themeBtn" class="p-2 hover:bg-gray-800 rounded">
+        <span class="mdi mdi-weather-night text-xl"></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="flex h-[calc(100vh-57px)]">
+    <!-- Sidebar: Connection & Rooms -->
+    <aside class="w-80 bg-gray-900 border-r border-gray-800 overflow-y-auto">
+      <div class="p-4 space-y-6">
+        <!-- Server Config -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Server</h2>
+          <div class="space-y-2">
+            <input type="text" id="server-url" value="http://localhost:3000"
+              class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm font-mono" />
+            <select id="transport" class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+              <option value="websocket">WebSocket</option>
+              <option value="polling">Long Polling</option>
+              <option value="auto">Auto (Upgrade)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Connection Stats -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Stats</h2>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+              <p id="latency" class="text-2xl font-bold text-green-400">--</p>
+              <p class="text-xs text-gray-500">Latency (ms)</p>
+            </div>
+            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+              <p id="msg-count" class="text-2xl font-bold text-blue-400">0</p>
+              <p class="text-xs text-gray-500">Messages</p>
+            </div>
+            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+              <p id="bytes-sent" class="text-2xl font-bold text-purple-400">0</p>
+              <p class="text-xs text-gray-500">Bytes Sent</p>
+            </div>
+            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+              <p id="bytes-recv" class="text-2xl font-bold text-orange-400">0</p>
+              <p class="text-xs text-gray-500">Bytes Recv</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rooms -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide flex items-center justify-between">
+            Rooms
+            <button onclick="showJoinRoom()" class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded">
+              + Join
+            </button>
+          </h2>
+          <div id="rooms-list" class="space-y-2">
+            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded">
+              <div class="flex items-center gap-2">
+                <span class="mdi mdi-account-group text-blue-400"></span>
+                <span class="text-sm">general</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-500">5 users</span>
+                <button onclick="leaveRoom('general')" class="p-1 hover:bg-gray-700 rounded">
+                  <span class="mdi mdi-close text-xs text-gray-500"></span>
+                </button>
+              </div>
+            </div>
+            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded">
+              <div class="flex items-center gap-2">
+                <span class="mdi mdi-account-group text-green-400"></span>
+                <span class="text-sm">notifications</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="text-xs text-gray-500">12 users</span>
+                <button onclick="leaveRoom('notifications')" class="p-1 hover:bg-gray-700 rounded">
+                  <span class="mdi mdi-close text-xs text-gray-500"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Clients -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Connected Clients</h2>
+          <div id="clients-list" class="space-y-2">
+            <div class="flex items-center gap-2 p-2 bg-gray-800/50 rounded">
+              <span class="w-2 h-2 rounded-full bg-green-500"></span>
+              <span class="text-sm font-mono">socket_abc123</span>
+              <span class="text-xs text-gray-500 ml-auto">You</span>
+            </div>
+            <div class="flex items-center gap-2 p-2 bg-gray-800/50 rounded">
+              <span class="w-2 h-2 rounded-full bg-green-500"></span>
+              <span class="text-sm font-mono">socket_def456</span>
+            </div>
+            <div class="flex items-center gap-2 p-2 bg-gray-800/50 rounded">
+              <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+              <span class="text-sm font-mono">socket_ghi789</span>
+              <span class="text-xs text-gray-500 ml-auto">Idle</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col">
+      <!-- Tabs -->
+      <div class="flex border-b border-gray-800 bg-gray-900/50">
+        <button onclick="switchTab('events')" class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-green-500 text-green-400">
+          Events
+        </button>
+        <button onclick="switchTab('emit')" class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white">
+          Emit
+        </button>
+        <button onclick="switchTab('graph')" class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white">
+          Connection Graph
+        </button>
+      </div>
+
+      <!-- Events Tab -->
+      <div id="tab-events" class="tab-content flex-1 flex flex-col">
+        <!-- Event Filters -->
+        <div class="p-4 bg-gray-900/30 border-b border-gray-800 flex items-center gap-4">
+          <input type="text" id="event-filter" placeholder="Filter events..."
+            class="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm flex-1 max-w-xs" />
+          <div class="flex items-center gap-2">
+            <label class="flex items-center gap-1 text-sm">
+              <input type="checkbox" checked class="rounded" /> <span class="text-green-400">Incoming</span>
+            </label>
+            <label class="flex items-center gap-1 text-sm">
+              <input type="checkbox" checked class="rounded" /> <span class="text-blue-400">Outgoing</span>
+            </label>
+            <label class="flex items-center gap-1 text-sm">
+              <input type="checkbox" checked class="rounded" /> <span class="text-yellow-400">System</span>
+            </label>
+          </div>
+          <button onclick="clearEvents()" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+            Clear
+          </button>
+        </div>
+
+        <!-- Events List -->
+        <div id="events-list" class="flex-1 overflow-y-auto p-4 space-y-2 font-mono text-sm">
+          <div class="flex items-start gap-3 p-3 bg-gray-800/30 rounded-lg event-pulse">
+            <span class="mdi mdi-arrow-down text-green-400 text-lg"></span>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="font-semibold text-green-400">connect</span>
+                <span class="text-xs text-gray-500">12:34:56.789</span>
+              </div>
+              <pre class="text-xs text-gray-400 bg-gray-900/50 p-2 rounded overflow-x-auto">{ "socketId": "abc123" }</pre>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 p-3 bg-gray-800/30 rounded-lg">
+            <span class="mdi mdi-arrow-down text-green-400 text-lg"></span>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="font-semibold text-green-400">message</span>
+                <span class="text-xs text-gray-500">12:34:57.123</span>
+              </div>
+              <pre class="text-xs text-gray-400 bg-gray-900/50 p-2 rounded overflow-x-auto">{ "user": "Alice", "text": "Hello world!" }</pre>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 p-3 bg-gray-800/30 rounded-lg">
+            <span class="mdi mdi-arrow-up text-blue-400 text-lg"></span>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="font-semibold text-blue-400">join_room</span>
+                <span class="text-xs text-gray-500">12:34:58.456</span>
+              </div>
+              <pre class="text-xs text-gray-400 bg-gray-900/50 p-2 rounded overflow-x-auto">{ "room": "general" }</pre>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 p-3 bg-gray-800/30 rounded-lg">
+            <span class="mdi mdi-alert-circle text-yellow-400 text-lg"></span>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="font-semibold text-yellow-400">reconnect_attempt</span>
+                <span class="text-xs text-gray-500">12:35:01.000</span>
+              </div>
+              <pre class="text-xs text-gray-400 bg-gray-900/50 p-2 rounded overflow-x-auto">{ "attempt": 1 }</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Emit Tab -->
+      <div id="tab-emit" class="tab-content flex-1 p-6 hidden">
+        <div class="max-w-2xl space-y-6">
+          <div>
+            <label class="text-sm font-medium mb-2 block">Event Name</label>
+            <input type="text" id="emit-event" value="message"
+              class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm font-mono" />
+          </div>
+          <div>
+            <label class="text-sm font-medium mb-2 block">Payload (JSON)</label>
+            <textarea id="emit-payload" rows="8"
+              class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm font-mono resize-none">{
+  "text": "Hello from dashboard!",
+  "timestamp": 1234567890
+}</textarea>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="flex-1">
+              <label class="text-sm font-medium mb-2 block">Target</label>
+              <select id="emit-target" class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+                <option value="broadcast">Broadcast</option>
+                <option value="room">Room: general</option>
+                <option value="room">Room: notifications</option>
+                <option value="socket">Socket: def456</option>
+              </select>
+            </div>
+            <div class="flex items-center gap-2 pt-6">
+              <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" id="emit-ack" class="rounded" />
+                With Acknowledgment
+              </label>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <button onclick="emitEvent()" class="px-6 py-2 bg-green-600 hover:bg-green-700 rounded font-medium">
+              <span class="mdi mdi-send mr-2"></span>Emit
+            </button>
+            <button onclick="formatPayload()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded">
+              Format JSON
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Connection Graph Tab -->
+      <div id="tab-graph" class="tab-content flex-1 p-6 hidden">
+        <div class="h-full bg-gray-900/50 rounded-xl border border-gray-800 flex items-center justify-center">
+          <svg id="connection-graph" class="w-full h-full max-w-3xl max-h-96">
+            <!-- Server Node -->
+            <circle cx="50%" cy="50%" r="40" fill="#4f46e5" />
+            <text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="white" class="text-sm font-semibold">Server</text>
+
+            <!-- Client Nodes -->
+            <g transform="translate(100, 100)">
+              <line x1="0" y1="0" x2="200" y2="100" stroke="#22c55e" stroke-width="2" class="connection-line" />
+              <circle cx="0" cy="0" r="25" fill="#22c55e" />
+              <text x="0" y="0" text-anchor="middle" dy=".3em" fill="white" class="text-xs">You</text>
+            </g>
+
+            <g transform="translate(450, 80)">
+              <line x1="0" y1="0" x2="-150" y2="120" stroke="#22c55e" stroke-width="2" class="connection-line" />
+              <circle cx="0" cy="0" r="25" fill="#3b82f6" />
+              <text x="0" y="0" text-anchor="middle" dy=".3em" fill="white" class="text-xs">def456</text>
+            </g>
+
+            <g transform="translate(500, 250)">
+              <line x1="0" y1="0" x2="-200" y2="-50" stroke="#eab308" stroke-width="2" class="connection-line" opacity="0.5" />
+              <circle cx="0" cy="0" r="25" fill="#eab308" />
+              <text x="0" y="0" text-anchor="middle" dy=".3em" fill="white" class="text-xs">ghi789</text>
+            </g>
+
+            <g transform="translate(80, 280)">
+              <line x1="0" y1="0" x2="220" y2="-80" stroke="#22c55e" stroke-width="2" class="connection-line" />
+              <circle cx="0" cy="0" r="25" fill="#22c55e" />
+              <text x="0" y="0" text-anchor="middle" dy=".3em" fill="white" class="text-xs">jkl012</text>
+            </g>
+          </svg>
+        </div>
+        <div class="mt-4 flex items-center justify-center gap-6 text-sm">
+          <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-green-500"></span> Connected</span>
+          <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-yellow-500"></span> Idle</span>
+          <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500"></span> Disconnected</span>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Panel: Listeners -->
+    <aside class="w-80 bg-gray-900 border-l border-gray-800 flex flex-col">
+      <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+        <h2 class="font-semibold">Event Listeners</h2>
+        <button onclick="addListener()" class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded">
+          + Add
+        </button>
+      </div>
+      <div id="listeners-list" class="flex-1 overflow-y-auto p-4 space-y-3">
+        <div class="bg-gray-800/50 rounded-lg p-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-mono text-sm text-green-400">connect</span>
+            <span class="text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded">System</span>
+          </div>
+          <p class="text-xs text-gray-500">Triggered on successful connection</p>
+        </div>
+        <div class="bg-gray-800/50 rounded-lg p-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-mono text-sm text-green-400">disconnect</span>
+            <span class="text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded">System</span>
+          </div>
+          <p class="text-xs text-gray-500">Triggered on disconnection</p>
+        </div>
+        <div class="bg-gray-800/50 rounded-lg p-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-mono text-sm text-blue-400">message</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" checked class="sr-only peer" />
+              <div class="w-8 h-4 bg-gray-700 peer-checked:bg-green-600 rounded-full peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0 after:left-0 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+            </label>
+          </div>
+          <p class="text-xs text-gray-500">Chat messages from users</p>
+        </div>
+        <div class="bg-gray-800/50 rounded-lg p-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-mono text-sm text-blue-400">notification</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" checked class="sr-only peer" />
+              <div class="w-8 h-4 bg-gray-700 peer-checked:bg-green-600 rounded-full peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0 after:left-0 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+            </label>
+          </div>
+          <p class="text-xs text-gray-500">Push notifications</p>
+        </div>
+        <div class="bg-gray-800/50 rounded-lg p-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-mono text-sm text-blue-400">user_joined</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" checked class="sr-only peer" />
+              <div class="w-8 h-4 bg-gray-700 peer-checked:bg-green-600 rounded-full peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0 after:left-0 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+            </label>
+          </div>
+          <p class="text-xs text-gray-500">User join events</p>
+        </div>
+        <div class="bg-gray-800/50 rounded-lg p-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-mono text-sm text-blue-400">user_left</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" class="sr-only peer" />
+              <div class="w-8 h-4 bg-gray-700 peer-checked:bg-green-600 rounded-full peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0 after:left-0 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+            </label>
+          </div>
+          <p class="text-xs text-gray-500">User leave events</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Join Room Modal -->
+  <div id="join-room-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
+    <div class="bg-gray-900 rounded-xl max-w-sm w-full mx-4 border border-gray-800">
+      <div class="p-4 border-b border-gray-800">
+        <h2 class="text-lg font-semibold">Join Room</h2>
+      </div>
+      <div class="p-4">
+        <input type="text" id="room-name" placeholder="Room name..."
+          class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
+      </div>
+      <div class="p-4 border-t border-gray-800 flex justify-end gap-2">
+        <button onclick="hideJoinRoom()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">Cancel</button>
+        <button onclick="joinRoom()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded text-sm">Join</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let connected = false;
+    let socket = null;
+    let messageCount = 0;
+    let bytesSent = 0;
+    let bytesReceived = 0;
+
+    function toggleConnection() {
+      if (connected) {
+        disconnect();
+      } else {
+        connect();
+      }
+    }
+
+    function connect() {
+      // Simulate connection
+      const status = document.getElementById('connection-status');
+      const btn = document.getElementById('connect-btn');
+
+      status.innerHTML = '<span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span><span class="text-sm text-yellow-400">Connecting...</span>';
+
+      setTimeout(() => {
+        connected = true;
+        status.innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500"></span><span class="text-sm text-green-400">Connected</span>';
+        btn.textContent = 'Disconnect';
+        btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+        btn.classList.add('bg-red-600', 'hover:bg-red-700');
+
+        addEvent('connect', { socketId: 'abc123' }, 'system');
+        startLatencyPing();
+      }, 1000);
+    }
+
+    function disconnect() {
+      connected = false;
+      const status = document.getElementById('connection-status');
+      const btn = document.getElementById('connect-btn');
+
+      status.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-sm text-red-400">Disconnected</span>';
+      btn.textContent = 'Connect';
+      btn.classList.remove('bg-red-600', 'hover:bg-red-700');
+      btn.classList.add('bg-green-600', 'hover:bg-green-700');
+
+      addEvent('disconnect', { reason: 'client disconnect' }, 'system');
+    }
+
+    function startLatencyPing() {
+      setInterval(() => {
+        if (connected) {
+          const latency = Math.floor(Math.random() * 50) + 10;
+          document.getElementById('latency').textContent = latency;
+        }
+      }, 2000);
+    }
+
+    function addEvent(name, data, type = 'incoming') {
+      const list = document.getElementById('events-list');
+      const now = new Date();
+      const time = now.toTimeString().slice(0, 8) + '.' + now.getMilliseconds().toString().padStart(3, '0');
+
+      const icons = {
+        'incoming': '<span class="mdi mdi-arrow-down text-green-400 text-lg"></span>',
+        'outgoing': '<span class="mdi mdi-arrow-up text-blue-400 text-lg"></span>',
+        'system': '<span class="mdi mdi-alert-circle text-yellow-400 text-lg"></span>'
+      };
+
+      const colors = {
+        'incoming': 'green',
+        'outgoing': 'blue',
+        'system': 'yellow'
+      };
+
+      const div = document.createElement('div');
+      div.className = 'flex items-start gap-3 p-3 bg-gray-800/30 rounded-lg event-pulse';
+      div.innerHTML = `
+        ${icons[type]}
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="font-semibold text-${colors[type]}-400">${name}</span>
+            <span class="text-xs text-gray-500">${time}</span>
+          </div>
+          <pre class="text-xs text-gray-400 bg-gray-900/50 p-2 rounded overflow-x-auto">${JSON.stringify(data, null, 2)}</pre>
+        </div>
+      `;
+
+      list.insertBefore(div, list.firstChild);
+
+      messageCount++;
+      document.getElementById('msg-count').textContent = messageCount;
+
+      const bytes = JSON.stringify(data).length;
+      if (type === 'outgoing') {
+        bytesSent += bytes;
+        document.getElementById('bytes-sent').textContent = formatBytes(bytesSent);
+      } else {
+        bytesReceived += bytes;
+        document.getElementById('bytes-recv').textContent = formatBytes(bytesReceived);
+      }
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes;
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'K';
+      return (bytes / (1024 * 1024)).toFixed(1) + 'M';
+    }
+
+    function clearEvents() {
+      document.getElementById('events-list').innerHTML = '';
+    }
+
+    function emitEvent() {
+      if (!connected) {
+        alert('Please connect first');
+        return;
+      }
+
+      const event = document.getElementById('emit-event').value;
+      let payload;
+      try {
+        payload = JSON.parse(document.getElementById('emit-payload').value);
+      } catch (e) {
+        alert('Invalid JSON payload');
+        return;
+      }
+
+      addEvent(event, payload, 'outgoing');
+
+      // Simulate response
+      if (document.getElementById('emit-ack').checked) {
+        setTimeout(() => {
+          addEvent(event + '_ack', { success: true, timestamp: Date.now() }, 'incoming');
+        }, 200);
+      }
+    }
+
+    function formatPayload() {
+      const textarea = document.getElementById('emit-payload');
+      try {
+        const parsed = JSON.parse(textarea.value);
+        textarea.value = JSON.stringify(parsed, null, 2);
+      } catch (e) {
+        alert('Invalid JSON');
+      }
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('border-green-500', 'text-green-400');
+        el.classList.add('border-transparent', 'text-gray-400');
+      });
+
+      document.getElementById('tab-' + tab).classList.remove('hidden');
+      event.target.classList.add('border-green-500', 'text-green-400');
+      event.target.classList.remove('border-transparent', 'text-gray-400');
+    }
+
+    function showJoinRoom() {
+      document.getElementById('join-room-modal').classList.remove('hidden');
+    }
+
+    function hideJoinRoom() {
+      document.getElementById('join-room-modal').classList.add('hidden');
+    }
+
+    function joinRoom() {
+      const name = document.getElementById('room-name').value.trim();
+      if (!name) return;
+
+      addEvent('join_room', { room: name }, 'outgoing');
+
+      const list = document.getElementById('rooms-list');
+      const div = document.createElement('div');
+      div.className = 'flex items-center justify-between p-2 bg-gray-800/50 rounded';
+      div.innerHTML = `
+        <div class="flex items-center gap-2">
+          <span class="mdi mdi-account-group text-purple-400"></span>
+          <span class="text-sm">${name}</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <span class="text-xs text-gray-500">1 user</span>
+          <button onclick="leaveRoom('${name}')" class="p-1 hover:bg-gray-700 rounded">
+            <span class="mdi mdi-close text-xs text-gray-500"></span>
+          </button>
+        </div>
+      `;
+      list.appendChild(div);
+
+      hideJoinRoom();
+      document.getElementById('room-name').value = '';
+    }
+
+    function leaveRoom(name) {
+      addEvent('leave_room', { room: name }, 'outgoing');
+    }
+
+    function addListener() {
+      const name = prompt('Event name:');
+      if (!name) return;
+
+      const list = document.getElementById('listeners-list');
+      const div = document.createElement('div');
+      div.className = 'bg-gray-800/50 rounded-lg p-3';
+      div.innerHTML = `
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-mono text-sm text-blue-400">${name}</span>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" checked class="sr-only peer" />
+            <div class="w-8 h-4 bg-gray-700 peer-checked:bg-green-600 rounded-full peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0 after:left-0 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+          </label>
+        </div>
+        <p class="text-xs text-gray-500">Custom event listener</p>
+      `;
+      list.appendChild(div);
+    }
+
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      const btn = document.getElementById('themeBtn');
+      btn.innerHTML = document.documentElement.classList.contains('dark')
+        ? '<span class="mdi mdi-weather-night text-xl"></span>'
+        : '<span class="mdi mdi-weather-sunny text-xl"></span>';
+    }
+
+    // Simulate incoming events
+    setInterval(() => {
+      if (connected && Math.random() > 0.7) {
+        const events = [
+          { name: 'message', data: { user: 'Alice', text: 'Hey everyone!' } },
+          { name: 'notification', data: { type: 'info', message: 'New update available' } },
+          { name: 'user_joined', data: { userId: 'user_' + Math.random().toString(36).slice(2, 8) } },
+        ];
+        const event = events[Math.floor(Math.random() * events.length)];
+        addEvent(event.name, event.data, 'incoming');
+      }
+    }, 3000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data & ML - Analysis Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+  <style>
+    .jupyter-cell { font-family: 'Fira Code', 'Monaco', monospace; }
+    .cell-output { white-space: pre-wrap; }
+    .dataframe-table th { position: sticky; top: 0; z-index: 10; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <!-- Header -->
+  <header class="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <h1 class="text-lg font-semibold flex items-center gap-2">
+        <span class="text-2xl">📊</span> Data & ML Dashboard
+      </h1>
+      <div class="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded-full">
+        <span class="w-2 h-2 rounded-full bg-green-500"></span>
+        <span class="text-sm text-gray-300">Kernel: Python 3.12</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="runAllCells()" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">
+        <span class="mdi mdi-play mr-1"></span> Run All
+      </button>
+      <button onclick="toggleTheme()" id="themeBtn" class="p-2 hover:bg-gray-800 rounded">
+        <span class="mdi mdi-weather-night text-xl"></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="flex h-[calc(100vh-57px)]">
+    <!-- Sidebar: Data & Models -->
+    <aside class="w-80 bg-gray-900 border-r border-gray-800 overflow-y-auto">
+      <div class="p-4 space-y-6">
+        <!-- Dataset Info -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Dataset</h2>
+          <div class="bg-gray-800/50 rounded-lg p-3 space-y-2">
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-400">Name</span>
+              <span class="font-medium">iris_dataset.csv</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-400">Rows</span>
+              <span class="font-medium">150</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-400">Columns</span>
+              <span class="font-medium">5</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-400">Size</span>
+              <span class="font-medium">4.2 KB</span>
+            </div>
+          </div>
+          <button onclick="uploadData()" class="w-full mt-2 px-3 py-2 border border-dashed border-gray-700 rounded text-sm text-gray-400 hover:border-gray-500">
+            <span class="mdi mdi-upload mr-1"></span> Upload Dataset
+          </button>
+        </div>
+
+        <!-- Features -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Features</h2>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded">
+              <div class="flex items-center gap-2">
+                <span class="mdi mdi-numeric text-blue-400"></span>
+                <span class="text-sm">sepal_length</span>
+              </div>
+              <span class="text-xs text-gray-500">float64</span>
+            </div>
+            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded">
+              <div class="flex items-center gap-2">
+                <span class="mdi mdi-numeric text-blue-400"></span>
+                <span class="text-sm">sepal_width</span>
+              </div>
+              <span class="text-xs text-gray-500">float64</span>
+            </div>
+            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded">
+              <div class="flex items-center gap-2">
+                <span class="mdi mdi-numeric text-blue-400"></span>
+                <span class="text-sm">petal_length</span>
+              </div>
+              <span class="text-xs text-gray-500">float64</span>
+            </div>
+            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded">
+              <div class="flex items-center gap-2">
+                <span class="mdi mdi-numeric text-blue-400"></span>
+                <span class="text-sm">petal_width</span>
+              </div>
+              <span class="text-xs text-gray-500">float64</span>
+            </div>
+            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded">
+              <div class="flex items-center gap-2">
+                <span class="mdi mdi-format-text text-green-400"></span>
+                <span class="text-sm">species</span>
+              </div>
+              <span class="text-xs text-gray-500">category</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Model Selection -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Model</h2>
+          <select id="model-select" class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm mb-3">
+            <optgroup label="Classification">
+              <option value="rf" selected>Random Forest</option>
+              <option value="svm">SVM</option>
+              <option value="knn">K-Nearest Neighbors</option>
+              <option value="nb">Naive Bayes</option>
+            </optgroup>
+            <optgroup label="Regression">
+              <option value="lr">Linear Regression</option>
+              <option value="ridge">Ridge Regression</option>
+              <option value="lasso">Lasso Regression</option>
+            </optgroup>
+            <optgroup label="Deep Learning">
+              <option value="mlp">MLP Neural Network</option>
+              <option value="cnn">CNN (Images)</option>
+            </optgroup>
+          </select>
+          <button onclick="trainModel()" class="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm font-medium">
+            <span class="mdi mdi-brain mr-1"></span> Train Model
+          </button>
+        </div>
+
+        <!-- Model Metrics -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Metrics</h2>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+              <p id="accuracy" class="text-2xl font-bold text-green-400">96.7%</p>
+              <p class="text-xs text-gray-500">Accuracy</p>
+            </div>
+            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+              <p id="precision" class="text-2xl font-bold text-blue-400">95.2%</p>
+              <p class="text-xs text-gray-500">Precision</p>
+            </div>
+            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+              <p id="recall" class="text-2xl font-bold text-purple-400">94.8%</p>
+              <p class="text-xs text-gray-500">Recall</p>
+            </div>
+            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+              <p id="f1" class="text-2xl font-bold text-orange-400">95.0%</p>
+              <p class="text-xs text-gray-500">F1 Score</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content: Notebook & Visualizations -->
+    <main class="flex-1 overflow-y-auto">
+      <div class="p-6 space-y-6">
+        <!-- Tabs -->
+        <div class="flex border-b border-gray-800">
+          <button onclick="switchMainTab('notebook')" class="main-tab-btn px-6 py-3 text-sm font-medium border-b-2 border-purple-500 text-purple-400">
+            Notebook
+          </button>
+          <button onclick="switchMainTab('visualize')" class="main-tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white">
+            Visualizations
+          </button>
+          <button onclick="switchMainTab('dataframe')" class="main-tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white">
+            DataFrame
+          </button>
+        </div>
+
+        <!-- Notebook Tab -->
+        <div id="main-tab-notebook" class="main-tab-content space-y-4">
+          <!-- Cell 1 -->
+          <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+            <div class="flex items-center justify-between px-4 py-2 bg-gray-800/50 border-b border-gray-800">
+              <span class="text-xs text-gray-500">In [1]:</span>
+              <button onclick="runCell(1)" class="p-1 hover:bg-gray-700 rounded">
+                <span class="mdi mdi-play text-green-400"></span>
+              </button>
+            </div>
+            <div class="p-4 jupyter-cell">
+              <pre class="text-sm text-blue-300">import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+
+# Load dataset
+df = pd.read_csv('iris_dataset.csv')
+print(f"Dataset shape: {df.shape}")</pre>
+            </div>
+            <div class="px-4 py-2 bg-gray-800/30 border-t border-gray-800">
+              <pre class="text-sm text-gray-400 cell-output">Dataset shape: (150, 5)</pre>
+            </div>
+          </div>
+
+          <!-- Cell 2 -->
+          <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+            <div class="flex items-center justify-between px-4 py-2 bg-gray-800/50 border-b border-gray-800">
+              <span class="text-xs text-gray-500">In [2]:</span>
+              <button onclick="runCell(2)" class="p-1 hover:bg-gray-700 rounded">
+                <span class="mdi mdi-play text-green-400"></span>
+              </button>
+            </div>
+            <div class="p-4 jupyter-cell">
+              <pre class="text-sm text-blue-300"># Data preprocessing
+X = df.drop('species', axis=1)
+y = df['species']
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+print(f"Training samples: {len(X_train)}")
+print(f"Test samples: {len(X_test)}")</pre>
+            </div>
+            <div class="px-4 py-2 bg-gray-800/30 border-t border-gray-800">
+              <pre class="text-sm text-gray-400 cell-output">Training samples: 120
+Test samples: 30</pre>
+            </div>
+          </div>
+
+          <!-- Cell 3 -->
+          <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+            <div class="flex items-center justify-between px-4 py-2 bg-gray-800/50 border-b border-gray-800">
+              <span class="text-xs text-gray-500">In [3]:</span>
+              <button onclick="runCell(3)" class="p-1 hover:bg-gray-700 rounded">
+                <span class="mdi mdi-play text-green-400"></span>
+              </button>
+            </div>
+            <div class="p-4 jupyter-cell">
+              <pre class="text-sm text-blue-300"># Train model
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+
+# Evaluate
+accuracy = model.score(X_test, y_test)
+print(f"Model accuracy: {accuracy:.2%}")</pre>
+            </div>
+            <div class="px-4 py-2 bg-gray-800/30 border-t border-gray-800">
+              <pre class="text-sm text-green-400 cell-output">Model accuracy: 96.67%</pre>
+            </div>
+          </div>
+
+          <!-- Add Cell Button -->
+          <button onclick="addCell()" class="w-full py-3 border border-dashed border-gray-700 rounded-xl text-gray-500 hover:border-gray-500 hover:text-gray-400">
+            <span class="mdi mdi-plus mr-1"></span> Add Cell
+          </button>
+        </div>
+
+        <!-- Visualizations Tab -->
+        <div id="main-tab-visualize" class="main-tab-content hidden">
+          <div class="grid grid-cols-2 gap-6">
+            <!-- Distribution Chart -->
+            <div class="bg-gray-900 rounded-xl border border-gray-800 p-4">
+              <h3 class="font-semibold mb-4">Feature Distribution</h3>
+              <canvas id="distribution-chart" height="200"></canvas>
+            </div>
+
+            <!-- Scatter Plot -->
+            <div class="bg-gray-900 rounded-xl border border-gray-800 p-4">
+              <h3 class="font-semibold mb-4">Scatter Plot</h3>
+              <canvas id="scatter-chart" height="200"></canvas>
+            </div>
+
+            <!-- Confusion Matrix -->
+            <div class="bg-gray-900 rounded-xl border border-gray-800 p-4">
+              <h3 class="font-semibold mb-4">Confusion Matrix</h3>
+              <div class="grid grid-cols-3 gap-1 text-center text-sm">
+                <div></div>
+                <div class="text-gray-500 text-xs">Predicted</div>
+                <div></div>
+                <div class="text-gray-500 text-xs transform -rotate-90 origin-center">Actual</div>
+                <div class="grid grid-cols-3 gap-1">
+                  <div class="bg-green-600/80 p-3 rounded">50</div>
+                  <div class="bg-red-600/30 p-3 rounded">1</div>
+                  <div class="bg-red-600/30 p-3 rounded">0</div>
+                  <div class="bg-red-600/30 p-3 rounded">2</div>
+                  <div class="bg-green-600/80 p-3 rounded">47</div>
+                  <div class="bg-red-600/30 p-3 rounded">1</div>
+                  <div class="bg-red-600/30 p-3 rounded">0</div>
+                  <div class="bg-red-600/30 p-3 rounded">0</div>
+                  <div class="bg-green-600/80 p-3 rounded">49</div>
+                </div>
+                <div></div>
+              </div>
+            </div>
+
+            <!-- Feature Importance -->
+            <div class="bg-gray-900 rounded-xl border border-gray-800 p-4">
+              <h3 class="font-semibold mb-4">Feature Importance</h3>
+              <canvas id="importance-chart" height="200"></canvas>
+            </div>
+
+            <!-- Training History -->
+            <div class="bg-gray-900 rounded-xl border border-gray-800 p-4 col-span-2">
+              <h3 class="font-semibold mb-4">Training History</h3>
+              <canvas id="history-chart" height="120"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- DataFrame Tab -->
+        <div id="main-tab-dataframe" class="main-tab-content hidden">
+          <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+            <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+              <div class="flex items-center gap-4">
+                <span class="text-sm text-gray-400">Showing 1-10 of 150 rows</span>
+                <input type="text" placeholder="Filter..."
+                  class="bg-gray-800 border border-gray-700 rounded px-3 py-1 text-sm" />
+              </div>
+              <button onclick="exportData()" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+                <span class="mdi mdi-download mr-1"></span> Export
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm dataframe-table">
+                <thead class="bg-gray-800">
+                  <tr>
+                    <th class="p-3 text-left text-gray-400 font-medium">#</th>
+                    <th class="p-3 text-left text-gray-400 font-medium">sepal_length</th>
+                    <th class="p-3 text-left text-gray-400 font-medium">sepal_width</th>
+                    <th class="p-3 text-left text-gray-400 font-medium">petal_length</th>
+                    <th class="p-3 text-left text-gray-400 font-medium">petal_width</th>
+                    <th class="p-3 text-left text-gray-400 font-medium">species</th>
+                  </tr>
+                </thead>
+                <tbody id="dataframe-body">
+                  <!-- Rows will be generated -->
+                </tbody>
+              </table>
+            </div>
+            <div class="p-4 border-t border-gray-800 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <button class="p-2 bg-gray-800 hover:bg-gray-700 rounded">
+                  <span class="mdi mdi-chevron-left"></span>
+                </button>
+                <span class="text-sm text-gray-400">Page 1 of 15</span>
+                <button class="p-2 bg-gray-800 hover:bg-gray-700 rounded">
+                  <span class="mdi mdi-chevron-right"></span>
+                </button>
+              </div>
+              <select class="bg-gray-800 border border-gray-700 rounded px-3 py-1 text-sm">
+                <option>10 rows</option>
+                <option>25 rows</option>
+                <option>50 rows</option>
+                <option>100 rows</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Panel: Predictions -->
+    <aside class="w-80 bg-gray-900 border-l border-gray-800 flex flex-col">
+      <div class="p-4 border-b border-gray-800">
+        <h2 class="font-semibold">Make Prediction</h2>
+      </div>
+      <div class="p-4 space-y-4">
+        <div>
+          <label class="text-sm text-gray-400 mb-1 block">Sepal Length</label>
+          <input type="number" id="pred-sepal-len" value="5.1" step="0.1"
+            class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label class="text-sm text-gray-400 mb-1 block">Sepal Width</label>
+          <input type="number" id="pred-sepal-wid" value="3.5" step="0.1"
+            class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label class="text-sm text-gray-400 mb-1 block">Petal Length</label>
+          <input type="number" id="pred-petal-len" value="1.4" step="0.1"
+            class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label class="text-sm text-gray-400 mb-1 block">Petal Width</label>
+          <input type="number" id="pred-petal-wid" value="0.2" step="0.1"
+            class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
+        </div>
+        <button onclick="makePrediction()" class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">
+          <span class="mdi mdi-flash mr-1"></span> Predict
+        </button>
+      </div>
+
+      <div class="p-4 border-t border-gray-800">
+        <h3 class="font-semibold mb-3">Prediction Result</h3>
+        <div id="prediction-result" class="bg-gray-800/50 rounded-lg p-4 text-center">
+          <div class="text-4xl mb-2">🌸</div>
+          <p class="text-xl font-bold text-green-400">Iris Setosa</p>
+          <p class="text-sm text-gray-500 mt-1">Confidence: 98.2%</p>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-gray-800 flex-1 overflow-y-auto">
+        <h3 class="font-semibold mb-3">Prediction History</h3>
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded">
+            <span>Setosa</span>
+            <span class="text-xs text-gray-500">98.2%</span>
+          </div>
+          <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded">
+            <span>Versicolor</span>
+            <span class="text-xs text-gray-500">87.5%</span>
+          </div>
+          <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded">
+            <span>Virginica</span>
+            <span class="text-xs text-gray-500">92.1%</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    // Initialize charts
+    let distributionChart, scatterChart, importanceChart, historyChart;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initCharts();
+      generateDataframe();
+    });
+
+    function initCharts() {
+      // Distribution Chart
+      const distCtx = document.getElementById('distribution-chart').getContext('2d');
+      distributionChart = new Chart(distCtx, {
+        type: 'bar',
+        data: {
+          labels: ['Setosa', 'Versicolor', 'Virginica'],
+          datasets: [{
+            label: 'Count',
+            data: [50, 50, 50],
+            backgroundColor: ['#22c55e', '#3b82f6', '#a855f7']
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+
+      // Scatter Chart
+      const scatterCtx = document.getElementById('scatter-chart').getContext('2d');
+      scatterChart = new Chart(scatterCtx, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: 'Setosa',
+              data: Array(20).fill(0).map(() => ({ x: 4.5 + Math.random() * 1.5, y: 2.5 + Math.random() * 1.5 })),
+              backgroundColor: '#22c55e'
+            },
+            {
+              label: 'Versicolor',
+              data: Array(20).fill(0).map(() => ({ x: 5.5 + Math.random() * 1.5, y: 2 + Math.random() * 1 })),
+              backgroundColor: '#3b82f6'
+            },
+            {
+              label: 'Virginica',
+              data: Array(20).fill(0).map(() => ({ x: 6 + Math.random() * 2, y: 2.5 + Math.random() * 1 })),
+              backgroundColor: '#a855f7'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: { title: { display: true, text: 'Sepal Length' } },
+            y: { title: { display: true, text: 'Sepal Width' } }
+          }
+        }
+      });
+
+      // Feature Importance Chart
+      const impCtx = document.getElementById('importance-chart').getContext('2d');
+      importanceChart = new Chart(impCtx, {
+        type: 'bar',
+        data: {
+          labels: ['petal_length', 'petal_width', 'sepal_length', 'sepal_width'],
+          datasets: [{
+            label: 'Importance',
+            data: [0.45, 0.38, 0.10, 0.07],
+            backgroundColor: '#8b5cf6'
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true, max: 0.5 } }
+        }
+      });
+
+      // Training History Chart
+      const histCtx = document.getElementById('history-chart').getContext('2d');
+      historyChart = new Chart(histCtx, {
+        type: 'line',
+        data: {
+          labels: Array(20).fill(0).map((_, i) => i + 1),
+          datasets: [
+            {
+              label: 'Training Accuracy',
+              data: Array(20).fill(0).map((_, i) => 0.5 + (i / 25) + Math.random() * 0.05),
+              borderColor: '#22c55e',
+              tension: 0.3
+            },
+            {
+              label: 'Validation Accuracy',
+              data: Array(20).fill(0).map((_, i) => 0.45 + (i / 30) + Math.random() * 0.08),
+              borderColor: '#3b82f6',
+              tension: 0.3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: { title: { display: true, text: 'Epoch' } },
+            y: { title: { display: true, text: 'Accuracy' }, min: 0.4, max: 1 }
+          }
+        }
+      });
+    }
+
+    function generateDataframe() {
+      const species = ['setosa', 'versicolor', 'virginica'];
+      const tbody = document.getElementById('dataframe-body');
+      tbody.innerHTML = '';
+
+      for (let i = 0; i < 10; i++) {
+        const tr = document.createElement('tr');
+        tr.className = 'border-t border-gray-800 hover:bg-gray-800/30';
+        tr.innerHTML = `
+          <td class="p-3 text-gray-500">${i}</td>
+          <td class="p-3">${(4.5 + Math.random() * 3).toFixed(1)}</td>
+          <td class="p-3">${(2 + Math.random() * 2.5).toFixed(1)}</td>
+          <td class="p-3">${(1 + Math.random() * 6).toFixed(1)}</td>
+          <td class="p-3">${(0.1 + Math.random() * 2.4).toFixed(1)}</td>
+          <td class="p-3"><span class="px-2 py-0.5 bg-${['green', 'blue', 'purple'][i % 3]}-600/20 text-${['green', 'blue', 'purple'][i % 3]}-400 rounded text-xs">${species[i % 3]}</span></td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function switchMainTab(tab) {
+      document.querySelectorAll('.main-tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.main-tab-btn').forEach(el => {
+        el.classList.remove('border-purple-500', 'text-purple-400');
+        el.classList.add('border-transparent', 'text-gray-400');
+      });
+
+      document.getElementById('main-tab-' + tab).classList.remove('hidden');
+      event.target.classList.add('border-purple-500', 'text-purple-400');
+      event.target.classList.remove('border-transparent', 'text-gray-400');
+    }
+
+    function runCell(num) {
+      console.log('Running cell', num);
+    }
+
+    function runAllCells() {
+      console.log('Running all cells');
+    }
+
+    function addCell() {
+      const container = document.getElementById('main-tab-notebook');
+      const cellNum = container.querySelectorAll('.bg-gray-900').length;
+
+      const div = document.createElement('div');
+      div.className = 'bg-gray-900 rounded-xl border border-gray-800 overflow-hidden';
+      div.innerHTML = `
+        <div class="flex items-center justify-between px-4 py-2 bg-gray-800/50 border-b border-gray-800">
+          <span class="text-xs text-gray-500">In [${cellNum}]:</span>
+          <button onclick="runCell(${cellNum})" class="p-1 hover:bg-gray-700 rounded">
+            <span class="mdi mdi-play text-green-400"></span>
+          </button>
+        </div>
+        <div class="p-4 jupyter-cell">
+          <textarea class="w-full bg-transparent text-sm text-blue-300 resize-none outline-none" rows="3" placeholder="# Enter code here..."></textarea>
+        </div>
+      `;
+
+      container.insertBefore(div, container.lastElementChild);
+    }
+
+    function trainModel() {
+      const model = document.getElementById('model-select').value;
+      console.log('Training model:', model);
+
+      // Simulate training with random metrics
+      setTimeout(() => {
+        document.getElementById('accuracy').textContent = (90 + Math.random() * 10).toFixed(1) + '%';
+        document.getElementById('precision').textContent = (88 + Math.random() * 12).toFixed(1) + '%';
+        document.getElementById('recall').textContent = (87 + Math.random() * 13).toFixed(1) + '%';
+        document.getElementById('f1').textContent = (88 + Math.random() * 12).toFixed(1) + '%';
+      }, 1000);
+    }
+
+    function makePrediction() {
+      const species = ['Iris Setosa', 'Iris Versicolor', 'Iris Virginica'];
+      const emojis = ['🌸', '🌺', '🌷'];
+      const idx = Math.floor(Math.random() * 3);
+      const confidence = (85 + Math.random() * 15).toFixed(1);
+
+      document.getElementById('prediction-result').innerHTML = `
+        <div class="text-4xl mb-2">${emojis[idx]}</div>
+        <p class="text-xl font-bold text-green-400">${species[idx]}</p>
+        <p class="text-sm text-gray-500 mt-1">Confidence: ${confidence}%</p>
+      `;
+    }
+
+    function uploadData() {
+      console.log('Upload data triggered');
+    }
+
+    function exportData() {
+      console.log('Export data triggered');
+    }
+
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      const btn = document.getElementById('themeBtn');
+      btn.innerHTML = document.documentElement.classList.contains('dark')
+        ? '<span class="mdi mdi-weather-night text-xl"></span>'
+        : '<span class="mdi mdi-weather-sunny text-xl"></span>';
+    }
+  </script>
+</body>
+</html>

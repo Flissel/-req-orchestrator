@@ -191,17 +191,29 @@ async def create_master_agent(
 
     load_dotenv(project_dir / ".env", override=True)
 
-    # Get API key from environment
-    api_key = os.environ.get("OPENAI_API_KEY", "")
+    # Get OpenRouter configuration
+    try:
+        from backend.core.settings import get_llm_config
+        llm_config = get_llm_config()
+        api_key = llm_config["api_key"]
+        base_url = llm_config["base_url"]
+        sys.stderr.write(f"[master_agent.py] Using OpenRouter\n")
+        sys.stderr.flush()
+    except ImportError:
+        # Fallback to direct env vars (OpenRouter only)
+        api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        base_url = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
     # Debug: Log API key status
-    sys.stderr.write(f"[master_agent.py] OPENAI_API_KEY length after load_dotenv: {len(api_key)}\n")
+    sys.stderr.write(f"[master_agent.py] API key length after config: {len(api_key)}\n")
+    if base_url:
+        sys.stderr.write(f"[master_agent.py] Using base_url: {base_url}\n")
     sys.stderr.flush()
 
     if not api_key:
-        sys.stderr.write("[master_agent.py] ERROR: API key is empty! Raising RuntimeError\n")
+        sys.stderr.write(f"[master_agent.py] ERROR: OPENROUTER_API_KEY is empty!\n")
         sys.stderr.flush()
-        raise RuntimeError("OPENAI_API_KEY environment variable not set")
+        raise RuntimeError("OPENROUTER_API_KEY not set")
 
     # Create model client with model_info for non-standard OpenAI models
     # AutoGen 0.4.7+ requires ModelInfo with 'family' field
@@ -217,11 +229,16 @@ async def create_master_agent(
         )
     )
 
-    model_client = OpenAIChatCompletionClient(
-        model=model,
-        api_key=api_key,
-        model_info=model_info
-    )
+    # Create client with base_url for OpenRouter support
+    client_kwargs = {
+        "model": model,
+        "api_key": api_key,
+        "model_info": model_info
+    }
+    if base_url:
+        client_kwargs["base_url"] = base_url
+
+    model_client = OpenAIChatCompletionClient(**client_kwargs)
 
     logger.info(f"Creating master Society of Mind agent with model: {model}")
 
@@ -325,7 +342,8 @@ async def run_master_workflow(
     chunk_size: int = 800,
     chunk_overlap: int = 200,
     use_llm_kg: bool = True,
-    validation_threshold: float = 0.7
+    validation_threshold: float = 0.7,
+    mode: str = "quick",  # "quick" or "guided"
 ) -> Dict[str, Any]:
     """
     Run complete arch_team workflow using master Society of Mind agent.
@@ -520,93 +538,307 @@ Execute all phases and signal WORKFLOW_COMPLETE when done.
             message=f"✅ Created {kg_stats.get('nodes', 0)} nodes and {kg_stats.get('edges', 0)} edges"
         )
 
-        # Phase 3: Validate requirements using local heuristics
-        logger.info("Phase 3: Validating requirements...")
+        # Phase 3: Validate requirements using PARALLEL validation
+        logger.info("Phase 3: Validating requirements with parallel workers...")
         _send_to_workflow_stream(
             correlation_id,
             "agent_message",
             agent="Validator",
-            message=f"Validating {len(requirements)} requirements..."
+            message=f"🚀 Starting parallel validation of {len(requirements)} requirements..."
         )
 
-        validation_results = []
-        passed_count = 0
-        failed_count = 0
+        # Use parallel ValidationDelegatorAgent instead of sequential loop
+        from arch_team.agents.validation_delegator import ValidationDelegatorAgent
 
-        # Validate each requirement using real LLM-based validation
-        from arch_team.tools.validation_tools import evaluate_requirement
+        max_concurrent = int(os.environ.get("VALIDATION_MAX_CONCURRENT", "5"))
+        delegator = ValidationDelegatorAgent(max_concurrent=max_concurrent)
+        
+        batch_result = await delegator.validate_batch(
+            requirements=requirements,
+            correlation_id=correlation_id,
+            criteria_keys=None  # Use all criteria
+        )
+        
+        # Convert to list format expected by rest of code
+        validation_results = delegator.to_dict_results(batch_result)
+        passed_count = batch_result.passed_count
+        failed_count = batch_result.failed_count
 
-        for idx, req in enumerate(requirements):
-            req_title = req.get("title", f"Requirement {idx + 1}")
-            req_id = req.get("req_id", f"req-{idx + 1}")
+        logger.info(f"Parallel validation completed in {batch_result.total_time_ms}ms: "
+                   f"{passed_count} passed, {failed_count} failed")
+        _send_to_workflow_stream(
+            correlation_id,
+            "agent_message",
+            agent="Validator",
+            message=f"✅ Parallel validation complete ({batch_result.total_time_ms/1000:.1f}s): "
+                   f"{passed_count} passed, {failed_count} failed"
+        )
 
-            logger.info(f"Validating requirement {idx + 1}/{len(requirements)}: {req_title}")
+        # Phase 3b: Rewrite failed requirements (if any)
+        rewrite_results = None
+        if failed_count > 0:
+            logger.info(f"Phase 3b: Rewriting {failed_count} failed requirements...")
+            _send_to_workflow_stream(
+                correlation_id,
+                "agent_message",
+                agent="RewriteAgent",
+                message=f"✍️ Starting parallel rewrite of {failed_count} failed requirements..."
+            )
+            
+            # Use parallel RewriteDelegatorAgent
+            from arch_team.agents.rewrite_delegator import RewriteDelegatorAgent
+            
+            max_rewrite_concurrent = int(os.environ.get("REWRITE_MAX_CONCURRENT", "3"))
+            max_attempts = int(os.environ.get("REWRITE_MAX_ATTEMPTS", "3"))
+            target_score = float(os.environ.get("REWRITE_TARGET_SCORE", "0.7"))
+            
+            rewrite_delegator = RewriteDelegatorAgent(
+                max_concurrent=max_rewrite_concurrent,
+                max_attempts=max_attempts,
+                target_score=target_score,
+                enable_revalidation=True
+            )
+            
+            # Filter failed requirements for rewriting
+            failed_requirements = [
+                {
+                    "req_id": vr.get("req_id"),
+                    "title": vr.get("title"),
+                    "text": vr.get("title"),
+                    "score": vr.get("score", 0.0),
+                    "evaluation": vr.get("evaluation", []),
+                    "tag": vr.get("tag")
+                }
+                for vr in validation_results
+                if vr.get("verdict") == "fail"
+            ]
+            
+            rewrite_batch_result = await rewrite_delegator.rewrite_batch(
+                failed_requirements=failed_requirements,
+                correlation_id=correlation_id
+            )
+            
+            rewrite_results = {
+                "total_count": rewrite_batch_result.total_count,
+                "rewritten_count": rewrite_batch_result.rewritten_count,
+                "improved_count": rewrite_batch_result.improved_count,
+                "unchanged_count": rewrite_batch_result.unchanged_count,
+                "error_count": rewrite_batch_result.error_count,
+                "total_time_ms": rewrite_batch_result.total_time_ms,
+                "details": rewrite_delegator.to_dict_results(rewrite_batch_result)
+            }
+            
+            logger.info(f"Rewrite completed in {rewrite_batch_result.total_time_ms}ms: "
+                       f"{rewrite_batch_result.rewritten_count} rewritten, "
+                       f"{rewrite_batch_result.improved_count} improved to score >= {target_score}")
+            _send_to_workflow_stream(
+                correlation_id,
+                "agent_message",
+                agent="RewriteAgent",
+                message=f"✅ Rewrite complete ({rewrite_batch_result.total_time_ms/1000:.1f}s): "
+                       f"{rewrite_batch_result.rewritten_count} rewritten, "
+                       f"{rewrite_batch_result.improved_count} improved"
+            )
+
+            # Update validation_results with rewrite scores so frontend shows updated values
+            if rewrite_results and rewrite_results.get("details"):
+                rewrite_lookup = {r["req_id"]: r for r in rewrite_results["details"]}
+                for vr in validation_results:
+                    req_id = vr.get("req_id")
+                    if req_id in rewrite_lookup:
+                        rewrite_info = rewrite_lookup[req_id]
+                        if rewrite_info.get("new_score") is not None:
+                            vr["score"] = rewrite_info["new_score"]
+                            vr["verdict"] = "pass" if rewrite_info["new_score"] >= target_score else "fail"
+                        if rewrite_info.get("new_evaluation"):
+                            vr["evaluation"] = rewrite_info["new_evaluation"]
+                        # Also update title with rewritten text
+                        if rewrite_info.get("rewritten_text"):
+                            vr["title"] = rewrite_info["rewritten_text"]
+
+                # Update passed/failed counts after merging rewrite results
+                passed_count = sum(1 for vr in validation_results if vr.get("verdict") == "pass")
+                failed_count = len(validation_results) - passed_count
+                logger.info(f"Updated validation results: {passed_count} passed, {failed_count} failed")
+
+        # Phase 3d: Clarification questions for guided mode (if still have failures)
+        clarification_result = None
+        if mode == "guided" and failed_count > 0:
+            logger.info(f"Phase 3d: Generating clarification questions for {failed_count} still-failing requirements (guided mode)...")
+            _send_to_workflow_stream(
+                correlation_id,
+                "agent_message",
+                agent="ClarificationAgent",
+                message=f"🔍 Generating clarification questions for {failed_count} requirements..."
+            )
 
             try:
-                # Call real LLM-based validation API
-                # Uses all 10 quality criteria: clarity, testability, measurability, atomic, concise,
-                # unambiguous, consistent_language, follows_template, design_independent, purpose_independent
-                validation_result = evaluate_requirement(
-                    requirement_text=req_title,
-                    criteria_keys=None  # None = use all criteria
+                from arch_team.agents.clarification_delegator import ClarificationDelegator
+
+                clarification_delegator = ClarificationDelegator(
+                    max_concurrent=int(os.environ.get("CLARIFICATION_MAX_CONCURRENT", "5")),
+                    auto_fix_threshold=0.5,
+                    persist_to_db=True
                 )
 
-                # Extract validation results
-                score = validation_result.get("score", 0.0)
-                verdict = validation_result.get("verdict", "fail")
-                evaluation = validation_result.get("evaluation", [])
-                error = validation_result.get("error")
+                # Get still-failing requirements
+                still_failing = [vr for vr in validation_results if vr.get("verdict") == "fail"]
 
-                # Count pass/fail
-                if verdict == "pass":
-                    passed_count += 1
-                else:
-                    failed_count += 1
+                clarification_batch = await clarification_delegator.process_batch(
+                    validation_results=still_failing,
+                    correlation_id=correlation_id
+                )
 
-                # Build result object
-                result_obj = {
-                    "req_id": req_id,
-                    "title": req_title,
-                    "score": round(score, 2),
-                    "verdict": verdict,
-                    "evaluation": evaluation,
-                    "tag": req.get("tag", "unknown")
-                }
+                clarification_result = clarification_delegator.to_dict_results(clarification_batch)
 
-                if error:
-                    result_obj["error"] = error
-                    logger.warning(f"Validation API error for {req_id}: {error}")
+                # If we have questions, send needs_user_input SSE event and return early
+                if clarification_batch.questions:
+                    logger.info(f"Generated {len(clarification_batch.questions)} clarification questions - awaiting user input")
 
-                validation_results.append(result_obj)
+                    # Format questions for frontend
+                    questions_for_frontend = []
+                    for q in clarification_batch.questions:
+                        questions_for_frontend.append({
+                            "req_id": q.requirement_id,
+                            "criterion": q.criterion,
+                            "question": q.question_text,
+                            "suggested_answers": q.suggested_answers,
+                            "context_hint": q.context_hint,
+                            "priority": q.priority.name,
+                            "score": q.score
+                        })
 
-                # Stream progress for every 5 requirements or at the end
-                if (idx + 1) % 5 == 0 or (idx + 1) == len(requirements):
+                    # Group questions by requirement
+                    questions_by_req = {}
+                    for q in questions_for_frontend:
+                        req_id = q["req_id"]
+                        if req_id not in questions_by_req:
+                            questions_by_req[req_id] = {
+                                "req_id": req_id,
+                                "title": next((vr.get("title") for vr in still_failing if vr.get("req_id") == req_id), ""),
+                                "questions": [],
+                                "failing_criteria": []
+                            }
+                        questions_by_req[req_id]["questions"].append(q)
+                        if q["criterion"] not in questions_by_req[req_id]["failing_criteria"]:
+                            questions_by_req[req_id]["failing_criteria"].append(q["criterion"])
+
+                    # Send needs_user_input SSE event
                     _send_to_workflow_stream(
                         correlation_id,
-                        "agent_message",
-                        agent="Validator",
-                        message=f"Validated {idx + 1}/{len(requirements)} requirements (✅ {passed_count} passed, ❌ {failed_count} failed)"
+                        "needs_user_input",
+                        requirements=list(questions_by_req.values()),
+                        total_questions=len(questions_for_frontend),
+                        critical_count=len(clarification_batch.critical_questions),
+                        high_count=len(clarification_batch.high_questions)
                     )
 
-            except Exception as e:
-                logger.error(f"Validation failed for requirement {req_id}: {e}")
-                failed_count += 1
-                validation_results.append({
-                    "req_id": req_id,
-                    "title": req_title,
-                    "score": 0.0,
-                    "verdict": "error",
-                    "evaluation": [],
-                    "error": str(e)
-                })
+                    _send_to_workflow_stream(
+                        correlation_id,
+                        "workflow_status",
+                        status="awaiting_input"
+                    )
 
-        logger.info(f"Validation completed: {passed_count} passed, {failed_count} failed")
+                    # Return early - workflow paused waiting for user answers
+                    return {
+                        "success": True,
+                        "workflow_status": "awaiting_input",
+                        "requirements": requirements,
+                        "kg_data": kg_result,
+                        "validation_results": {
+                            "validated_count": len(validation_results),
+                            "passed": passed_count,
+                            "failed": failed_count,
+                            "details": validation_results
+                        },
+                        "rewrite_results": rewrite_results,
+                        "clarification": clarification_result,
+                        "pending_questions": list(questions_by_req.values()),
+                        "summary": {
+                            "total_requirements": len(requirements),
+                            "kg_nodes": kg_stats.get("nodes", 0),
+                            "kg_edges": kg_stats.get("edges", 0),
+                            "validation_passed": passed_count,
+                            "validation_failed": failed_count,
+                            "questions_generated": len(questions_for_frontend)
+                        }
+                    }
+                else:
+                    logger.info("No clarification questions generated - all issues can be auto-fixed")
+
+            except Exception as e:
+                logger.error(f"Clarification generation failed: {e}", exc_info=True)
+                _send_to_workflow_stream(
+                    correlation_id,
+                    "agent_message",
+                    agent="ClarificationAgent",
+                    message=f"⚠️ Clarification generation failed (non-critical): {str(e)}"
+                )
+
+        # Phase 3c: Persist validation scores to database
+        logger.info("Phase 3c: Persisting validation scores to database...")
         _send_to_workflow_stream(
             correlation_id,
             "agent_message",
-            agent="Validator",
-            message=f"✅ Validation complete: {passed_count} passed, {failed_count} failed"
+            agent="System",
+            message="Persisting validation scores to database..."
         )
+        try:
+            from backend.core import db as _db
+            conn = _db.get_db()
+            try:
+                cursor = conn.cursor()
+                updated = 0
+                evaluations_saved = 0
+                for vr in validation_results:
+                    req_id = vr.get("req_id")
+                    score = vr.get("score")
+                    verdict = vr.get("verdict")
+                    if req_id and score is not None:
+                        cursor.execute('''
+                            UPDATE requirement_manifest
+                            SET validation_score = ?, validation_verdict = ?, updated_at = datetime('now')
+                            WHERE requirement_id = ?
+                        ''', (score, verdict, req_id))
+                        updated += cursor.rowcount
+
+                        # Also persist evaluation criteria details
+                        evaluation = vr.get("evaluation", [])
+                        if evaluation:
+                            req_text = vr.get("title") or vr.get("text", "")
+                            try:
+                                _db.persist_evaluation_with_details(
+                                    conn=conn,
+                                    requirement_text=req_text,
+                                    score=score,
+                                    verdict=verdict or ("pass" if score >= 0.7 else "fail"),
+                                    details=evaluation,
+                                    model="master_workflow",
+                                    latency_ms=0
+                                )
+                                evaluations_saved += 1
+                            except Exception as eval_err:
+                                logger.warning(f"Failed to save evaluation details for {req_id}: {eval_err}")
+
+                conn.commit()
+                logger.info(f"Updated {updated} manifests with validation scores")
+                logger.info(f"Saved {evaluations_saved} evaluation records with criteria details")
+                _send_to_workflow_stream(
+                    correlation_id,
+                    "agent_message",
+                    agent="System",
+                    message=f"✅ Persisted {updated} validation scores, {evaluations_saved} evaluation details"
+                )
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.warning(f"Failed to persist validation scores: {e}")
+            _send_to_workflow_stream(
+                correlation_id,
+                "agent_message",
+                agent="System",
+                message=f"⚠️ Validation score persistence failed (non-critical): {str(e)}"
+            )
 
         # Phase 4: Workflow complete
         logger.info("Workflow completed successfully")
@@ -630,12 +862,15 @@ Execute all phases and signal WORKFLOW_COMPLETE when done.
                 "failed": failed_count,
                 "details": validation_results
             },
+            "rewrite_results": rewrite_results,
             "summary": {
                 "total_requirements": len(requirements),
                 "kg_nodes": kg_stats.get("nodes", 0),
                 "kg_edges": kg_stats.get("edges", 0),
                 "validation_passed": passed_count,
-                "validation_failed": failed_count
+                "validation_failed": failed_count,
+                "rewritten": rewrite_results.get("rewritten_count", 0) if rewrite_results else 0,
+                "improved": rewrite_results.get("improved_count", 0) if rewrite_results else 0
             }
         }
 

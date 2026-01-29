@@ -51,6 +51,7 @@ except Exception:  # pragma: no cover
 # LLM-Implementierungen (Legacy)
 from backend.core.llm import (
     llm_evaluate as _llm_evaluate,
+    llm_evaluate_batch as _llm_evaluate_batch,
     llm_suggest as _llm_suggest,
     llm_rewrite as _llm_rewrite,
     llm_apply_with_suggestions as _llm_apply_with_suggestions,
@@ -87,7 +88,6 @@ class EmbeddingsAdapter(EmbeddingsPort):
             return int(_get_dim())
         except Exception as e:
             raise ServiceError("embeddings_dim_failed", "Failed to read embeddings dimension", details={"request_id": safe_request_id(ctx), "error": str(e)})
-
 
 class VectorStoreAdapter(VectorStorePort):
     """Adapter für VectorStorePort via backend_app.vector_store (Qdrant)"""
@@ -245,6 +245,47 @@ class LLMAdapter(LLMPort):
             raise
         except Exception as e:
             raise ServiceError("llm_evaluate_failed", "LLM evaluate failed", details={"request_id": safe_request_id(ctx), "error": str(e)})
+
+    def evaluate_batch(
+        self,
+        requirements: Sequence[Mapping[str, Any]],
+        criteria_keys: Sequence[str],
+        *,
+        context: Optional[Mapping[str, Any]] = None,
+        ctx: Optional[RequestContext] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Batch-Evaluation: Mehrere Requirements in einem einzigen LLM-Call.
+        
+        Args:
+            requirements: Liste von Dicts mit {id, text}
+            criteria_keys: Liste der Kriterien
+            context: Zusätzlicher Kontext
+            ctx: Request-Kontext
+        
+        Returns:
+            Liste von {id, details: [{criterion, score, passed, feedback}]}
+        """
+        try:
+            # Convert to list of dicts for the LLM function
+            reqs_list = [
+                {"id": str(r.get("id", f"REQ-{i}")), "text": str(r.get("text", ""))}
+                for i, r in enumerate(requirements)
+            ]
+            
+            results = _llm_evaluate_batch(
+                reqs_list,
+                list(criteria_keys or []),
+                dict(context or {})
+            )
+            
+            if not isinstance(results, list):
+                raise ServiceError("llm_evaluate_batch_failed", "Unexpected batch evaluate return type", details={"type": str(type(results))})
+            return results
+        except ServiceError:
+            raise
+        except Exception as e:
+            raise ServiceError("llm_evaluate_batch_failed", "LLM batch evaluate failed", details={"request_id": safe_request_id(ctx), "error": str(e)})
 
     def suggest(
         self,

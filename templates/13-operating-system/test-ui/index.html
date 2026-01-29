@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operating System - QEMU Debug Console</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+  <style>
+    .register-value { font-family: 'Fira Code', 'Monaco', monospace; }
+    .memory-cell { font-family: 'Fira Code', 'Monaco', monospace; }
+    .xterm { padding: 8px; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <!-- Header -->
+  <header class="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <h1 class="text-lg font-semibold flex items-center gap-2">
+        <span class="text-2xl">🖥️</span> OS Debug Console
+      </h1>
+      <div id="vm-status" class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-red-500"></span>
+        <span class="text-sm text-red-400">VM Stopped</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="buildOS()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium">
+        <span class="mdi mdi-hammer mr-1"></span> Build
+      </button>
+      <button onclick="toggleVM()" id="vm-btn" class="px-4 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">
+        <span class="mdi mdi-play mr-1"></span> Start VM
+      </button>
+      <button onclick="toggleTheme()" id="themeBtn" class="p-2 hover:bg-gray-800 rounded">
+        <span class="mdi mdi-weather-night text-xl"></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="flex h-[calc(100vh-57px)]">
+    <!-- Sidebar: VM Config & Debug -->
+    <aside class="w-80 bg-gray-900 border-r border-gray-800 overflow-y-auto">
+      <div class="p-4 space-y-6">
+        <!-- QEMU Configuration -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">VM Configuration</h2>
+          <div class="space-y-3">
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">Architecture</label>
+              <select id="arch" class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+                <option value="x86_64">x86_64 (AMD64)</option>
+                <option value="i386">i386 (x86)</option>
+                <option value="arm">ARM</option>
+                <option value="aarch64">AArch64 (ARM64)</option>
+                <option value="riscv64">RISC-V 64</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">Memory</label>
+              <select id="memory" class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+                <option value="64">64 MB</option>
+                <option value="128" selected>128 MB</option>
+                <option value="256">256 MB</option>
+                <option value="512">512 MB</option>
+                <option value="1024">1 GB</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">Boot Image</label>
+              <div class="flex gap-2">
+                <input type="text" value="build/os.bin" readonly
+                  class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm font-mono" />
+                <button class="p-2 bg-gray-800 hover:bg-gray-700 rounded">
+                  <span class="mdi mdi-folder-open"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CPU Registers -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">CPU Registers</h2>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="bg-gray-800/50 rounded p-2 flex justify-between">
+              <span class="text-gray-500">RAX</span>
+              <span class="register-value text-green-400">0x00000000</span>
+            </div>
+            <div class="bg-gray-800/50 rounded p-2 flex justify-between">
+              <span class="text-gray-500">RBX</span>
+              <span class="register-value text-green-400">0x00000000</span>
+            </div>
+            <div class="bg-gray-800/50 rounded p-2 flex justify-between">
+              <span class="text-gray-500">RCX</span>
+              <span class="register-value text-green-400">0x00000000</span>
+            </div>
+            <div class="bg-gray-800/50 rounded p-2 flex justify-between">
+              <span class="text-gray-500">RDX</span>
+              <span class="register-value text-green-400">0x00000000</span>
+            </div>
+            <div class="bg-gray-800/50 rounded p-2 flex justify-between">
+              <span class="text-gray-500">RSI</span>
+              <span class="register-value text-blue-400">0x00007C00</span>
+            </div>
+            <div class="bg-gray-800/50 rounded p-2 flex justify-between">
+              <span class="text-gray-500">RDI</span>
+              <span class="register-value text-blue-400">0x00000000</span>
+            </div>
+            <div class="bg-gray-800/50 rounded p-2 flex justify-between">
+              <span class="text-gray-500">RSP</span>
+              <span class="register-value text-purple-400">0x00007BFE</span>
+            </div>
+            <div class="bg-gray-800/50 rounded p-2 flex justify-between">
+              <span class="text-gray-500">RBP</span>
+              <span class="register-value text-purple-400">0x00007BFE</span>
+            </div>
+            <div class="bg-gray-800/50 rounded p-2 flex justify-between col-span-2">
+              <span class="text-gray-500">RIP</span>
+              <span class="register-value text-orange-400">0x00007C00</span>
+            </div>
+            <div class="bg-gray-800/50 rounded p-2 flex justify-between col-span-2">
+              <span class="text-gray-500">RFLAGS</span>
+              <span class="register-value text-yellow-400">0x00000202</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Debug Controls -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Debug Controls</h2>
+          <div class="grid grid-cols-4 gap-2">
+            <button onclick="debugStep()" class="p-2 bg-gray-800 hover:bg-gray-700 rounded text-center" title="Step Into">
+              <span class="mdi mdi-debug-step-into text-lg"></span>
+            </button>
+            <button onclick="debugStepOver()" class="p-2 bg-gray-800 hover:bg-gray-700 rounded text-center" title="Step Over">
+              <span class="mdi mdi-debug-step-over text-lg"></span>
+            </button>
+            <button onclick="debugContinue()" class="p-2 bg-gray-800 hover:bg-gray-700 rounded text-center" title="Continue">
+              <span class="mdi mdi-play text-lg text-green-400"></span>
+            </button>
+            <button onclick="debugPause()" class="p-2 bg-gray-800 hover:bg-gray-700 rounded text-center" title="Pause">
+              <span class="mdi mdi-pause text-lg text-orange-400"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Breakpoints -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide flex items-center justify-between">
+            Breakpoints
+            <button onclick="addBreakpoint()" class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded">+ Add</button>
+          </h2>
+          <div id="breakpoints-list" class="space-y-2">
+            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded">
+              <div class="flex items-center gap-2">
+                <input type="checkbox" checked class="rounded" />
+                <span class="text-xs font-mono text-red-400">0x7C00</span>
+              </div>
+              <span class="text-xs text-gray-500">boot.asm:1</span>
+            </div>
+            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded">
+              <div class="flex items-center gap-2">
+                <input type="checkbox" checked class="rounded" />
+                <span class="text-xs font-mono text-red-400">0x7C50</span>
+              </div>
+              <span class="text-xs text-gray-500">kernel.c:42</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- GDB Commands -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">GDB Quick Commands</h2>
+          <div class="space-y-1">
+            <button onclick="gdbCommand('info registers')" class="w-full text-left px-3 py-2 bg-gray-800/50 hover:bg-gray-700 rounded text-xs font-mono">
+              info registers
+            </button>
+            <button onclick="gdbCommand('x/16xb 0x7c00')" class="w-full text-left px-3 py-2 bg-gray-800/50 hover:bg-gray-700 rounded text-xs font-mono">
+              x/16xb 0x7c00
+            </button>
+            <button onclick="gdbCommand('disas')" class="w-full text-left px-3 py-2 bg-gray-800/50 hover:bg-gray-700 rounded text-xs font-mono">
+              disassemble
+            </button>
+            <button onclick="gdbCommand('bt')" class="w-full text-left px-3 py-2 bg-gray-800/50 hover:bg-gray-700 rounded text-xs font-mono">
+              backtrace
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col">
+      <!-- Tabs -->
+      <div class="flex border-b border-gray-800 bg-gray-900/50">
+        <button onclick="switchTab('serial')" class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-green-500 text-green-400">
+          Serial Console
+        </button>
+        <button onclick="switchTab('memory')" class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white">
+          Memory View
+        </button>
+        <button onclick="switchTab('disasm')" class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white">
+          Disassembly
+        </button>
+        <button onclick="switchTab('build')" class="tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white">
+          Build Output
+        </button>
+      </div>
+
+      <!-- Serial Console Tab -->
+      <div id="tab-serial" class="tab-content flex-1 flex flex-col">
+        <div id="serial-terminal" class="flex-1 bg-black"></div>
+        <div class="bg-gray-900 border-t border-gray-800 p-3 flex items-center gap-3">
+          <span class="text-green-400 font-mono text-sm">$</span>
+          <input type="text" id="serial-input"
+            class="flex-1 bg-transparent border-none outline-none font-mono text-sm"
+            placeholder="Type command..."
+            onkeydown="handleSerialInput(event)" />
+          <button onclick="sendSerial()" class="px-4 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm">
+            Send
+          </button>
+        </div>
+      </div>
+
+      <!-- Memory View Tab -->
+      <div id="tab-memory" class="tab-content flex-1 p-6 hidden overflow-y-auto">
+        <div class="bg-gray-900 rounded-xl border border-gray-800">
+          <div class="p-4 border-b border-gray-800 flex items-center gap-4">
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">Address</label>
+              <input type="text" id="memory-addr" value="0x7C00"
+                class="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm font-mono w-32" />
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">Size</label>
+              <select class="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm">
+                <option>256 bytes</option>
+                <option selected>512 bytes</option>
+                <option>1 KB</option>
+                <option>4 KB</option>
+              </select>
+            </div>
+            <button onclick="refreshMemory()" class="mt-4 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm">
+              Refresh
+            </button>
+          </div>
+          <div class="p-4 font-mono text-xs overflow-x-auto">
+            <div class="grid" style="grid-template-columns: auto repeat(16, 1fr) auto;">
+              <!-- Header -->
+              <div class="text-gray-500 p-1"></div>
+              <div class="text-gray-500 p-1 text-center">00</div>
+              <div class="text-gray-500 p-1 text-center">01</div>
+              <div class="text-gray-500 p-1 text-center">02</div>
+              <div class="text-gray-500 p-1 text-center">03</div>
+              <div class="text-gray-500 p-1 text-center">04</div>
+              <div class="text-gray-500 p-1 text-center">05</div>
+              <div class="text-gray-500 p-1 text-center">06</div>
+              <div class="text-gray-500 p-1 text-center">07</div>
+              <div class="text-gray-500 p-1 text-center">08</div>
+              <div class="text-gray-500 p-1 text-center">09</div>
+              <div class="text-gray-500 p-1 text-center">0A</div>
+              <div class="text-gray-500 p-1 text-center">0B</div>
+              <div class="text-gray-500 p-1 text-center">0C</div>
+              <div class="text-gray-500 p-1 text-center">0D</div>
+              <div class="text-gray-500 p-1 text-center">0E</div>
+              <div class="text-gray-500 p-1 text-center">0F</div>
+              <div class="text-gray-500 p-1">ASCII</div>
+            </div>
+            <div id="memory-view" class="space-y-0.5">
+              <!-- Memory rows will be generated -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Disassembly Tab -->
+      <div id="tab-disasm" class="tab-content flex-1 p-6 hidden overflow-y-auto">
+        <div class="bg-gray-900 rounded-xl border border-gray-800">
+          <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <input type="text" value="0x7C00" class="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm font-mono w-32" />
+              <button class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm">Go to Address</button>
+            </div>
+            <div class="flex items-center gap-2 text-sm text-gray-500">
+              <span class="mdi mdi-arrow-right text-green-400"></span>
+              <span>RIP: 0x7C00</span>
+            </div>
+          </div>
+          <div class="p-4 font-mono text-sm space-y-1">
+            <div class="flex items-center gap-4 p-2 bg-green-600/20 rounded border-l-4 border-green-500">
+              <span class="text-gray-500 w-20">0x7C00:</span>
+              <span class="text-blue-400 w-24">cli</span>
+              <span class="text-gray-500">; Disable interrupts</span>
+            </div>
+            <div class="flex items-center gap-4 p-2 hover:bg-gray-800/50 rounded">
+              <span class="text-gray-500 w-20">0x7C01:</span>
+              <span class="text-blue-400 w-24">xor ax, ax</span>
+              <span class="text-gray-500">; Clear AX register</span>
+            </div>
+            <div class="flex items-center gap-4 p-2 hover:bg-gray-800/50 rounded">
+              <span class="text-gray-500 w-20">0x7C03:</span>
+              <span class="text-blue-400 w-24">mov ds, ax</span>
+              <span class="text-gray-500">; Set data segment to 0</span>
+            </div>
+            <div class="flex items-center gap-4 p-2 hover:bg-gray-800/50 rounded">
+              <span class="text-gray-500 w-20">0x7C05:</span>
+              <span class="text-blue-400 w-24">mov es, ax</span>
+              <span class="text-gray-500">; Set extra segment to 0</span>
+            </div>
+            <div class="flex items-center gap-4 p-2 hover:bg-gray-800/50 rounded bg-red-600/10 border-l-4 border-red-500">
+              <span class="text-gray-500 w-20">0x7C07:</span>
+              <span class="text-blue-400 w-24">mov ss, ax</span>
+              <span class="text-gray-500">; Set stack segment</span>
+              <span class="text-red-400 ml-auto text-xs">BREAKPOINT</span>
+            </div>
+            <div class="flex items-center gap-4 p-2 hover:bg-gray-800/50 rounded">
+              <span class="text-gray-500 w-20">0x7C09:</span>
+              <span class="text-blue-400 w-24">mov sp, 0x7C00</span>
+              <span class="text-gray-500">; Set stack pointer</span>
+            </div>
+            <div class="flex items-center gap-4 p-2 hover:bg-gray-800/50 rounded">
+              <span class="text-gray-500 w-20">0x7C0C:</span>
+              <span class="text-blue-400 w-24">sti</span>
+              <span class="text-gray-500">; Enable interrupts</span>
+            </div>
+            <div class="flex items-center gap-4 p-2 hover:bg-gray-800/50 rounded">
+              <span class="text-gray-500 w-20">0x7C0D:</span>
+              <span class="text-purple-400 w-24">call 0x7C50</span>
+              <span class="text-gray-500">; Call kernel_main</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Build Output Tab -->
+      <div id="tab-build" class="tab-content flex-1 p-6 hidden">
+        <div class="h-full bg-gray-900 rounded-xl border border-gray-800 overflow-hidden flex flex-col">
+          <div class="p-2 bg-gray-800/50 border-b border-gray-800 flex items-center justify-between">
+            <span class="text-sm text-gray-400">Build Log</span>
+            <button onclick="clearBuild()" class="text-xs text-gray-500 hover:text-gray-300">Clear</button>
+          </div>
+          <div id="build-output" class="flex-1 overflow-y-auto p-4 font-mono text-sm space-y-1">
+            <div class="text-gray-500">[INFO] OS Build System v1.0</div>
+            <div class="text-gray-500">[INFO] Target: x86_64</div>
+            <div class="text-gray-500">[INFO] Toolchain: gcc-cross 13.2.0</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Panel: Stack & Variables -->
+    <aside class="w-72 bg-gray-900 border-l border-gray-800 flex flex-col">
+      <div class="p-4 border-b border-gray-800">
+        <h2 class="font-semibold">Call Stack</h2>
+      </div>
+      <div class="p-4 space-y-2 border-b border-gray-800">
+        <div class="p-2 bg-green-600/20 rounded text-sm font-mono">
+          <div class="text-green-400">_start</div>
+          <div class="text-xs text-gray-500">boot.asm:1 @ 0x7C00</div>
+        </div>
+        <div class="p-2 bg-gray-800/50 rounded text-sm font-mono">
+          <div class="text-gray-300">kernel_main</div>
+          <div class="text-xs text-gray-500">kernel.c:42 @ 0x7C50</div>
+        </div>
+        <div class="p-2 bg-gray-800/50 rounded text-sm font-mono">
+          <div class="text-gray-300">init_memory</div>
+          <div class="text-xs text-gray-500">memory.c:15 @ 0x7D20</div>
+        </div>
+      </div>
+
+      <div class="p-4 border-b border-gray-800">
+        <h2 class="font-semibold mb-3">Variables</h2>
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between p-2 bg-gray-800/50 rounded">
+            <span class="text-gray-400">kernel_size</span>
+            <span class="font-mono text-green-400">0x1000</span>
+          </div>
+          <div class="flex justify-between p-2 bg-gray-800/50 rounded">
+            <span class="text-gray-400">mem_start</span>
+            <span class="font-mono text-blue-400">0x100000</span>
+          </div>
+          <div class="flex justify-between p-2 bg-gray-800/50 rounded">
+            <span class="text-gray-400">mem_size</span>
+            <span class="font-mono text-purple-400">0x8000000</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 flex-1 overflow-y-auto">
+        <h2 class="font-semibold mb-3">Interrupt Log</h2>
+        <div id="interrupt-log" class="space-y-1 text-xs font-mono">
+          <div class="text-gray-500">[0.000] Boot</div>
+          <div class="text-blue-400">[0.001] INT 0x10 (Video)</div>
+          <div class="text-green-400">[0.002] INT 0x13 (Disk)</div>
+          <div class="text-yellow-400">[0.010] Timer IRQ</div>
+          <div class="text-yellow-400">[0.020] Timer IRQ</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    let term;
+    let fitAddon;
+    let vmRunning = false;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initTerminal();
+      generateMemoryView();
+    });
+
+    function initTerminal() {
+      term = new Terminal({
+        theme: {
+          background: '#000000',
+          foreground: '#00ff00',
+          cursor: '#00ff00',
+          cursorAccent: '#000000',
+        },
+        fontFamily: 'Fira Code, Monaco, monospace',
+        fontSize: 14,
+        cursorBlink: true,
+        scrollback: 5000,
+      });
+
+      fitAddon = new FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(document.getElementById('serial-terminal'));
+      fitAddon.fit();
+
+      // Welcome message
+      term.writeln('\x1b[1;32m========================================\x1b[0m');
+      term.writeln('\x1b[1;32m   MyOS Serial Console v0.1.0\x1b[0m');
+      term.writeln('\x1b[1;32m========================================\x1b[0m');
+      term.writeln('');
+      term.writeln('\x1b[90mWaiting for VM to start...\x1b[0m');
+      term.writeln('');
+
+      window.addEventListener('resize', () => fitAddon.fit());
+    }
+
+    function generateMemoryView() {
+      const view = document.getElementById('memory-view');
+      view.innerHTML = '';
+
+      for (let row = 0; row < 32; row++) {
+        const addr = 0x7C00 + row * 16;
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'grid hover:bg-gray-800/30';
+        rowDiv.style.gridTemplateColumns = 'auto repeat(16, 1fr) auto';
+
+        // Address
+        const addrDiv = document.createElement('div');
+        addrDiv.className = 'text-blue-400 p-1 pr-4';
+        addrDiv.textContent = '0x' + addr.toString(16).toUpperCase().padStart(4, '0');
+        rowDiv.appendChild(addrDiv);
+
+        // Bytes
+        let ascii = '';
+        for (let col = 0; col < 16; col++) {
+          const byte = Math.floor(Math.random() * 256);
+          const byteDiv = document.createElement('div');
+          byteDiv.className = 'memory-cell p-1 text-center';
+
+          // Highlight certain patterns
+          if (byte === 0x00) {
+            byteDiv.className += ' text-gray-600';
+          } else if (byte === 0xFF) {
+            byteDiv.className += ' text-red-400';
+          } else if (byte >= 0x20 && byte <= 0x7E) {
+            byteDiv.className += ' text-green-400';
+          } else {
+            byteDiv.className += ' text-gray-300';
+          }
+
+          byteDiv.textContent = byte.toString(16).toUpperCase().padStart(2, '0');
+          rowDiv.appendChild(byteDiv);
+
+          ascii += (byte >= 0x20 && byte <= 0x7E) ? String.fromCharCode(byte) : '.';
+        }
+
+        // ASCII
+        const asciiDiv = document.createElement('div');
+        asciiDiv.className = 'text-yellow-400 p-1 pl-4';
+        asciiDiv.textContent = ascii;
+        rowDiv.appendChild(asciiDiv);
+
+        view.appendChild(rowDiv);
+      }
+    }
+
+    function toggleVM() {
+      if (vmRunning) {
+        stopVM();
+      } else {
+        startVM();
+      }
+    }
+
+    function startVM() {
+      vmRunning = true;
+      document.getElementById('vm-status').innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span><span class="text-sm text-green-400">Running</span>';
+      document.getElementById('vm-btn').innerHTML = '<span class="mdi mdi-stop mr-1"></span> Stop VM';
+      document.getElementById('vm-btn').classList.remove('bg-green-600', 'hover:bg-green-700');
+      document.getElementById('vm-btn').classList.add('bg-red-600', 'hover:bg-red-700');
+
+      term.writeln('\x1b[1;34m[QEMU] Starting VM...\x1b[0m');
+      term.writeln('\x1b[90mqemu-system-x86_64 -kernel build/os.bin -serial stdio\x1b[0m');
+      term.writeln('');
+
+      setTimeout(() => {
+        term.writeln('\x1b[1;32mBooting MyOS...\x1b[0m');
+        term.writeln('Initializing memory manager...');
+        term.writeln('Setting up GDT...');
+        term.writeln('Enabling protected mode...');
+        term.writeln('');
+        term.writeln('\x1b[1;36mMyOS kernel v0.1.0\x1b[0m');
+        term.writeln('Memory: 128 MB available');
+        term.writeln('');
+        term.write('\x1b[1;32mmyos>\x1b[0m ');
+      }, 1000);
+
+      addBuildLine('[QEMU] VM started successfully', 'green');
+    }
+
+    function stopVM() {
+      vmRunning = false;
+      document.getElementById('vm-status').innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span><span class="text-sm text-red-400">VM Stopped</span>';
+      document.getElementById('vm-btn').innerHTML = '<span class="mdi mdi-play mr-1"></span> Start VM';
+      document.getElementById('vm-btn').classList.remove('bg-red-600', 'hover:bg-red-700');
+      document.getElementById('vm-btn').classList.add('bg-green-600', 'hover:bg-green-700');
+
+      term.writeln('');
+      term.writeln('\x1b[1;31m[QEMU] VM stopped\x1b[0m');
+
+      addBuildLine('[QEMU] VM stopped', 'yellow');
+    }
+
+    function buildOS() {
+      addBuildLine('[BUILD] Starting build...', 'blue');
+      addBuildLine('[AS] Assembling boot.asm...', 'gray');
+
+      setTimeout(() => {
+        addBuildLine('[AS] boot.o created', 'gray');
+        addBuildLine('[CC] Compiling kernel.c...', 'gray');
+      }, 300);
+
+      setTimeout(() => {
+        addBuildLine('[CC] kernel.o created', 'gray');
+        addBuildLine('[LD] Linking objects...', 'gray');
+      }, 600);
+
+      setTimeout(() => {
+        addBuildLine('[LD] build/os.bin created (4096 bytes)', 'gray');
+        addBuildLine('[OK] Build successful!', 'green');
+      }, 900);
+    }
+
+    function handleSerialInput(e) {
+      if (e.key === 'Enter') {
+        sendSerial();
+      }
+    }
+
+    function sendSerial() {
+      if (!vmRunning) return;
+
+      const input = document.getElementById('serial-input');
+      const cmd = input.value.trim();
+      if (!cmd) return;
+
+      term.writeln(cmd);
+
+      // Simulate response
+      if (cmd === 'help') {
+        term.writeln('Available commands:');
+        term.writeln('  help     - Show this help');
+        term.writeln('  clear    - Clear screen');
+        term.writeln('  mem      - Show memory info');
+        term.writeln('  reboot   - Reboot system');
+      } else if (cmd === 'mem') {
+        term.writeln('Memory Information:');
+        term.writeln('  Total:     128 MB');
+        term.writeln('  Used:      2 MB');
+        term.writeln('  Free:      126 MB');
+      } else if (cmd === 'clear') {
+        term.clear();
+      } else {
+        term.writeln(`Unknown command: ${cmd}`);
+      }
+
+      term.writeln('');
+      term.write('\x1b[1;32mmyos>\x1b[0m ');
+      input.value = '';
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('border-green-500', 'text-green-400');
+        el.classList.add('border-transparent', 'text-gray-400');
+      });
+
+      document.getElementById('tab-' + tab).classList.remove('hidden');
+      event.target.classList.add('border-green-500', 'text-green-400');
+      event.target.classList.remove('border-transparent', 'text-gray-400');
+
+      if (tab === 'serial') {
+        setTimeout(() => fitAddon.fit(), 0);
+      }
+    }
+
+    function debugStep() { addInterrupt('Step executed'); }
+    function debugStepOver() { addInterrupt('Step over'); }
+    function debugContinue() { addInterrupt('Continue'); }
+    function debugPause() { addInterrupt('Paused'); }
+
+    function addBreakpoint() {
+      const addr = prompt('Enter address (hex):');
+      if (!addr) return;
+
+      const list = document.getElementById('breakpoints-list');
+      const div = document.createElement('div');
+      div.className = 'flex items-center justify-between p-2 bg-gray-800/50 rounded';
+      div.innerHTML = `
+        <div class="flex items-center gap-2">
+          <input type="checkbox" checked class="rounded" />
+          <span class="text-xs font-mono text-red-400">${addr}</span>
+        </div>
+        <span class="text-xs text-gray-500">User BP</span>
+      `;
+      list.appendChild(div);
+    }
+
+    function gdbCommand(cmd) {
+      addBuildLine(`(gdb) ${cmd}`, 'gray');
+    }
+
+    function refreshMemory() {
+      generateMemoryView();
+      addBuildLine('[DEBUG] Memory view refreshed', 'blue');
+    }
+
+    function addBuildLine(text, color = 'gray') {
+      const output = document.getElementById('build-output');
+      const div = document.createElement('div');
+      div.className = `text-${color}-400`;
+      div.textContent = text;
+      output.appendChild(div);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function clearBuild() {
+      document.getElementById('build-output').innerHTML = '';
+    }
+
+    function addInterrupt(msg) {
+      const log = document.getElementById('interrupt-log');
+      const div = document.createElement('div');
+      div.className = 'text-purple-400';
+      div.textContent = `[${(Date.now() / 1000 % 100).toFixed(3)}] ${msg}`;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      const btn = document.getElementById('themeBtn');
+      btn.innerHTML = document.documentElement.classList.contains('dark')
+        ? '<span class="mdi mdi-weather-night text-xl"></span>'
+        : '<span class="mdi mdi-weather-sunny text-xl"></span>';
+    }
+
+    // Simulate periodic interrupt log updates when VM is running
+    setInterval(() => {
+      if (vmRunning && Math.random() > 0.7) {
+        const events = ['Timer IRQ', 'Keyboard IRQ', 'Disk IRQ'];
+        const event = events[Math.floor(Math.random() * events.length)];
+        addInterrupt(event);
+      }
+    }, 2000);
+  </script>
+</body>
+</html>

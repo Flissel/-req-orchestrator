@@ -6,6 +6,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app
 
+# -------- Frontend Build (Node/Vite) --------
+FROM node:20-slim AS frontend-builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --silent
+COPY src/ ./src/
+COPY public/ ./public/
+COPY index.html vite.config.js ./
+RUN npm run build
+
 # -------- Dependencies: Legacy (Flask/Gunicorn) --------
 FROM base AS deps_legacy
 COPY requirements.txt .
@@ -46,15 +56,19 @@ FROM base AS production-fastapi
 ENV API_HOST=0.0.0.0 \
     BACKEND_PORT=8087 \
     API_PORT=8087 \
-    SQLITE_PATH=/app/data/app.db
+    SQLITE_PATH=/app/data/app.db \
+    LLM_PROVIDER=openrouter \
+    OPENAI_MODEL=anthropic/claude-haiku-4.5
 # Runtime-Dependencies aus deps_fastapi übernehmen
 COPY --from=deps_fastapi /usr/local /usr/local
 # App-Code
 COPY . .
-# Unprivilegierter User + Datenverzeichnis
+# Frontend dist from builder
+COPY --from=frontend-builder /app/dist /app/dist
+# Unprivilegierter User + Datenverzeichnis + Debug-Verzeichnis + Projects-Verzeichnis
 RUN useradd --create-home --shell /bin/bash app \
- && mkdir -p /app/data \
- && chown -R app:app /app/data
+ && mkdir -p /app/data /app/debug /app/projects \
+ && chown -R app:app /app/data /app/debug /app/projects
 USER app
 # Port can be overridden via --build-arg BACKEND_PORT=xxxx
 ARG BACKEND_PORT=8087

@@ -6,7 +6,8 @@ const TabNavigation = ({ activeTab, setActiveTab }) => {
     { id: 'mining', label: 'Mining', icon: '⛏️' },
     { id: 'requirements', label: 'Requirements', icon: '📋' },
     { id: 'validation', label: 'Validation', icon: '✓' },
-    { id: 'knowledge-graph', label: 'Knowledge Graph', icon: '🕸️' }
+    { id: 'knowledge-graph', label: 'Knowledge Graph', icon: '🕸️' },
+    { id: 'techstack', label: 'TechStack', icon: '🛠️' }
   ]
 
   return (

@@ -1,0 +1,56 @@
+{
+  "$schema": "../../../requirements/schemas/requirement.schema.json",
+  "id": "REQ-API-0001",
+  "title": "RESTful API Endpoints",
+  "description": "Das System muss RESTful API-Endpoints bereitstellen, die Standard-HTTP-Methoden verwenden und dem OpenAPI 3.0 Standard folgen.",
+  "type": "functional",
+  "priority": "must",
+  "status": "approved",
+  "category": "api-core",
+  "created_at": "2024-01-01T00:00:00Z",
+  "updated_at": "2024-01-01T00:00:00Z",
+  "author": "TechStack Agent",
+  "acceptance_criteria": [
+    "GET-Requests liefern Ressourcen-Listen und einzelne Ressourcen zurück",
+    "POST-Requests erstellen neue Ressourcen und liefern 201 Created zurück",
+    "PATCH-Requests aktualisieren existierende Ressourcen partiell",
+    "DELETE-Requests entfernen Ressourcen und liefern 204 No Content zurück",
+    "Alle Endpoints unterstützen JSON als Content-Type",
+    "OpenAPI-Dokumentation ist unter /docs verfügbar"
+  ],
+  "traces": {
+    "parent_requirements": [],
+    "child_requirements": ["REQ-API-0002", "REQ-API-0003"],
+    "related_requirements": ["REQ-API-0009"],
+    "implementation_files": [
+      "app/api/v1/router.py",
+      "app/api/v1/endpoints/*.py"
+    ]
+  },
+  "implementation_hints": {
+    "framework": "FastAPI",
+    "patterns": ["REST", "OpenAPI", "Dependency Injection"],
+    "files_to_create": [
+      "app/api/v1/router.py",
+      "app/api/v1/endpoints/health.py",
+      "app/api/v1/endpoints/items.py"
+    ],
+    "code_examples": [
+      {
+        "description": "Router-Setup mit FastAPI",
+        "code": "router = APIRouter()\n@router.get('/{id}')\nasync def get_item(id: UUID):\n    return await service.get(id)"
+      }
+    ]
+  },
+  "validation": {
+    "test_cases": [
+      "test_get_items_returns_list",
+      "test_get_item_by_id_returns_item",
+      "test_post_item_creates_resource",
+      "test_patch_item_updates_resource",
+      "test_delete_item_removes_resource"
+    ],
+    "validated": false,
+    "validation_date": null
+  }
+}

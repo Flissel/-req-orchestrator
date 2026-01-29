@@ -7,9 +7,12 @@ Startet die korrigierte Version mit LangExtract-Fixes
 
 import os
 import uvicorn
-from fastapi import FastAPI, Request
-from fastapi.middleware.wsgi import WSGIMiddleware
+from fastapi import FastAPI, Request, HTTPException
+# WSGIMiddleware import removed - Flask mount disabled
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pathlib import Path
 
 # Import der korrigierten Flask-App
 # DISABLED: Flask import disabled to prevent route conflicts with FastAPI
@@ -23,6 +26,11 @@ from .routers.vector_router import router as vector_router
 from .routers.corrections_router import router as corrections_router
 from .routers.batch_router import router as batch_router
 from .routers.manifest_router import router as manifest_router
+from .routers.clarification_router import router as clarification_router
+from .routers.demo_router import router as demo_router
+from .routers.enhancement_ws_router import router as enhancement_router
+from .routers.techstack_router import router as techstack_router
+from .routers.arch_team_router import router as arch_team_router
 import uuid
 import json
 import logging
@@ -128,6 +136,11 @@ fastapi_app.include_router(vector_router)
 fastapi_app.include_router(corrections_router)
 fastapi_app.include_router(batch_router)
 fastapi_app.include_router(manifest_router)
+fastapi_app.include_router(clarification_router)
+fastapi_app.include_router(demo_router)
+fastapi_app.include_router(enhancement_router)
+fastapi_app.include_router(techstack_router)
+fastapi_app.include_router(arch_team_router)
 
 # Mount Flask-App unter Root, damit Routen wie /api/v1/* direkt erreichbar sind
 # DISABLED: Flask mount conflicts with FastAPI routers - using FastAPI v2 exclusively
@@ -153,19 +166,40 @@ async def readiness():
 async def liveness():
     return {"status": "ok"}
 
+# -------- Frontend Static Files (Production) --------
+# Serve React app from /app/dist if it exists (Docker build)
+DIST_DIR = Path("/app/dist")
+if DIST_DIR.exists() and (DIST_DIR / "index.html").exists():
+    # Mount static assets (JS, CSS, images)
+    fastapi_app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="static_assets")
+
+    @fastapi_app.get("/")
+    async def serve_frontend_root():
+        return FileResponse(DIST_DIR / "index.html")
+
+    # SPA catch-all: serve index.html for client-side routing
+    # Must be registered AFTER all API routes
+    @fastapi_app.get("/{full_path:path}")
+    async def serve_spa_fallback(full_path: str):
+        # Don't intercept API routes, health checks, or docs
+        if full_path.startswith(("api/", "health", "ready", "livez", "docs", "openapi")):
+            raise HTTPException(status_code=404, detail="Not found")
+        # Serve index.html for all other routes (SPA routing)
+        return FileResponse(DIST_DIR / "index.html")
+
 if __name__ == "__main__":
     # Konfiguration aus Umgebungsvariablen
     host = os.getenv("API_HOST", "0.0.0.0")
     # Use centralized port configuration with legacy fallback
     port = _ports.BACKEND_PORT if _ports else int(os.getenv("BACKEND_PORT", os.getenv("API_PORT", "8087")))
 
-    print("🚀 Starting Requirements Mining API V2" )
+    print("🚀 Starting Requirements Mining API V2")
     print(f"📍 Host: {host}:{port}")
     print(f"🔗 Frontend: http://{host}:{port}/mining_demo.html")
     print(f"📊 API: http://{host}:{port}/api/v1/files/ingest")
 
     uvicorn.run(
-        "backend_app_v2.main:fastapi_app",
+        "backend.main:fastapi_app",
         host=host,
         port=port,
         reload=True,

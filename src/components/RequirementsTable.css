@@ -113,6 +113,26 @@
   white-space: nowrap;
 }
 
+.child-indent {
+  color: var(--muted);
+  margin-right: 4px;
+}
+
+.split-badge {
+  font-size: 14px;
+  margin-left: 6px;
+  cursor: help;
+}
+
+.split-child-row {
+  background: rgba(76, 201, 240, 0.03);
+}
+
+.split-parent-row {
+  opacity: 0.7;
+  font-style: italic;
+}
+
 .req-title {
   max-width: 500px;
   overflow: hidden;
@@ -186,6 +206,12 @@
   font-weight: 600;
 }
 
+.not-validated {
+  color: #f59e0b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .violated-list {
   display: flex;
   flex-wrap: wrap;
@@ -209,6 +235,12 @@
   background: #d32f2f;
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.criteria-score {
+  font-weight: 400;
+  opacity: 0.85;
+  font-size: 10px;
 }
 
 @media (max-width: 1200px) {
@@ -239,4 +271,35 @@
   .req-title {
     max-width: 200px;
   }
+}
+
+/* Actions Cell */
+.actions-cell {
+  text-align: center;
+  padding: 8px !important;
+}
+
+.btn-enhance-row {
+  background: transparent;
+  border: 1px solid #8b5cf6;
+  color: #8b5cf6;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.7;
+}
+
+.btn-enhance-row:hover {
+  background: #8b5cf6;
+  color: white;
+  opacity: 1;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+}
+
+/* Row hover shows enhance button fully */
+.requirements-table tbody tr:hover .btn-enhance-row {
+  opacity: 1;
 }

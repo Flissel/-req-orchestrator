@@ -1,0 +1,60 @@
+{
+  "id": "04-mobile-expo",
+  "name": "Mobile App (Expo)",
+  "description": "Cross-platform Mobile App für iOS und Android mit Expo/React Native. Kann direkt mit Expo Go getestet werden.",
+  "version": "1.0.0",
+  "category": "mobile",
+  "tags": ["expo", "react-native", "mobile", "ios", "android", "cross-platform"],
+  "difficulty": "intermediate",
+  "estimated_setup_time": "5 minutes",
+  "tech_stack": {
+    "frontend": {
+      "framework": "Expo SDK 51",
+      "ui": "React Native",
+      "navigation": "Expo Router",
+      "language": "TypeScript"
+    },
+    "backend": {
+      "runtime": "Optional (API Service empfohlen)",
+      "state": "Zustand / React Query"
+    },
+    "database": {
+      "local": "Expo SQLite",
+      "cloud": "Supabase / Firebase (optional)"
+    },
+    "deployment": {
+      "dev": "Expo Go App",
+      "production": "EAS Build"
+    }
+  },
+  "prerequisites": [
+    "Node.js 20+",
+    "Expo Go App auf Smartphone",
+    "npm oder yarn"
+  ],
+  "ports": {
+    "metro": 8081,
+    "dev_server": 19000
+  },
+  "environment_variables": [
+    {
+      "name": "EXPO_PUBLIC_API_URL",
+      "description": "Backend API URL",
+      "default": "http://localhost:8000"
+    }
+  ],
+  "placeholders": {
+    "PROJECT_NAME": "My Mobile App",
+    "PROJECT_NAME_SNAKE": "my_mobile_app",
+    "PROJECT_NAME_KEBAB": "my-mobile-app",
+    "DESCRIPTION": "A cross-platform mobile application"
+  },
+  "features": [
+    "iOS + Android aus einer Codebase",
+    "Expo Go für Hot Reload",
+    "File-based Routing",
+    "Native APIs via Expo Modules",
+    "Over-the-Air Updates",
+    "Push Notifications ready"
+  ]
+}

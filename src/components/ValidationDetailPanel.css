@@ -241,15 +241,14 @@
 
 /* Inline Validate Button */
 .btn-validate-inline {
-  background: var(--accent);
+  padding: 8px 16px;
+  background: #3b82f6;
   color: white;
   border: none;
-  padding: 8px 16px;
   border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s;
   margin-left: 12px;
 }
 
@@ -264,8 +263,30 @@
 }
 
 .btn-validate-inline.validating {
-  background: var(--warning, #fd7e14);
+  background: #f59e0b;
   animation: pulse 1.5s infinite;
+}
+
+/* Enhance Button */
+.btn-enhance-inline {
+  padding: 8px 16px;
+  background: #8b5cf6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: 8px;
+}
+
+.btn-enhance-inline:hover {
+  background: #7c3aed;
+}
+
+.btn-enhance-inline:disabled {
+  background: #64748b;
+  cursor: not-allowed;
 }
 
 @keyframes pulse {

@@ -5,7 +5,7 @@
     "description": "Enthält die Anforderung genau eine Aussage",
     "weight": 0.20,
     "tier": "gating",
-    "threshold": 0.80,
+    "threshold": 0.70,
     "failFast": true,
     "action": "Split into separate requirements for each concern",
     "active": true
@@ -16,7 +16,7 @@
     "description": "Ist die Anforderung eindeutig und verständlich",
     "weight": 0.15,
     "tier": "gating",
-    "threshold": 0.80,
+    "threshold": 0.70,
     "failFast": false,
     "action": "Use user story format: As a [role], I want [action] so that [benefit]",
     "active": true
@@ -27,7 +27,7 @@
     "description": "Kann die Anforderung verifiziert werden",
     "weight": 0.15,
     "tier": "gating",
-    "threshold": 0.80,
+    "threshold": 0.70,
     "failFast": false,
     "action": "Add specific acceptance criteria that can be tested",
     "active": true
@@ -109,6 +109,6 @@
     "threshold": 0.60,
     "failFast": false,
     "action": "Use format: The [system/user] must/shall/should [action] [condition]",
-    "active": true
+    "active": false
   }
 ]

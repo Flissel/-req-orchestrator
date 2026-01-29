@@ -14,20 +14,18 @@ from dataclasses import dataclass
 
 from .settings import (
     OPENAI_MODEL,
-    OPENAI_API_KEY,
+    OPENROUTER_API_KEY,
     MOCK_MODE,
     MAX_PARALLEL,
-    BATCH_SIZE
+    BATCH_SIZE,
+    get_llm_config
 )
 from .db_async import load_criteria_async
 
 logger = logging.getLogger(__name__)
 
-# OpenAI Client Configuration
-if OPENAI_API_KEY and not MOCK_MODE:
-    openai.api_key = OPENAI_API_KEY
-else:
-    logger.warning("MOCK_MODE aktiviert oder OpenAI API Key fehlt")
+# NOTE: OpenAI client configuration is now set dynamically in _sync_openai_call()
+# to support runtime provider switching between OpenAI and OpenRouter
 
 @dataclass
 class LLMResult:
@@ -44,7 +42,7 @@ class AsyncLLMService:
     def __init__(self):
         self.model = OPENAI_MODEL
         # Ohne API-Key stets Mock-Modus aktivieren (deterministische Tests)
-        self.mock_mode = MOCK_MODE or (not OPENAI_API_KEY)
+        self.mock_mode = MOCK_MODE or (not OPENROUTER_API_KEY)
         self.request_count = 0
         
     async def _make_async_llm_call(
@@ -95,27 +93,40 @@ class AsyncLLMService:
             )
     
     def _sync_openai_call(
-        self, 
-        prompt: str, 
+        self,
+        prompt: str,
         system_prompt: str,
         max_tokens: int,
         temperature: float
     ) -> str:
         """Synchroner OpenAI Call (wird in thread ausgeführt)"""
+        # Read config fresh each time to support runtime provider switching
+        llm_config = get_llm_config()
+
+        # Set module-level config for legacy openai SDK
+        openai.api_key = llm_config["api_key"]
+        if llm_config["base_url"]:
+            openai.api_base = llm_config["base_url"]
+            logger.debug(f"Using base_url: {llm_config['base_url']}")
+        else:
+            # Reset to default if no base_url (e.g., switching from OpenRouter to OpenAI)
+            if hasattr(openai, 'api_base'):
+                openai.api_base = "https://api.openai.com/v1"
+
         messages = []
-        
+
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        
+
         messages.append({"role": "user", "content": prompt})
-        
+
         response = openai.ChatCompletion.create(
             model=self.model,
             messages=messages,
             max_tokens=max_tokens,
             temperature=temperature
         )
-        
+
         return response.choices[0].message.content.strip()
     
     async def _generate_mock_response(self, prompt: str) -> LLMResult:

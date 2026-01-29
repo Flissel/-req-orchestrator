@@ -1,0 +1,35 @@
+{
+  "id": "09-cli-tool",
+  "name": "CLI Tool (Python)",
+  "description": "Kommandozeilen-Tool mit Python und Typer. Rich Terminal-Output und automatische Dokumentation.",
+  "version": "1.0.0",
+  "category": "cli",
+  "tags": ["python", "cli", "typer", "terminal", "automation"],
+  "difficulty": "beginner",
+  "estimated_setup_time": "5 minutes",
+  "tech_stack": {
+    "backend": {
+      "language": "Python 3.12",
+      "cli_framework": "Typer",
+      "output": "Rich",
+      "testing": "pytest"
+    },
+    "deployment": {
+      "package": "pip install",
+      "distribution": "PyPI"
+    }
+  },
+  "prerequisites": ["Python 3.12+"],
+  "features": [
+    "Automatische --help Generierung",
+    "Tab-Completion",
+    "Rich Terminal Output",
+    "Progress Bars",
+    "Konfigurations-Management"
+  ],
+  "placeholders": {
+    "PROJECT_NAME": "mycli",
+    "PROJECT_NAME_SNAKE": "my_cli",
+    "COMMAND_NAME": "mycli"
+  }
+}

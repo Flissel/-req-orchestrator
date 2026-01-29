@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Web3 DApp - Development Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" />
+  <style>
+    .gradient-border {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 2px;
+      border-radius: 12px;
+    }
+    .gradient-border-inner {
+      background: #111827;
+      border-radius: 10px;
+    }
+    .wallet-icon { font-size: 2rem; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <!-- Header -->
+  <header class="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <h1 class="text-lg font-semibold flex items-center gap-2">
+        <span class="text-2xl">🔗</span> Web3 DApp Dashboard
+      </h1>
+      <div class="flex items-center gap-2 px-3 py-1 bg-gray-800 rounded-full">
+        <span class="w-2 h-2 rounded-full bg-green-500"></span>
+        <span class="text-sm text-gray-300">Sepolia Testnet</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="connectWallet()" id="wallet-btn" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 rounded-lg text-sm font-medium flex items-center gap-2">
+        <span class="mdi mdi-wallet"></span>
+        Connect Wallet
+      </button>
+      <button onclick="toggleTheme()" id="themeBtn" class="p-2 hover:bg-gray-800 rounded">
+        <span class="mdi mdi-weather-night text-xl"></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="flex h-[calc(100vh-57px)]">
+    <!-- Sidebar: Wallet & Network -->
+    <aside class="w-80 bg-gray-900 border-r border-gray-800 overflow-y-auto">
+      <div class="p-4 space-y-6">
+        <!-- Wallet Status -->
+        <div id="wallet-status" class="gradient-border">
+          <div class="gradient-border-inner p-4">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 bg-gradient-to-br from-orange-400 to-pink-500 rounded-full flex items-center justify-center">
+                <span class="mdi mdi-ethereum text-white text-xl"></span>
+              </div>
+              <div>
+                <p class="text-sm text-gray-400">Not Connected</p>
+                <p class="text-xs text-gray-500">Connect your wallet</p>
+              </div>
+            </div>
+            <div class="text-center text-gray-500 text-sm py-4">
+              Click "Connect Wallet" to start
+            </div>
+          </div>
+        </div>
+
+        <!-- Network Selector -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Network</h2>
+          <select id="network-select" onchange="switchNetwork()" class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+            <option value="sepolia">Sepolia Testnet</option>
+            <option value="goerli">Goerli Testnet</option>
+            <option value="mainnet">Ethereum Mainnet</option>
+            <option value="polygon">Polygon</option>
+            <option value="arbitrum">Arbitrum One</option>
+            <option value="local">Local (Hardhat)</option>
+          </select>
+        </div>
+
+        <!-- Wallet Options -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Wallet Providers</h2>
+          <div class="space-y-2">
+            <button onclick="selectWallet('metamask')" class="w-full flex items-center gap-3 p-3 bg-gray-800/50 hover:bg-gray-700 rounded-lg transition">
+              <span class="wallet-icon">🦊</span>
+              <div class="text-left">
+                <p class="font-medium">MetaMask</p>
+                <p class="text-xs text-gray-500">Browser Extension</p>
+              </div>
+            </button>
+            <button onclick="selectWallet('walletconnect')" class="w-full flex items-center gap-3 p-3 bg-gray-800/50 hover:bg-gray-700 rounded-lg transition">
+              <span class="wallet-icon">🔗</span>
+              <div class="text-left">
+                <p class="font-medium">WalletConnect</p>
+                <p class="text-xs text-gray-500">QR Code / Mobile</p>
+              </div>
+            </button>
+            <button onclick="selectWallet('coinbase')" class="w-full flex items-center gap-3 p-3 bg-gray-800/50 hover:bg-gray-700 rounded-lg transition">
+              <span class="wallet-icon">💰</span>
+              <div class="text-left">
+                <p class="font-medium">Coinbase Wallet</p>
+                <p class="text-xs text-gray-500">Mobile & Extension</p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Gas Estimator -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Gas Prices</h2>
+          <div class="grid grid-cols-3 gap-2 text-center">
+            <div class="bg-gray-800/50 rounded p-2">
+              <p class="text-green-400 font-bold">12</p>
+              <p class="text-xs text-gray-500">Low</p>
+            </div>
+            <div class="bg-gray-800/50 rounded p-2 ring-2 ring-blue-500">
+              <p class="text-blue-400 font-bold">18</p>
+              <p class="text-xs text-gray-500">Avg</p>
+            </div>
+            <div class="bg-gray-800/50 rounded p-2">
+              <p class="text-orange-400 font-bold">25</p>
+              <p class="text-xs text-gray-500">Fast</p>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500 mt-2 text-center">Gwei | Updated 5s ago</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <div class="p-6 space-y-6">
+        <!-- Contract Explorer -->
+        <div class="bg-gray-900 rounded-xl border border-gray-800">
+          <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+            <h2 class="font-semibold flex items-center gap-2">
+              <span class="mdi mdi-file-document-outline text-purple-400"></span>
+              Contract Explorer
+            </h2>
+            <button onclick="deployContract()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded text-sm font-medium">
+              Deploy New
+            </button>
+          </div>
+          <div class="p-4">
+            <div class="mb-4">
+              <label class="text-sm text-gray-400 mb-1 block">Contract Address</label>
+              <div class="flex gap-2">
+                <input type="text" id="contract-address" value="0x1234...5678"
+                  class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm font-mono" />
+                <button onclick="loadContract()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm">
+                  Load
+                </button>
+              </div>
+            </div>
+
+            <!-- Contract Functions -->
+            <div class="space-y-3">
+              <h3 class="text-sm font-semibold text-gray-400">Read Functions</h3>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-gray-800/50 rounded-lg p-3">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-mono text-green-400">balanceOf()</span>
+                    <button onclick="callFunction('balanceOf')" class="text-xs bg-green-600 hover:bg-green-700 px-2 py-1 rounded">
+                      Call
+                    </button>
+                  </div>
+                  <input type="text" placeholder="address"
+                    class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs font-mono" />
+                  <p class="text-xs text-gray-500 mt-2">Returns: <span class="text-white">1000 tokens</span></p>
+                </div>
+                <div class="bg-gray-800/50 rounded-lg p-3">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-mono text-green-400">totalSupply()</span>
+                    <button onclick="callFunction('totalSupply')" class="text-xs bg-green-600 hover:bg-green-700 px-2 py-1 rounded">
+                      Call
+                    </button>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-2">Returns: <span class="text-white">1,000,000 tokens</span></p>
+                </div>
+              </div>
+
+              <h3 class="text-sm font-semibold text-gray-400 mt-4">Write Functions</h3>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-gray-800/50 rounded-lg p-3">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-mono text-orange-400">transfer()</span>
+                    <button onclick="writeFunction('transfer')" class="text-xs bg-orange-600 hover:bg-orange-700 px-2 py-1 rounded">
+                      Write
+                    </button>
+                  </div>
+                  <input type="text" placeholder="to address"
+                    class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs font-mono mb-2" />
+                  <input type="text" placeholder="amount"
+                    class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs font-mono" />
+                </div>
+                <div class="bg-gray-800/50 rounded-lg p-3">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-mono text-orange-400">approve()</span>
+                    <button onclick="writeFunction('approve')" class="text-xs bg-orange-600 hover:bg-orange-700 px-2 py-1 rounded">
+                      Write
+                    </button>
+                  </div>
+                  <input type="text" placeholder="spender address"
+                    class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs font-mono mb-2" />
+                  <input type="text" placeholder="amount"
+                    class="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs font-mono" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Transaction History -->
+        <div class="bg-gray-900 rounded-xl border border-gray-800">
+          <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+            <h2 class="font-semibold flex items-center gap-2">
+              <span class="mdi mdi-swap-horizontal text-blue-400"></span>
+              Transaction History
+            </h2>
+            <button onclick="refreshTx()" class="p-2 hover:bg-gray-800 rounded">
+              <span class="mdi mdi-refresh"></span>
+            </button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-800/50">
+                <tr>
+                  <th class="text-left p-3 text-gray-400 font-medium">Tx Hash</th>
+                  <th class="text-left p-3 text-gray-400 font-medium">Type</th>
+                  <th class="text-left p-3 text-gray-400 font-medium">From</th>
+                  <th class="text-left p-3 text-gray-400 font-medium">To</th>
+                  <th class="text-left p-3 text-gray-400 font-medium">Value</th>
+                  <th class="text-left p-3 text-gray-400 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody id="tx-list">
+                <tr class="border-t border-gray-800 hover:bg-gray-800/30">
+                  <td class="p-3 font-mono text-xs">
+                    <a href="#" class="text-blue-400 hover:underline">0x1a2b...3c4d</a>
+                  </td>
+                  <td class="p-3"><span class="bg-purple-600/20 text-purple-400 px-2 py-0.5 rounded text-xs">Transfer</span></td>
+                  <td class="p-3 font-mono text-xs">0xabc...def</td>
+                  <td class="p-3 font-mono text-xs">0x123...456</td>
+                  <td class="p-3">0.5 ETH</td>
+                  <td class="p-3"><span class="text-green-400 flex items-center gap-1"><span class="mdi mdi-check-circle"></span> Success</span></td>
+                </tr>
+                <tr class="border-t border-gray-800 hover:bg-gray-800/30">
+                  <td class="p-3 font-mono text-xs">
+                    <a href="#" class="text-blue-400 hover:underline">0x5e6f...7g8h</a>
+                  </td>
+                  <td class="p-3"><span class="bg-orange-600/20 text-orange-400 px-2 py-0.5 rounded text-xs">Approve</span></td>
+                  <td class="p-3 font-mono text-xs">0xabc...def</td>
+                  <td class="p-3 font-mono text-xs">0x789...012</td>
+                  <td class="p-3">-</td>
+                  <td class="p-3"><span class="text-yellow-400 flex items-center gap-1"><span class="mdi mdi-clock-outline"></span> Pending</span></td>
+                </tr>
+                <tr class="border-t border-gray-800 hover:bg-gray-800/30">
+                  <td class="p-3 font-mono text-xs">
+                    <a href="#" class="text-blue-400 hover:underline">0x9i0j...1k2l</a>
+                  </td>
+                  <td class="p-3"><span class="bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded text-xs">Deploy</span></td>
+                  <td class="p-3 font-mono text-xs">0xabc...def</td>
+                  <td class="p-3 font-mono text-xs">Contract</td>
+                  <td class="p-3">0.02 ETH</td>
+                  <td class="p-3"><span class="text-green-400 flex items-center gap-1"><span class="mdi mdi-check-circle"></span> Success</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Events & Logs -->
+        <div class="bg-gray-900 rounded-xl border border-gray-800">
+          <div class="p-4 border-b border-gray-800">
+            <h2 class="font-semibold flex items-center gap-2">
+              <span class="mdi mdi-bell-outline text-green-400"></span>
+              Contract Events
+            </h2>
+          </div>
+          <div class="p-4 space-y-2 font-mono text-xs max-h-48 overflow-y-auto" id="events-log">
+            <div class="flex items-start gap-2 text-gray-400">
+              <span class="text-gray-600">[12:34:56]</span>
+              <span class="text-green-400">Transfer</span>
+              <span>from 0xabc...def to 0x123...456 | 100 tokens</span>
+            </div>
+            <div class="flex items-start gap-2 text-gray-400">
+              <span class="text-gray-600">[12:33:21]</span>
+              <span class="text-orange-400">Approval</span>
+              <span>owner 0xabc...def | spender 0x789...012 | 1000 tokens</span>
+            </div>
+            <div class="flex items-start gap-2 text-gray-400">
+              <span class="text-gray-600">[12:30:00]</span>
+              <span class="text-blue-400">Mint</span>
+              <span>to 0xabc...def | 10000 tokens</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Panel: ABI & Debug -->
+    <aside class="w-80 bg-gray-900 border-l border-gray-800 flex flex-col">
+      <div class="p-4 border-b border-gray-800">
+        <h2 class="font-semibold">Contract ABI</h2>
+      </div>
+      <div class="flex-1 overflow-y-auto p-4">
+        <pre class="text-xs font-mono text-gray-400 bg-gray-800/50 rounded p-3 overflow-x-auto">[
+  {
+    "type": "function",
+    "name": "balanceOf",
+    "inputs": [
+      { "name": "account", "type": "address" }
+    ],
+    "outputs": [
+      { "name": "", "type": "uint256" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transfer",
+    "inputs": [
+      { "name": "to", "type": "address" },
+      { "name": "amount", "type": "uint256" }
+    ],
+    "outputs": [
+      { "name": "", "type": "bool" }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "Transfer",
+    "inputs": [
+      { "name": "from", "type": "address", "indexed": true },
+      { "name": "to", "type": "address", "indexed": true },
+      { "name": "value", "type": "uint256" }
+    ]
+  }
+]</pre>
+      </div>
+      <div class="p-4 border-t border-gray-800">
+        <button onclick="uploadABI()" class="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm">
+          <span class="mdi mdi-upload mr-2"></span>Upload ABI
+        </button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Connect Wallet Modal -->
+  <div id="wallet-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
+    <div class="bg-gray-900 rounded-xl max-w-md w-full mx-4 border border-gray-800">
+      <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+        <h2 class="text-lg font-semibold">Connect Wallet</h2>
+        <button onclick="hideWalletModal()" class="p-1 hover:bg-gray-800 rounded">
+          <span class="mdi mdi-close text-xl"></span>
+        </button>
+      </div>
+      <div class="p-4 space-y-3">
+        <button onclick="connectWith('metamask')" class="w-full flex items-center gap-4 p-4 bg-gray-800/50 hover:bg-gray-700 rounded-xl transition">
+          <span class="text-4xl">🦊</span>
+          <div class="text-left">
+            <p class="font-semibold">MetaMask</p>
+            <p class="text-sm text-gray-500">Connect using browser extension</p>
+          </div>
+        </button>
+        <button onclick="connectWith('walletconnect')" class="w-full flex items-center gap-4 p-4 bg-gray-800/50 hover:bg-gray-700 rounded-xl transition">
+          <span class="text-4xl">🔗</span>
+          <div class="text-left">
+            <p class="font-semibold">WalletConnect</p>
+            <p class="text-sm text-gray-500">Scan with your mobile wallet</p>
+          </div>
+        </button>
+        <button onclick="connectWith('coinbase')" class="w-full flex items-center gap-4 p-4 bg-gray-800/50 hover:bg-gray-700 rounded-xl transition">
+          <span class="text-4xl">💰</span>
+          <div class="text-left">
+            <p class="font-semibold">Coinbase Wallet</p>
+            <p class="text-sm text-gray-500">Connect using Coinbase</p>
+          </div>
+        </button>
+      </div>
+      <div class="p-4 border-t border-gray-800 text-center text-xs text-gray-500">
+        By connecting, you agree to the Terms of Service
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let connected = false;
+    let walletAddress = null;
+
+    function connectWallet() {
+      document.getElementById('wallet-modal').classList.remove('hidden');
+    }
+
+    function hideWalletModal() {
+      document.getElementById('wallet-modal').classList.add('hidden');
+    }
+
+    function connectWith(provider) {
+      hideWalletModal();
+      simulateConnection(provider);
+    }
+
+    function selectWallet(provider) {
+      simulateConnection(provider);
+    }
+
+    function simulateConnection(provider) {
+      // Simulate wallet connection
+      walletAddress = '0x' + Array(40).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join('');
+      connected = true;
+
+      // Update wallet button
+      document.getElementById('wallet-btn').innerHTML = `
+        <span class="w-2 h-2 rounded-full bg-green-500"></span>
+        ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}
+      `;
+
+      // Update wallet status
+      document.getElementById('wallet-status').innerHTML = `
+        <div class="gradient-border-inner p-4">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-orange-400 to-pink-500 rounded-full flex items-center justify-center">
+              <span class="mdi mdi-${provider === 'metamask' ? 'firefox' : provider === 'coinbase' ? 'currency-usd' : 'link'} text-white text-xl"></span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium truncate">${walletAddress.slice(0, 10)}...${walletAddress.slice(-8)}</p>
+              <p class="text-xs text-gray-500">${provider.charAt(0).toUpperCase() + provider.slice(1)}</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3 text-center">
+            <div class="bg-gray-800 rounded p-2">
+              <p class="text-lg font-bold">2.45 ETH</p>
+              <p class="text-xs text-gray-500">Balance</p>
+            </div>
+            <div class="bg-gray-800 rounded p-2">
+              <p class="text-lg font-bold">$4,521</p>
+              <p class="text-xs text-gray-500">USD Value</p>
+            </div>
+          </div>
+          <button onclick="disconnectWallet()" class="w-full mt-3 px-3 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded text-sm">
+            Disconnect
+          </button>
+        </div>
+      `;
+
+      addEvent('Connection', `Connected via ${provider}: ${walletAddress.slice(0, 10)}...`);
+    }
+
+    function disconnectWallet() {
+      connected = false;
+      walletAddress = null;
+
+      document.getElementById('wallet-btn').innerHTML = `
+        <span class="mdi mdi-wallet"></span>
+        Connect Wallet
+      `;
+
+      document.getElementById('wallet-status').innerHTML = `
+        <div class="gradient-border-inner p-4">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-orange-400 to-pink-500 rounded-full flex items-center justify-center">
+              <span class="mdi mdi-ethereum text-white text-xl"></span>
+            </div>
+            <div>
+              <p class="text-sm text-gray-400">Not Connected</p>
+              <p class="text-xs text-gray-500">Connect your wallet</p>
+            </div>
+          </div>
+          <div class="text-center text-gray-500 text-sm py-4">
+            Click "Connect Wallet" to start
+          </div>
+        </div>
+      `;
+
+      addEvent('Disconnection', 'Wallet disconnected');
+    }
+
+    function switchNetwork() {
+      const network = document.getElementById('network-select').value;
+      addEvent('Network', `Switched to ${network}`);
+    }
+
+    function callFunction(name) {
+      addEvent('Read', `Called ${name}() - returned value`);
+    }
+
+    function writeFunction(name) {
+      if (!connected) {
+        alert('Please connect your wallet first');
+        return;
+      }
+      addEvent('Write', `Executing ${name}()...`);
+
+      // Add pending transaction
+      const tbody = document.getElementById('tx-list');
+      const tr = document.createElement('tr');
+      tr.className = 'border-t border-gray-800 hover:bg-gray-800/30';
+      tr.innerHTML = `
+        <td class="p-3 font-mono text-xs">
+          <a href="#" class="text-blue-400 hover:underline">0x${Math.random().toString(16).slice(2, 10)}...</a>
+        </td>
+        <td class="p-3"><span class="bg-orange-600/20 text-orange-400 px-2 py-0.5 rounded text-xs">${name}</span></td>
+        <td class="p-3 font-mono text-xs">${walletAddress?.slice(0, 8)}...</td>
+        <td class="p-3 font-mono text-xs">0x1234...5678</td>
+        <td class="p-3">-</td>
+        <td class="p-3"><span class="text-yellow-400 flex items-center gap-1"><span class="mdi mdi-clock-outline"></span> Pending</span></td>
+      `;
+      tbody.insertBefore(tr, tbody.firstChild);
+
+      // Simulate confirmation
+      setTimeout(() => {
+        tr.querySelector('td:last-child').innerHTML = '<span class="text-green-400 flex items-center gap-1"><span class="mdi mdi-check-circle"></span> Success</span>';
+        addEvent(name, 'Transaction confirmed');
+      }, 2000);
+    }
+
+    function loadContract() {
+      addEvent('Contract', 'Contract loaded successfully');
+    }
+
+    function deployContract() {
+      if (!connected) {
+        alert('Please connect your wallet first');
+        return;
+      }
+      addEvent('Deploy', 'Deploying new contract...');
+    }
+
+    function uploadABI() {
+      addEvent('ABI', 'ABI uploaded successfully');
+    }
+
+    function refreshTx() {
+      addEvent('Refresh', 'Transaction list refreshed');
+    }
+
+    function addEvent(type, message) {
+      const log = document.getElementById('events-log');
+      const now = new Date();
+      const time = now.toTimeString().slice(0, 8);
+      const colors = {
+        'Transfer': 'green',
+        'Approval': 'orange',
+        'Mint': 'blue',
+        'Connection': 'purple',
+        'Disconnection': 'red',
+        'Network': 'cyan',
+        'Read': 'green',
+        'Write': 'orange',
+        'Contract': 'blue',
+        'Deploy': 'purple',
+        'ABI': 'gray',
+        'Refresh': 'gray'
+      };
+      const color = colors[type] || 'gray';
+
+      const div = document.createElement('div');
+      div.className = 'flex items-start gap-2 text-gray-400';
+      div.innerHTML = `
+        <span class="text-gray-600">[${time}]</span>
+        <span class="text-${color}-400">${type}</span>
+        <span>${message}</span>
+      `;
+      log.insertBefore(div, log.firstChild);
+    }
+
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      const btn = document.getElementById('themeBtn');
+      btn.innerHTML = document.documentElement.classList.contains('dark')
+        ? '<span class="mdi mdi-weather-night text-xl"></span>'
+        : '<span class="mdi mdi-weather-sunny text-xl"></span>';
+    }
+
+    // Simulate gas price updates
+    setInterval(() => {
+      const low = Math.floor(Math.random() * 5) + 10;
+      const avg = low + Math.floor(Math.random() * 8) + 3;
+      const fast = avg + Math.floor(Math.random() * 10) + 5;
+
+      document.querySelectorAll('.grid-cols-3 p.font-bold')[0].textContent = low;
+      document.querySelectorAll('.grid-cols-3 p.font-bold')[1].textContent = avg;
+      document.querySelectorAll('.grid-cols-3 p.font-bold')[2].textContent = fast;
+    }, 10000);
+  </script>
+</body>
+</html>

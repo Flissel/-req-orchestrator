@@ -1,0 +1,44 @@
+{
+  "id": "REQ-WEB-0009",
+  "text": "Die Anwendung muss eine initiale Ladezeit von unter 3 Sekunden bei einer 3G-Verbindung erreichen",
+  "type": "non-functional",
+  "template_id": "01-web-app",
+  "priority": "should",
+  "status": "validated",
+  "category": "performance",
+  "component": "frontend",
+  "acceptance_criteria": [
+    "First Contentful Paint (FCP) unter 1.8 Sekunden",
+    "Time to Interactive (TTI) unter 3.8 Sekunden",
+    "Largest Contentful Paint (LCP) unter 2.5 Sekunden",
+    "Cumulative Layout Shift (CLS) unter 0.1",
+    "Lighthouse Performance Score mindestens 90"
+  ],
+  "traces": [
+    {
+      "type": "implements",
+      "target": "next.config.js",
+      "description": "Image Optimization, Code Splitting"
+    },
+    {
+      "type": "tests",
+      "target": "lighthouse",
+      "description": "Lighthouse CI Tests"
+    }
+  ],
+  "implementation_hints": {
+    "files": [
+      "next.config.js",
+      "app/layout.tsx"
+    ],
+    "patterns": ["Code Splitting", "Image Optimization", "Server Components"],
+    "libraries": ["next/image", "next/font"]
+  },
+  "metadata": {
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z",
+    "source": "template",
+    "validation_score": 0.90
+  },
+  "tags": ["performance", "core-web-vitals", "lighthouse"]
+}

@@ -1,0 +1,146 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://req-orchestrator.local/schemas/requirement.schema.json",
+  "title": "Requirement",
+  "description": "Schema for a software requirement specification",
+  "type": "object",
+  "required": ["id", "text", "type", "template_id", "status"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^REQ-[A-Z]{2,4}-\\d{4}$",
+      "description": "Unique identifier (e.g., REQ-WEB-0001, REQ-API-0042)"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 10,
+      "description": "The requirement text"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["functional", "non-functional", "constraint", "interface"],
+      "description": "Requirement category"
+    },
+    "template_id": {
+      "type": "string",
+      "pattern": "^\\d{2}-[a-z-]+$",
+      "description": "Template this requirement belongs to (e.g., 01-web-app)"
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["must", "should", "could", "wont"],
+      "default": "should",
+      "description": "MoSCoW priority"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "validated", "approved", "implemented", "tested", "deprecated"],
+      "default": "draft"
+    },
+    "category": {
+      "type": "string",
+      "description": "Technical category (e.g., auth, database, ui)"
+    },
+    "component": {
+      "type": "string",
+      "description": "Target component or module"
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of acceptance criteria"
+    },
+    "traces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "target"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["implements", "tests", "depends_on", "conflicts_with", "refines", "derives_from"]
+          },
+          "target": {
+            "type": "string",
+            "description": "Target requirement ID or file path"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Traceability links"
+    },
+    "implementation_hints": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Files to create or modify"
+        },
+        "patterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Design patterns to use"
+        },
+        "libraries": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Libraries to use"
+        },
+        "code_snippets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "language": { "type": "string" },
+              "code": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_by": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string",
+          "description": "Origin of the requirement (user, extracted, generated)"
+        },
+        "validation_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "enhancement_version": {
+          "type": "integer",
+          "description": "Version after enhancement passes"
+        },
+        "kg_node_id": {
+          "type": "string",
+          "description": "ID in the knowledge graph"
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Searchable tags"
+    }
+  },
+  "additionalProperties": false
+}

@@ -18,8 +18,14 @@ from ..runtime.logging import get_logger
 
 logger = get_logger("tools.validation")
 
-# API Base URL (from arch_team.service or backend_app_v2)
-API_BASE = os.environ.get("VALIDATION_API_BASE", "http://localhost:8000")
+# API Base URL - Use ARCH_TEAM_PORT (8000) or BACKEND_PORT (8087) based on configuration
+# VALIDATION_API_BASE overrides everything if set
+_arch_port = os.environ.get("ARCH_TEAM_PORT", "8000")
+_backend_port = os.environ.get("BACKEND_PORT", "8087")
+# Default to backend port for API v2 endpoints
+API_BASE = os.environ.get("VALIDATION_API_BASE", f"http://localhost:{_backend_port}")
+# Timeout for API calls (default 120s - allows for batch processing with sequential LLM calls)
+API_TIMEOUT = int(os.environ.get("VALIDATION_TIMEOUT", "120"))
 
 
 def evaluate_requirement(
@@ -53,7 +59,7 @@ def evaluate_requirement(
         }
 
         logger.info(f"Evaluating requirement via {url}")
-        response = requests.post(url, json=payload, timeout=30)
+        response = requests.post(url, json=payload, timeout=API_TIMEOUT)
         response.raise_for_status()
 
         result = response.json()
@@ -266,12 +272,214 @@ def detect_duplicates(
         return duplicates
 
 
+# --- NEW: Feedback-based Rewriting ---
+
+def rewrite_with_feedback(
+    requirement_text: str,
+    evaluation: List[Dict[str, Any]],
+    score: float = 0.0
+) -> Dict[str, Any]:
+    """
+    Rewrites a requirement based on specific validation feedback.
+    
+    Uses the evaluation feedback to generate targeted improvements
+    following IEEE 29148 standards.
+
+    Args:
+        requirement_text: The original requirement to improve
+        evaluation: List of criterion evaluations from validate, each with:
+            - criterion: Name of the criterion
+            - score: Score for this criterion (0-1)
+            - passed: Boolean whether it passed
+            - feedback: Specific feedback on what's wrong
+        score: Overall validation score (for reference)
+
+    Returns:
+        {
+            "original_text": "...",
+            "rewritten_text": "...",
+            "improvement_summary": "Addressed 5 failed criteria",
+            "addressed_criteria": ["clarity", "testability", ...],
+            "error": null
+        }
+
+    Example:
+        result = rewrite_with_feedback(
+            requirement_text="The system must be fast",
+            evaluation=[
+                {"criterion": "measurability", "score": 0.3, "passed": false, 
+                 "feedback": "No metrics defined"}
+            ],
+            score=0.35
+        )
+    """
+    try:
+        import asyncio
+        from ..agents.rewrite_worker import RewriteTask, RewriteWorkerAgent
+        
+        logger.info(f"Rewriting requirement with {len(evaluation)} criteria feedback")
+        
+        # Create a rewrite task with the feedback
+        task = RewriteTask(
+            req_id="rewrite-single",
+            original_text=requirement_text,
+            score=score,
+            evaluation=evaluation,
+            index=0,
+            attempt=1
+        )
+        
+        # Create a semaphore for single use
+        semaphore = asyncio.Semaphore(1)
+        
+        # Create worker and run rewrite
+        worker = RewriteWorkerAgent(
+            worker_id="rewrite-worker-single",
+            semaphore=semaphore
+        )
+        
+        # Run in event loop
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If already in async context, use asyncio.to_thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    lambda: asyncio.run(worker.rewrite(task))
+                )
+                result = future.result(timeout=60)
+        else:
+            result = loop.run_until_complete(worker.rewrite(task))
+        
+        return {
+            "original_text": result.original_text,
+            "rewritten_text": result.rewritten_text,
+            "improvement_summary": result.improvement_summary,
+            "addressed_criteria": result.addressed_criteria,
+            "error": result.error
+        }
+        
+    except Exception as e:
+        logger.error(f"Rewrite with feedback failed: {e}")
+        return {
+            "original_text": requirement_text,
+            "rewritten_text": requirement_text,
+            "improvement_summary": f"Error: {str(e)}",
+            "addressed_criteria": [],
+            "error": str(e)
+        }
+
+
+def rewrite_batch_with_feedback(
+    failed_requirements: List[Dict[str, Any]],
+    max_concurrent: int = 3,
+    max_attempts: int = 3,
+    target_score: float = 0.7,
+    enable_revalidation: bool = True
+) -> Dict[str, Any]:
+    """
+    Rewrites multiple failed requirements in parallel with feedback-based improvement.
+    
+    Args:
+        failed_requirements: List of requirement dicts, each with:
+            - req_id: Requirement ID
+            - title/text: Original requirement text
+            - score: Validation score (should be < 0.7)
+            - evaluation: List of criterion evaluations
+            - tag: Optional category
+        max_concurrent: Maximum parallel rewrites (default 3)
+        max_attempts: Maximum rewrite attempts per requirement (default 3)
+        target_score: Target validation score (default 0.7)
+        enable_revalidation: Whether to re-validate after rewriting (default True)
+
+    Returns:
+        {
+            "total_count": 10,
+            "rewritten_count": 8,
+            "improved_count": 6,
+            "unchanged_count": 2,
+            "error_count": 0,
+            "total_time_ms": 45000,
+            "details": [...]
+        }
+
+    Example:
+        from arch_team.tools.validation_tools import rewrite_batch_with_feedback
+        
+        failed_reqs = [
+            {
+                "req_id": "REQ-001",
+                "title": "System must be fast",
+                "score": 0.35,
+                "evaluation": [{"criterion": "measurability", "passed": false, ...}]}
+        ]
+        
+        result = rewrite_batch_with_feedback(
+            failed_requirements=failed_reqs,
+            max_concurrent=3,
+            enable_revalidation=True
+        )
+    """
+    try:
+        import asyncio
+        from ..agents.rewrite_delegator import rewrite_requirements_parallel
+        
+        logger.info(f"Batch rewriting {len(failed_requirements)} requirements "
+                   f"(max_concurrent={max_concurrent}, max_attempts={max_attempts})")
+        
+        # Run in event loop
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If already in async context, use asyncio.to_thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    lambda: asyncio.run(
+                        rewrite_requirements_parallel(
+                            failed_requirements=failed_requirements,
+                            max_concurrent=max_concurrent,
+                            max_attempts=max_attempts,
+                            target_score=target_score,
+                            enable_revalidation=enable_revalidation
+                        )
+                    )
+                )
+                result = future.result(timeout=300)  # 5 minute timeout for batch
+        else:
+            result = loop.run_until_complete(
+                rewrite_requirements_parallel(
+                    failed_requirements=failed_requirements,
+                    max_concurrent=max_concurrent,
+                    max_attempts=max_attempts,
+                    target_score=target_score,
+                    enable_revalidation=enable_revalidation
+                )
+            )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Batch rewrite with feedback failed: {e}")
+        return {
+            "total_count": len(failed_requirements),
+            "rewritten_count": 0,
+            "improved_count": 0,
+            "unchanged_count": 0,
+            "error_count": len(failed_requirements),
+            "total_time_ms": 0,
+            "details": [],
+            "error": str(e)
+        }
+
+
 # Export tools for AutoGen (will be converted to FunctionTool in requirements_agent.py)
 VALIDATION_TOOLS = [
     evaluate_requirement,
     rewrite_requirement,
     suggest_improvements,
     detect_duplicates,
+    rewrite_with_feedback,
+    rewrite_batch_with_feedback,
 ]
 
 # Alias for lowercase import compatibility

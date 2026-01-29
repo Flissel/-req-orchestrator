@@ -6,20 +6,26 @@ from typing import Any, Dict, List, Optional, Union
 
 from .chat_client import IChatClient, Messages
 
+# Try to import backend settings for provider config
+try:
+    from backend.core.settings import get_llm_config
+    _has_backend_settings = True
+except ImportError:
+    _has_backend_settings = False
+
 
 class OpenAIAdapter(IChatClient):
     """
-    Adapter für OpenAI ChatCompletions mit Lazy-Import und Dual-Support:
-    - openai>=1.0 (OpenAI().chat.completions.create)
-    - legacy openai<1.0 (openai.ChatCompletion.create)
+    Adapter für OpenRouter ChatCompletions via OpenAI SDK.
+    Uses OpenRouter as the LLM provider (OpenAI-compatible API).
 
     Umgebungsvariablen:
-    - OPENAI_API_KEY (erforderlich)
-    - MODEL_NAME (optional; Default: gpt-4o-mini)
+    - OPENROUTER_API_KEY (erforderlich)
+    - MODEL_NAME (optional; Default: google/gemini-2.5-flash:nitro)
     """
 
     def __init__(self, default_model: Optional[str] = None) -> None:
-        self.default_model = default_model or os.environ.get("MODEL_NAME", "gpt-4o-mini")
+        self.default_model = default_model or os.environ.get("MODEL_NAME", "google/gemini-2.5-flash:nitro")
 
     def create(
         self,
@@ -29,9 +35,18 @@ class OpenAIAdapter(IChatClient):
         tools: Optional[List[Dict[str, Any]]] = None,
         **kwargs: Any,
     ) -> Union[str, Messages]:
-        api_key = os.environ.get("OPENAI_API_KEY", "")
+        # Get OpenRouter configuration
+        if _has_backend_settings:
+            llm_config = get_llm_config()
+            api_key = llm_config["api_key"]
+            base_url = llm_config["base_url"]
+        else:
+            # Fallback to direct env var if backend settings not available
+            api_key = os.environ.get("OPENROUTER_API_KEY", "")
+            base_url = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+
         if not api_key:
-            raise RuntimeError("OPENAI_API_KEY nicht gesetzt. Bitte Umgebungsvariable setzen, z. B. via .env")
+            raise RuntimeError("OPENROUTER_API_KEY nicht gesetzt.")
 
         model_name = model or self.default_model
         temp = float(temperature) if temperature is not None else float(os.environ.get("ARCH_TEMPERATURE", "0.2"))
@@ -39,7 +54,8 @@ class OpenAIAdapter(IChatClient):
         # Versuch: neues SDK (>=1.0) - this should always work with openai>=1.0
         try:
             from openai import OpenAI  # type: ignore
-            client = OpenAI(api_key=api_key)
+            # Pass base_url for OpenRouter support
+            client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
             # Tools (falls vorhanden) nur an das neue SDK weiterreichen
             resp = client.chat.completions.create(
                 model=model_name,
@@ -68,6 +84,9 @@ class OpenAIAdapter(IChatClient):
         try:
             import openai  # type: ignore
             openai.api_key = api_key
+            # Legacy SDK uses openai.api_base for OpenRouter support
+            if base_url:
+                openai.api_base = base_url
             resp = openai.ChatCompletion.create(model=model_name, messages=messages, temperature=temp)
             content = (resp["choices"][0]["message"]["content"] or "").strip()
             return content

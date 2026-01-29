@@ -123,9 +123,14 @@ export default function KnowledgeGraph({ data, requirements }) {
         layout: {
           name: 'cose',
           animate: false,
-          padding: 30,
-          nodeRepulsion: 8000,
-          idealEdgeLength: 100
+          padding: 150,
+          nodeRepulsion: 120000,
+          idealEdgeLength: 500,
+          nodeOverlap: 100,
+          gravity: 0.03,
+          nestingFactor: 1.5,
+          edgeElasticity: 150,
+          spacingFactor: 2.5
         }
       })
 
@@ -159,45 +164,93 @@ export default function KnowledgeGraph({ data, requirements }) {
     }
   }
 
-  return (
-    <div className="kg-panel">
-      <h2>🕸️ Knowledge Graph</h2>
+  // Calculate dynamic height based on node count
+  const calculateGraphHeight = () => {
+    const baseHeight = 1000
+    const nodeCount = stats.nodes
+    if (nodeCount <= 20) return baseHeight
+    if (nodeCount <= 50) return baseHeight + 600
+    if (nodeCount <= 100) return baseHeight + 1200
+    return baseHeight + 2000 // Over 100 nodes
+  }
 
-      <div className="kg-stats">
+  const graphHeight = calculateGraphHeight()
+
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      maxHeight: 'calc(100vh - 350px)',
+      overflowY: 'auto'
+    }}>
+      <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#4cc9f0' }}>🕸️ Knowledge Graph</h2>
+
+      <div className="kg-stats" style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: '12px',
+        marginBottom: '16px'
+      }}>
         <div className="stat-card">
-          <div className="stat-number">{stats.nodes}</div>
-          <div className="stat-label">Knoten</div>
+          <div className="stat-number" style={{ fontSize: '24px', fontWeight: 'bold' }}>{stats.nodes}</div>
+          <div className="stat-label" style={{ fontSize: '11px', color: '#64748b' }}>KNOTEN</div>
         </div>
         <div className="stat-card">
-          <div className="stat-number">{stats.edges}</div>
-          <div className="stat-label">Kanten</div>
+          <div className="stat-number" style={{ fontSize: '24px', fontWeight: 'bold' }}>{stats.edges}</div>
+          <div className="stat-label" style={{ fontSize: '11px', color: '#64748b' }}>KANTEN</div>
         </div>
         <div className="stat-card">
-          <div className="stat-number">{stats.requirements}</div>
-          <div className="stat-label">Requirements</div>
+          <div className="stat-number" style={{ fontSize: '24px', fontWeight: 'bold' }}>{stats.requirements}</div>
+          <div className="stat-label" style={{ fontSize: '11px', color: '#64748b' }}>REQUIREMENTS</div>
         </div>
         <div className="stat-card">
-          <div className="stat-number">{stats.tags}</div>
-          <div className="stat-label">Tags</div>
+          <div className="stat-number" style={{ fontSize: '24px', fontWeight: 'bold' }}>{stats.tags}</div>
+          <div className="stat-label" style={{ fontSize: '11px', color: '#64748b' }}>TAGS</div>
         </div>
       </div>
 
-      <div className="kg-controls">
-        <button className="btn btn-sm" onClick={handleFit} disabled={stats.nodes === 0}>
+      <div className="kg-controls" style={{
+        display: 'flex',
+        gap: '10px',
+        marginBottom: '16px'
+      }}>
+        <button className="btn btn-sm" onClick={handleFit} disabled={stats.nodes === 0}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '6px',
+            border: '1px solid #f97316',
+            background: '#1e293b',
+            color: '#f97316',
+            cursor: stats.nodes ? 'pointer' : 'not-allowed',
+            fontWeight: '500',
+            fontSize: '13px'
+          }}>
           🎯 Fit View
         </button>
-        <button className="btn btn-sm" onClick={handleExportPNG} disabled={stats.nodes === 0}>
+        <button className="btn btn-sm" onClick={handleExportPNG} disabled={stats.nodes === 0}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '6px',
+            border: '1px solid #22c55e',
+            background: '#1e293b',
+            color: '#22c55e',
+            cursor: stats.nodes ? 'pointer' : 'not-allowed',
+            fontWeight: '500',
+            fontSize: '13px'
+          }}>
           📷 Export PNG
         </button>
       </div>
 
-      <div className="kg-container" ref={cyRef} style={{
+      <div ref={cyRef} style={{
         width: '100%',
-        height: '400px',
+        height: `${graphHeight}px`,
+        minHeight: '800px',
         background: '#0d1220',
         border: '1px solid #1f2937',
         borderRadius: '12px',
-        marginTop: '12px'
+        flexShrink: 0
       }}>
         {stats.nodes === 0 && (
           <div style={{
@@ -213,10 +266,23 @@ export default function KnowledgeGraph({ data, requirements }) {
       </div>
 
       {stats.nodes > 0 && (
-        <div className="kg-legend">
-          <strong>Knoten-Typen:</strong>
+        <div className="kg-legend" style={{
+          marginTop: '12px',
+          padding: '12px',
+          background: '#1e293b',
+          borderRadius: '8px',
+          fontSize: '12px',
+          flexShrink: 0
+        }}>
+          <strong style={{ color: '#e6e6e6' }}>Knoten-Typen:</strong>
           {Array.from(new Set(data.nodes.map(n => n.type))).map(type => (
-            <span key={type} className="legend-item">{type}</span>
+            <span key={type} className="legend-item" style={{
+              marginLeft: '12px',
+              padding: '4px 8px',
+              background: '#0f172a',
+              borderRadius: '4px',
+              color: '#94a3b8'
+            }}>{type}</span>
           ))}
         </div>
       )}

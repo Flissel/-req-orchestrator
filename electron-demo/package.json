@@ -1,0 +1,14 @@
+{
+  "name": "arch-platform-electron",
+  "version": "1.0.0",
+  "description": "Arch Platform - Space UI with Shuttle Component",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "dependencies": {
+    "electron": "^28.0.0"
+  },
+  "devDependencies": {}
+}

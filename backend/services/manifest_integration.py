@@ -70,7 +70,33 @@ def create_manifests_from_chunkminer(
             # Check if manifest already exists
             existing = _db.get_manifest_by_id(conn, requirement_id)
             if existing:
-                # Skip if already exists (deduplication)
+                # UPDATE existing manifest with improved/enhanced text
+                existing_text = existing.get("current_text") or existing.get("original_text") or ""
+                if requirement_text and requirement_text != existing_text:
+                    # Text was improved during validation - update the manifest
+                    service.update_text(conn, requirement_id, requirement_text, ctx=ctx)
+
+                    # Add enhancement stage to track this update
+                    stage_id = service.start_stage(
+                        conn,
+                        requirement_id=requirement_id,
+                        stage_name="enhancement",
+                        model_used="validation_pipeline",
+                        stage_metadata={"from_validation": True, "previous_text": existing_text},
+                        ctx=ctx,
+                    )
+                    service.complete_stage(
+                        conn,
+                        stage_id=stage_id,
+                        status="completed",
+                        ctx=ctx,
+                    )
+
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"Updated manifest {requirement_id} with enhanced text")
+
+                created_ids.append(requirement_id)
                 continue
 
             # Extract source metadata from first evidence ref

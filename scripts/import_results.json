@@ -1,0 +1,167 @@
+{
+  "timestamp": "2025-12-13T23:05:00.172711",
+  "source_path": "C:\\code\\Seb_drity_dreams\\MVP_Spedition_Systemdesign\\Unit-y-ai\\Docs\\Features\\docs",
+  "summary": {
+    "documents_processed": 8,
+    "projects_created": 8,
+    "total_requirements": 465
+  },
+  "results": [
+    {
+      "file": "Abrechnung.md",
+      "project": "Abrechnung Service",
+      "service_info": {
+        "service_name": "Abrechnung Service",
+        "responsibility": "Automatisierte Rechnungserstellung, DATEV-Integration und Abrechnungsmanagement",
+        "architecture": "Eigenständiger FastAPI-Service mit n8n-Integration für Billing-Workflows"
+      },
+      "requirements_count": 56,
+      "categories": {
+        "functional": 15,
+        "api": 16,
+        "data_model": 25
+      },
+      "result": {
+        "success": true,
+        "path": "/app/projects/abrechnung-service",
+        "error": null,
+        "files_created": 19
+      }
+    },
+    {
+      "file": "Auftragsmanagement.md",
+      "project": "Auftragsmanagement Service",
+      "service_info": {
+        "service_name": "Order Management Service",
+        "responsibility": "Flexible Auftragserfassung über multiple Kanäle mit automatischer Validierung und Weiterverarbeitung",
+        "architecture": "Eigenständiger FastAPI-Service mit n8n-Integration für Multi-Channel-Processing"
+      },
+      "requirements_count": 53,
+      "categories": {
+        "functional": 15,
+        "api": 16,
+        "data_model": 22
+      },
+      "result": {
+        "success": true,
+        "path": "/app/projects/auftragsmanagement-service",
+        "error": null,
+        "files_created": 19
+      }
+    },
+    {
+      "file": "Benutzer_Rollenverwaltung.md",
+      "project": "Benutzer & Rollenverwaltung Service - Authentication & Authorization",
+      "service_info": {},
+      "requirements_count": 61,
+      "categories": {
+        "functional": 15,
+        "api": 25,
+        "data_model": 21
+      },
+      "result": {
+        "success": true,
+        "path": "/app/projects/benutzer-rollenverwaltung-service---authentication-authorization",
+        "error": null,
+        "files_created": 19
+      }
+    },
+    {
+      "file": "Disposition.md",
+      "project": "Disposition Service - Tourenplanung & Einsatzplanung",
+      "service_info": {},
+      "requirements_count": 53,
+      "categories": {
+        "functional": 15,
+        "api": 20,
+        "data_model": 18
+      },
+      "result": {
+        "success": true,
+        "path": "/app/projects/disposition-service---tourenplanung-einsatzplanung",
+        "error": null,
+        "files_created": 19
+      }
+    },
+    {
+      "file": "Geschaeftspartner.md",
+      "project": "Geschäftspartner-Management Service",
+      "service_info": {
+        "service_name": "Business Partner Service",
+        "responsibility": "Zentrale Verwaltung aller Geschäftspartner (Kunden, Lieferanten, Subunternehmer) mit vollständiger Stammdatenpflege",
+        "architecture": "Eigenständiger FastAPI-Service mit direkter Datenbankanbindung"
+      },
+      "requirements_count": 37,
+      "categories": {
+        "functional": 12,
+        "api": 9,
+        "data_model": 16
+      },
+      "result": {
+        "success": true,
+        "path": "/app/projects/geschftspartner-management-service",
+        "error": null,
+        "files_created": 19
+      }
+    },
+    {
+      "file": "Integration_API_Gateway.md",
+      "project": "Integration & API Gateway Service - Zentrale Kommunikationsschicht",
+      "service_info": {},
+      "requirements_count": 89,
+      "categories": {
+        "functional": 20,
+        "api": 45,
+        "data_model": 24
+      },
+      "result": {
+        "success": true,
+        "path": "/app/projects/integration-api-gateway-service---zentrale-kommunikationsschicht",
+        "error": null,
+        "files_created": 19
+      }
+    },
+    {
+      "file": "POD_Management.md",
+      "project": "POD Management Service",
+      "service_info": {
+        "service_name": "POD Management Service",
+        "responsibility": "Proof of Delivery Erfassung, Validierung und Qualitätssicherung",
+        "architecture": "Eigenständiger FastAPI-Service mit n8n-Integration für POD-Workflows"
+      },
+      "requirements_count": 56,
+      "categories": {
+        "functional": 15,
+        "api": 16,
+        "data_model": 25
+      },
+      "result": {
+        "success": true,
+        "path": "/app/projects/pod-management-service",
+        "error": null,
+        "files_created": 19
+      }
+    },
+    {
+      "file": "Transport_Tracking.md",
+      "project": "Transport & Tracking Service",
+      "service_info": {
+        "service_name": "Transport & Tracking Service",
+        "responsibility": "Echtzeitverfolgung von Transporten mit GPS-Integration, Statusmanagement und POD-Verarbeitung",
+        "architecture": "Eigenständiger FastAPI-Service mit n8n-Integration für Real-time Tracking und Event Processing"
+      },
+      "requirements_count": 60,
+      "categories": {
+        "functional": 15,
+        "api": 16,
+        "data_model": 29
+      },
+      "result": {
+        "success": true,
+        "path": "/app/projects/transport-tracking-service",
+        "error": null,
+        "files_created": 19
+      }
+    }
+  ]
+}

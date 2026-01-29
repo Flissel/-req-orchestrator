@@ -1,0 +1,37 @@
+{
+  "id": "12-realtime-socketio",
+  "name": "Realtime App (Socket.io)",
+  "description": "Echtzeit-Anwendung mit Socket.io. Ideal für Chat, Gaming, Live-Updates und kollaborative Tools.",
+  "version": "1.0.0",
+  "category": "realtime",
+  "tags": ["socketio", "realtime", "websocket", "nodejs", "typescript"],
+  "difficulty": "intermediate",
+  "estimated_setup_time": "10 minutes",
+  "tech_stack": {
+    "backend": {
+      "runtime": "Node.js",
+      "framework": "Express + Socket.io",
+      "language": "TypeScript"
+    },
+    "frontend": {
+      "framework": "Next.js 14",
+      "realtime": "socket.io-client"
+    },
+    "deployment": {
+      "container": "Docker",
+      "scaling": "Redis Adapter"
+    }
+  },
+  "prerequisites": ["Node.js 20+", "Redis (optional für Scaling)"],
+  "features": [
+    "Bidirektionale Kommunikation",
+    "Rooms und Namespaces",
+    "Automatische Reconnection",
+    "Event-based Architecture",
+    "Horizontal Scaling mit Redis"
+  ],
+  "placeholders": {
+    "PROJECT_NAME": "My Realtime App",
+    "PROJECT_NAME_KEBAB": "my-realtime-app"
+  }
+}

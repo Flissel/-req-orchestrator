@@ -35,6 +35,7 @@ from backend.schemas import (
     RequirementManifest,
     ProcessingStage,
     EvidenceReference,
+    EvaluationDetail,
     SplitRelationship,
     ManifestTimelineResponse,
     ManifestChildrenResponse,
@@ -514,6 +515,24 @@ class ManifestService:
         children_rows = _db.get_split_children(conn, requirement_id)
         split_children = [c["child_id"] for c in children_rows]
 
+        # Get evaluation criteria details
+        evaluation_details = []
+        current_text = manifest_row["current_text"]
+        if current_text:
+            eval_data = _db.get_evaluation_for_requirement(conn, current_text)
+            if eval_data and eval_data.get("details"):
+                evaluation_details = [
+                    EvaluationDetail(
+                        criterion=d.get("criterion", ""),
+                        isValid=d.get("passed", False),
+                        passed=d.get("passed", False),
+                        score=float(d.get("score", 0.0)),
+                        reason=d.get("feedback", ""),
+                        feedback=d.get("feedback", ""),
+                    )
+                    for d in eval_data["details"]
+                ]
+
         # Build manifest
         return RequirementManifest(
             requirement_id=manifest_row["requirement_id"],
@@ -526,12 +545,15 @@ class ManifestService:
             current_text=manifest_row["current_text"],
             current_stage=manifest_row["current_stage"],
             parent_id=manifest_row["parent_id"],
+            validation_score=manifest_row["validation_score"],
+            validation_verdict=manifest_row["validation_verdict"],
             created_at=manifest_row["created_at"],
             updated_at=manifest_row["updated_at"],
             metadata=json.loads(manifest_row["metadata"]) if manifest_row["metadata"] else {},
             processing_stages=processing_stages,
             evidence_refs=evidence_refs,
             split_children=split_children,
+            evaluation=evaluation_details,
         )
 
     def get_timeline(

@@ -1,0 +1,36 @@
+{
+  "id": "10-browser-extension",
+  "name": "Browser Extension",
+  "description": "Cross-Browser Extension für Chrome, Firefox und Edge. Manifest V3 mit TypeScript und React.",
+  "version": "1.0.0",
+  "category": "browser",
+  "tags": ["browser-extension", "chrome", "firefox", "typescript", "react"],
+  "difficulty": "intermediate",
+  "estimated_setup_time": "10 minutes",
+  "tech_stack": {
+    "frontend": {
+      "language": "TypeScript",
+      "ui": "React",
+      "bundler": "Vite",
+      "manifest": "V3"
+    },
+    "browsers": ["Chrome", "Firefox", "Edge"],
+    "deployment": {
+      "chrome": "Chrome Web Store",
+      "firefox": "Firefox Add-ons"
+    }
+  },
+  "prerequisites": ["Node.js 20+", "Chrome/Firefox Browser"],
+  "features": [
+    "Manifest V3 konform",
+    "Popup und Options Page",
+    "Content Scripts",
+    "Background Service Worker",
+    "Hot Reload in Dev"
+  ],
+  "placeholders": {
+    "PROJECT_NAME": "My Extension",
+    "PROJECT_NAME_KEBAB": "my-extension",
+    "EXTENSION_ID": "my-extension"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "id": "08-simulation-cpp",
+  "name": "Simulation System (C++)",
+  "description": "Hochperformante Simulationen mit C++. CMake Build-System, Google Test und optionale Visualisierung.",
+  "version": "1.0.0",
+  "category": "simulation",
+  "tags": ["cpp", "simulation", "cmake", "performance", "scientific"],
+  "difficulty": "advanced",
+  "estimated_setup_time": "15 minutes",
+  "tech_stack": {
+    "backend": {
+      "language": "C++20",
+      "build": "CMake 3.20+",
+      "testing": "Google Test",
+      "package_manager": "vcpkg / Conan"
+    },
+    "visualization": {
+      "optional": ["SDL2", "OpenGL", "Dear ImGui"]
+    },
+    "deployment": {
+      "container": "Docker",
+      "platforms": ["Linux", "Windows", "macOS"]
+    }
+  },
+  "prerequisites": ["C++ Compiler (GCC/Clang/MSVC)", "CMake 3.20+", "Docker (empfohlen)"],
+  "features": [
+    "Moderne C++20 Syntax",
+    "CMake Build-System",
+    "Unit Testing mit GTest",
+    "Cross-Platform Build",
+    "Docker Development Container"
+  ],
+  "placeholders": {
+    "PROJECT_NAME": "MySimulation",
+    "PROJECT_NAME_SNAKE": "my_simulation",
+    "NAMESPACE": "sim"
+  }
+}

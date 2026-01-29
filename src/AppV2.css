@@ -1,5 +1,4 @@
-/* Import existing App.css variables */
-@import './App.css';
+/* AppV2 Styles - Variables defined in index.css */
 
 .app-v2 {
   min-height: 100vh;
@@ -259,14 +258,15 @@
   display: flex;
   flex-direction: column;
   height: calc(100vh - 280px);
+  overflow-y: auto;
 }
 
 .kg-split-layout {
   display: grid;
   grid-template-columns: 400px 1fr;
   gap: 20px;
-  height: 100%;
-  overflow: hidden;
+  flex: 1;
+  min-height: 0;
 }
 
 .kg-left-panel,
@@ -276,7 +276,7 @@
   background: var(--card);
   border-radius: 8px;
   padding: 16px;
-  overflow: hidden;
+  min-height: 0;
 }
 
 .panel-title {
@@ -290,17 +290,21 @@
 
 .kg-left-panel {
   overflow-y: auto;
+  max-height: calc(100vh - 320px);
 }
 
 .kg-right-panel {
-  overflow: hidden;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .kg-container {
   flex: 1;
+  min-height: 600px;
   background: var(--card2);
   border-radius: 6px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Responsive Design */

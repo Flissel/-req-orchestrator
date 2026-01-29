@@ -22,12 +22,30 @@ API_HOST = os.environ.get("API_HOST", "0.0.0.0")
 # Use centralized port configuration with legacy fallback
 API_PORT = _ports.BACKEND_PORT if _ports else int(os.environ.get("API_PORT", "8087"))
 
-# LLM Settings
+# LLM Settings - OpenRouter Only
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "google/gemini-2.5-flash:nitro")
+
+# OpenAI API Key - Used ONLY for embeddings (not for LLM chat)
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-# Embeddings-Modell für Vektorindex (RAG)
+
+# Embeddings-Modell für Vektorindex (RAG) - Always uses OpenAI
 EMBEDDINGS_MODEL = os.environ.get("EMBEDDINGS_MODEL", "text-embedding-3-small")
 MOCK_MODE = os.environ.get("MOCK_MODE", "false").lower() in ("1", "true", "yes")
+
+
+def get_llm_config() -> dict:
+    """
+    Get OpenRouter LLM configuration (API key, base URL, model).
+    OpenRouter is the only supported LLM provider.
+    """
+    return {
+        "api_key": os.environ.get("OPENROUTER_API_KEY", ""),
+        "base_url": os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+        "model": os.environ.get("OPENAI_MODEL", "google/gemini-2.5-flash:nitro"),
+    }
+
 
 # DB
 SQLITE_PATH = os.environ.get("SQLITE_PATH", "app.db")
@@ -40,7 +58,14 @@ QDRANT_COLLECTION = os.environ.get("QDRANT_COLLECTION", "requirements_v1")
 
 # Batch and files
 BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "10"))
-MAX_PARALLEL = int(os.environ.get("MAX_PARALLEL", "5"))
+MAX_PARALLEL = int(os.environ.get("MAX_PARALLEL", "10"))
+
+# Requirement validation optimization settings
+# FIX_BATCH_SIZE: Number of failing criteria to fix in parallel (1=sequential, 3=recommended)
+FIX_BATCH_SIZE = int(os.environ.get("FIX_BATCH_SIZE", "3"))
+# EARLY_EXIT_ON_GATING: Skip priority/polish evaluation if gating criteria fail
+EARLY_EXIT_ON_GATING = os.environ.get("EARLY_EXIT_ON_GATING", "false").lower() in ("1", "true", "yes")
+
 REQUIREMENTS_MD_PATH = os.environ.get("REQUIREMENTS_MD_PATH", "./docs/requirements.md")
 
 # Chunking (Token-basiert)
@@ -245,9 +270,10 @@ def get_runtime_config() -> dict:
             "verdict_threshold": VERDICT_THRESHOLD,
         },
         "llm": {
+            "provider": "openrouter",
             "mock_mode": MOCK_MODE,
-            "openai_model": OPENAI_MODEL,
-            "openai_api_key_present": bool(OPENAI_API_KEY),
+            "model": OPENAI_MODEL,
+            "openrouter_api_key_present": bool(OPENROUTER_API_KEY),
             "temperature": LLM_TEMPERATURE,
             "top_p": LLM_TOP_P,
             "max_tokens": LLM_MAX_TOKENS,
@@ -300,3 +326,6 @@ def log_runtime_config() -> None:
         print("======================================")
     except Exception as e:
         print("[config][error]", str(e))
+
+# Force reload: fixed SQLITE_PATH for local development
+# Force reload: VERDICT_THRESHOLD=0.7 for Gemini Flash (2025-11-26 18:51)

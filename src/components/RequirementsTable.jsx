@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import './RequirementsTable.css'
 
-const RequirementsTable = ({ requirements, onRequirementClick, onRequirementUpdate }) => {
+const RequirementsTable = ({ requirements, onRequirementClick, onRequirementUpdate, onEnhanceRequirement }) => {
   const [sortBy, setSortBy] = useState('id')
   const [sortOrder, setSortOrder] = useState('asc')
   const [filterTag, setFilterTag] = useState('all')
@@ -20,9 +20,11 @@ const RequirementsTable = ({ requirements, onRequirementClick, onRequirementUpda
 
   // Filter by score
   if (filterScore === 'pass') {
-    filteredReqs = filteredReqs.filter(r => r.validation_passed === true)
+    filteredReqs = filteredReqs.filter(r => r.validation_score !== undefined && r.validation_passed === true)
   } else if (filterScore === 'fail') {
-    filteredReqs = filteredReqs.filter(r => r.validation_passed === false)
+    filteredReqs = filteredReqs.filter(r => r.validation_score !== undefined && r.validation_passed === false)
+  } else if (filterScore === 'not_validated') {
+    filteredReqs = filteredReqs.filter(r => r.validation_score === undefined)
   }
 
   // Sort
@@ -77,10 +79,15 @@ const RequirementsTable = ({ requirements, onRequirementClick, onRequirementUpda
       return []
     }
     return req.evaluation
-      .filter(e => e.isValid === false)
+      .filter(e => {
+        // Support both formats: isValid (normalized) and passed (original API)
+        const valid = e.isValid ?? e.passed ?? true
+        return valid === false
+      })
       .map(e => ({
         criterion: e.criterion,
-        reason: e.reason || 'No details available'
+        score: e.score ?? 0,
+        reason: e.reason || e.feedback || 'No details available'
       }))
   }
 
@@ -104,6 +111,7 @@ const RequirementsTable = ({ requirements, onRequirementClick, onRequirementUpda
             <option value="all">All Scores</option>
             <option value="pass">Pass (≥70%)</option>
             <option value="fail">Fail (&lt;70%)</option>
+            <option value="not_validated">Not Validated</option>
           </select>
         </div>
 
@@ -129,6 +137,7 @@ const RequirementsTable = ({ requirements, onRequirementClick, onRequirementUpda
               </th>
               <th>Evidence</th>
               <th>Violated Criteria</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -145,8 +154,12 @@ const RequirementsTable = ({ requirements, onRequirementClick, onRequirementUpda
                 const violatedCriteria = getViolatedCriteria(req)
 
                 return (
-                  <tr key={req.req_id} onClick={() => onRequirementClick?.(req.req_id)} className="clickable-row">
-                    <td className="req-id">{req.req_id}</td>
+                  <tr key={req.req_id} onClick={() => onRequirementClick?.(req.req_id)} className={`clickable-row ${req.is_split_child ? 'split-child-row' : ''} ${req.split_occurred ? 'split-parent-row' : ''}`}>
+                    <td className="req-id">
+                      {req.is_split_child && <span className="child-indent">↳ </span>}
+                      {req.req_id}
+                      {req.split_occurred && <span className="split-badge" title="This requirement was split into atomic parts">📋</span>}
+                    </td>
                     <td className="req-title">{req.title}</td>
                     <td>
                       <span className="tag-chip">{req.tag || 'untagged'}</span>
@@ -163,7 +176,9 @@ const RequirementsTable = ({ requirements, onRequirementClick, onRequirementUpda
                       {evidenceCount > 0 ? `${evidenceCount} ref${evidenceCount > 1 ? 's' : ''}` : '-'}
                     </td>
                     <td className="violated-criteria-cell">
-                      {violatedCriteria.length === 0 ? (
+                      {req.validation_score === undefined ? (
+                        <span className="not-validated">⏳ Not Validated</span>
+                      ) : violatedCriteria.length === 0 ? (
                         <span className="no-violations">✓ All Pass</span>
                       ) : (
                         <div className="violated-list">
@@ -173,10 +188,24 @@ const RequirementsTable = ({ requirements, onRequirementClick, onRequirementUpda
                               className="criteria-chip"
                               title={v.reason}
                             >
-                              {v.criterion}
+                              {v.criterion} <span className="criteria-score">({Math.round(v.score * 100)}%)</span>
                             </span>
                           ))}
                         </div>
+                      )}
+                    </td>
+                    <td className="actions-cell">
+                      {onEnhanceRequirement && (
+                        <button
+                          className="btn-enhance-row"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onEnhanceRequirement(req)
+                          }}
+                          title="Enhance with SocietyOfMind"
+                        >
+                          🧠
+                        </button>
                       )}
                     </td>
                   </tr>

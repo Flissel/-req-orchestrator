@@ -1,0 +1,38 @@
+{
+  "id": "11-chatbot",
+  "name": "Chat Bot (AI)",
+  "description": "KI-Chatbot mit LangChain und OpenAI/Claude. Web-Interface und API für Chat-Funktionalität.",
+  "version": "1.0.0",
+  "category": "ai",
+  "tags": ["chatbot", "langchain", "openai", "claude", "ai", "python"],
+  "difficulty": "intermediate",
+  "estimated_setup_time": "10 minutes",
+  "tech_stack": {
+    "backend": {
+      "language": "Python 3.12",
+      "framework": "FastAPI",
+      "ai": ["LangChain", "OpenAI API", "Claude API"]
+    },
+    "frontend": {
+      "framework": "Next.js 14",
+      "ui": "Chat Interface"
+    },
+    "storage": {
+      "chat_history": "SQLite",
+      "vector_db": "ChromaDB (optional)"
+    }
+  },
+  "prerequisites": ["Python 3.12+", "OpenAI API Key oder Anthropic API Key"],
+  "features": [
+    "Streaming Responses",
+    "Chat History",
+    "RAG Support (optional)",
+    "Multiple LLM Provider",
+    "Web Interface"
+  ],
+  "placeholders": {
+    "PROJECT_NAME": "My Chatbot",
+    "PROJECT_NAME_SNAKE": "my_chatbot",
+    "BOT_NAME": "Assistant"
+  }
+}

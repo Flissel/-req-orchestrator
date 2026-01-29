@@ -1,0 +1,38 @@
+{
+  "id": "07-data-ml",
+  "name": "Data/ML Pipeline",
+  "description": "Machine Learning Pipeline mit Python, Jupyter Notebooks und Docker. Ideal für Datenanalyse und ML-Modelle.",
+  "version": "1.0.0",
+  "category": "data-science",
+  "tags": ["python", "machine-learning", "jupyter", "pandas", "scikit-learn", "docker"],
+  "difficulty": "intermediate",
+  "estimated_setup_time": "10 minutes",
+  "tech_stack": {
+    "backend": {
+      "language": "Python 3.12",
+      "frameworks": ["FastAPI", "Jupyter"],
+      "ml": ["scikit-learn", "pandas", "numpy"]
+    },
+    "data": {
+      "processing": "pandas",
+      "visualization": "matplotlib / plotly",
+      "storage": "SQLite / PostgreSQL"
+    },
+    "deployment": {
+      "container": "Docker",
+      "orchestration": "Docker Compose"
+    }
+  },
+  "prerequisites": ["Python 3.12+", "Docker (empfohlen)"],
+  "features": [
+    "Jupyter Notebook Integration",
+    "Data Processing Pipelines",
+    "ML Model Training",
+    "API für Predictions",
+    "Docker-containerisiert"
+  ],
+  "placeholders": {
+    "PROJECT_NAME": "My ML Project",
+    "PROJECT_NAME_SNAKE": "my_ml_project"
+  }
+}

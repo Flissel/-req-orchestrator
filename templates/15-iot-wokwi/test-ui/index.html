@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IoT/Wokwi - Simulator Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <!-- Status Bar -->
+  <header class="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <h1 class="text-lg font-semibold flex items-center gap-2">
+        <span class="text-2xl">🔌</span> IoT Simulator Dashboard
+      </h1>
+      <div id="status" class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+        <span class="text-sm text-yellow-400">Ready to simulate</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <select id="board-select" class="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm">
+        <option value="esp32">ESP32 DevKit</option>
+        <option value="arduino-uno">Arduino Uno</option>
+        <option value="arduino-mega">Arduino Mega</option>
+        <option value="pico">Raspberry Pi Pico</option>
+      </select>
+      <button onclick="startSimulation()" id="simBtn" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">
+        ▶ Start
+      </button>
+      <button onclick="resetSimulation()" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium">
+        ↻ Reset
+      </button>
+      <button onclick="toggleTheme()" id="themeBtn" class="p-2 hover:bg-gray-800 rounded">🌙</button>
+    </div>
+  </header>
+
+  <div class="flex h-[calc(100vh-57px)]">
+    <!-- Sidebar: Controls -->
+    <aside class="w-80 bg-gray-900 border-r border-gray-800 overflow-y-auto">
+      <div class="p-4 space-y-6">
+        <!-- Virtual Sensors -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Virtual Sensors</h2>
+          <div class="space-y-4">
+            <!-- Temperature -->
+            <div class="bg-gray-800 rounded-lg p-3">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium">🌡️ Temperature</span>
+                <span id="temp-value" class="text-lg font-mono text-blue-400">25.0°C</span>
+              </div>
+              <input type="range" id="temp-slider" min="-20" max="60" value="25" class="w-full"
+                     oninput="updateSensor('temp', this.value)" />
+            </div>
+
+            <!-- Humidity -->
+            <div class="bg-gray-800 rounded-lg p-3">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium">💧 Humidity</span>
+                <span id="humidity-value" class="text-lg font-mono text-cyan-400">50%</span>
+              </div>
+              <input type="range" id="humidity-slider" min="0" max="100" value="50" class="w-full"
+                     oninput="updateSensor('humidity', this.value)" />
+            </div>
+
+            <!-- Light -->
+            <div class="bg-gray-800 rounded-lg p-3">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium">☀️ Light Level</span>
+                <span id="light-value" class="text-lg font-mono text-yellow-400">512</span>
+              </div>
+              <input type="range" id="light-slider" min="0" max="1023" value="512" class="w-full"
+                     oninput="updateSensor('light', this.value)" />
+            </div>
+
+            <!-- Distance -->
+            <div class="bg-gray-800 rounded-lg p-3">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium">📏 Distance</span>
+                <span id="distance-value" class="text-lg font-mono text-purple-400">50 cm</span>
+              </div>
+              <input type="range" id="distance-slider" min="2" max="400" value="50" class="w-full"
+                     oninput="updateSensor('distance', this.value)" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Digital Inputs -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Digital Inputs</h2>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="toggleButton(1)" id="btn1" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium">
+              Button 1: OFF
+            </button>
+            <button onclick="toggleButton(2)" id="btn2" class="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium">
+              Button 2: OFF
+            </button>
+            <button onclick="toggleMotion()" id="motion-btn" class="col-span-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm font-medium">
+              PIR Motion: No Motion
+            </button>
+          </div>
+        </div>
+
+        <!-- Pin Diagram -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">GPIO Status</h2>
+          <div class="grid grid-cols-4 gap-1 text-xs font-mono">
+            <div id="gpio2" class="bg-gray-800 p-1 rounded text-center">D2<br><span class="text-gray-500">LOW</span></div>
+            <div id="gpio4" class="bg-gray-800 p-1 rounded text-center">D4<br><span class="text-gray-500">LOW</span></div>
+            <div id="gpio12" class="bg-gray-800 p-1 rounded text-center">D12<br><span class="text-gray-500">LOW</span></div>
+            <div id="gpio13" class="bg-gray-800 p-1 rounded text-center">D13<br><span class="text-gray-500">LOW</span></div>
+            <div id="gpio14" class="bg-gray-800 p-1 rounded text-center">D14<br><span class="text-gray-500">LOW</span></div>
+            <div id="gpio15" class="bg-gray-800 p-1 rounded text-center">D15<br><span class="text-gray-500">LOW</span></div>
+            <div id="gpio16" class="bg-gray-800 p-1 rounded text-center">D16<br><span class="text-gray-500">LOW</span></div>
+            <div id="gpio17" class="bg-gray-800 p-1 rounded text-center">D17<br><span class="text-gray-500">LOW</span></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col">
+      <!-- Tabs -->
+      <div class="border-b border-gray-800 bg-gray-900">
+        <nav class="flex px-4">
+          <button onclick="showTab('simulator')" class="tab-btn px-4 py-3 text-sm border-b-2 border-blue-500 text-blue-400" data-tab="simulator">
+            Simulator
+          </button>
+          <button onclick="showTab('serial')" class="tab-btn px-4 py-3 text-sm border-b-2 border-transparent text-gray-400" data-tab="serial">
+            Serial Monitor
+          </button>
+          <button onclick="showTab('code')" class="tab-btn px-4 py-3 text-sm border-b-2 border-transparent text-gray-400" data-tab="code">
+            Code
+          </button>
+          <button onclick="showTab('diagram')" class="tab-btn px-4 py-3 text-sm border-b-2 border-transparent text-gray-400" data-tab="diagram">
+            Wiring Diagram
+          </button>
+        </nav>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="flex-1 p-6 overflow-auto">
+        <!-- Simulator Tab -->
+        <div id="tab-simulator" class="tab-content h-full">
+          <div class="bg-gray-900 rounded-lg border border-gray-800 h-full flex items-center justify-center">
+            <div class="text-center">
+              <div id="wokwi-embed" class="mb-4">
+                <!-- Wokwi Simulator Embed -->
+                <div class="w-[600px] h-[400px] bg-gray-800 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-700">
+                  <div id="sim-content" class="text-center p-8">
+                    <p class="text-6xl mb-4">🔌</p>
+                    <p class="text-gray-400 mb-4">Click "Start" to begin simulation</p>
+                    <p class="text-sm text-gray-500">Or embed your Wokwi project below</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- LED Output Display -->
+              <div id="led-display" class="hidden mt-6">
+                <h3 class="text-sm font-medium text-gray-400 mb-3">LED Status</h3>
+                <div class="flex justify-center gap-4">
+                  <div class="text-center">
+                    <div id="led1" class="w-8 h-8 rounded-full bg-gray-700 border-2 border-gray-600 mx-auto"></div>
+                    <span class="text-xs text-gray-500 mt-1 block">LED 1</span>
+                  </div>
+                  <div class="text-center">
+                    <div id="led2" class="w-8 h-8 rounded-full bg-gray-700 border-2 border-gray-600 mx-auto"></div>
+                    <span class="text-xs text-gray-500 mt-1 block">LED 2</span>
+                  </div>
+                  <div class="text-center">
+                    <div id="led3" class="w-8 h-8 rounded-full bg-gray-700 border-2 border-gray-600 mx-auto"></div>
+                    <span class="text-xs text-gray-500 mt-1 block">LED 3</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Serial Monitor Tab -->
+        <div id="tab-serial" class="tab-content hidden h-full">
+          <div class="bg-gray-900 rounded-lg border border-gray-800 h-full flex flex-col">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+              <div class="flex items-center gap-4">
+                <span class="font-semibold">Serial Monitor</span>
+                <select id="baud-rate" class="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm">
+                  <option value="9600">9600 baud</option>
+                  <option value="115200" selected>115200 baud</option>
+                </select>
+              </div>
+              <button onclick="clearSerial()" class="text-sm text-gray-400 hover:text-white">Clear</button>
+            </div>
+            <div id="serial-output" class="flex-1 p-4 font-mono text-sm bg-gray-950 overflow-auto">
+              <p class="text-gray-500">Serial output will appear here...</p>
+            </div>
+            <div class="flex items-center gap-2 p-3 border-t border-gray-800">
+              <input type="text" id="serial-input" placeholder="Send to serial..."
+                     class="flex-1 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-sm font-mono"
+                     onkeydown="if(event.key==='Enter')sendSerial()" />
+              <button onclick="sendSerial()" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm">Send</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Code Tab -->
+        <div id="tab-code" class="tab-content hidden h-full">
+          <div class="bg-gray-900 rounded-lg border border-gray-800 h-full overflow-auto">
+            <pre class="p-4 text-sm"><code class="text-gray-300">#include &lt;WiFi.h&gt;
+#include &lt;DHT.h&gt;
+
+#define DHTPIN 4
+#define DHTTYPE DHT22
+#define LED_PIN 2
+
+DHT dht(DHTPIN, DHTTYPE);
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+  dht.begin();
+
+  Serial.println("IoT Device Starting...");
+}
+
+void loop() {
+  float humidity = dht.readHumidity();
+  float temperature = dht.readTemperature();
+
+  if (isnan(humidity) || isnan(temperature)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  Serial.print("Temperature: ");
+  Serial.print(temperature);
+  Serial.print("°C, Humidity: ");
+  Serial.print(humidity);
+  Serial.println("%");
+
+  // Blink LED
+  digitalWrite(LED_PIN, HIGH);
+  delay(500);
+  digitalWrite(LED_PIN, LOW);
+  delay(500);
+}</code></pre>
+          </div>
+        </div>
+
+        <!-- Wiring Diagram Tab -->
+        <div id="tab-diagram" class="tab-content hidden h-full">
+          <div class="bg-gray-900 rounded-lg border border-gray-800 p-6 h-full">
+            <h3 class="font-semibold mb-4">Wiring Diagram</h3>
+            <div class="bg-gray-800 rounded-lg p-8 text-center">
+              <pre class="text-sm text-left inline-block text-gray-300">
+  ┌─────────────────┐
+  │    ESP32        │
+  │                 │
+  │ 3V3 ──── VCC    │ ─── DHT22 VCC
+  │ GND ──── GND    │ ─── DHT22 GND
+  │ D4  ──── DATA   │ ─── DHT22 DATA
+  │                 │
+  │ D2  ──── LED+   │ ─── LED Anode
+  │ GND ──── LED-   │ ─── LED Cathode (via 220Ω)
+  │                 │
+  │ D12 ──── PIR    │ ─── PIR Sensor OUT
+  │                 │
+  └─────────────────┘
+              </pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let simulationRunning = false;
+    let serialInterval = null;
+    let sensorData = { temp: 25, humidity: 50, light: 512, distance: 50 };
+    let buttons = { 1: false, 2: false };
+    let motionDetected = false;
+
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      document.getElementById('themeBtn').textContent =
+        document.documentElement.classList.contains('dark') ? '🌙' : '☀️';
+    }
+
+    function showTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('border-blue-500', 'text-blue-400');
+        el.classList.add('border-transparent', 'text-gray-400');
+      });
+      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+      document.querySelector(`[data-tab="${tabName}"]`).classList.remove('border-transparent', 'text-gray-400');
+      document.querySelector(`[data-tab="${tabName}"]`).classList.add('border-blue-500', 'text-blue-400');
+    }
+
+    function updateSensor(type, value) {
+      sensorData[type] = parseInt(value);
+      const displays = {
+        temp: `${value}°C`,
+        humidity: `${value}%`,
+        light: value,
+        distance: `${value} cm`
+      };
+      document.getElementById(`${type}-value`).textContent = displays[type];
+    }
+
+    function toggleButton(num) {
+      buttons[num] = !buttons[num];
+      const btn = document.getElementById(`btn${num}`);
+      btn.textContent = `Button ${num}: ${buttons[num] ? 'ON' : 'OFF'}`;
+      btn.classList.toggle('bg-green-600', buttons[num]);
+      btn.classList.toggle('bg-gray-800', !buttons[num]);
+
+      if (simulationRunning) {
+        addSerialOutput(`Button ${num} ${buttons[num] ? 'pressed' : 'released'}`);
+      }
+    }
+
+    function toggleMotion() {
+      motionDetected = !motionDetected;
+      const btn = document.getElementById('motion-btn');
+      btn.textContent = `PIR Motion: ${motionDetected ? 'Motion Detected!' : 'No Motion'}`;
+      btn.classList.toggle('bg-red-600', motionDetected);
+      btn.classList.toggle('bg-gray-800', !motionDetected);
+
+      if (simulationRunning && motionDetected) {
+        addSerialOutput('⚠️ Motion detected!');
+      }
+    }
+
+    function startSimulation() {
+      const btn = document.getElementById('simBtn');
+
+      if (!simulationRunning) {
+        simulationRunning = true;
+        btn.textContent = '⏹ Stop';
+        btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+        btn.classList.add('bg-red-600', 'hover:bg-red-700');
+
+        document.getElementById('status').innerHTML =
+          '<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span><span class="text-sm text-green-400">Running</span>';
+
+        document.getElementById('sim-content').innerHTML = `
+          <p class="text-4xl mb-4">⚡</p>
+          <p class="text-green-400 font-medium">Simulation Running</p>
+          <p class="text-sm text-gray-500 mt-2">Board: ${document.getElementById('board-select').value}</p>
+        `;
+
+        document.getElementById('led-display').classList.remove('hidden');
+
+        // Start serial output
+        addSerialOutput('=== ESP32 Starting ===');
+        addSerialOutput('Initializing sensors...');
+        addSerialOutput('WiFi connecting...');
+        setTimeout(() => addSerialOutput('WiFi connected!'), 1000);
+
+        serialInterval = setInterval(() => {
+          addSerialOutput(`Temp: ${sensorData.temp}°C | Humidity: ${sensorData.humidity}% | Light: ${sensorData.light}`);
+
+          // Update LEDs based on conditions
+          document.getElementById('led1').style.background = sensorData.temp > 30 ? '#ef4444' : '#374151';
+          document.getElementById('led2').style.background = sensorData.humidity > 70 ? '#3b82f6' : '#374151';
+          document.getElementById('led3').style.background = sensorData.light < 300 ? '#eab308' : '#374151';
+        }, 2000);
+
+      } else {
+        simulationRunning = false;
+        btn.textContent = '▶ Start';
+        btn.classList.remove('bg-red-600', 'hover:bg-red-700');
+        btn.classList.add('bg-green-600', 'hover:bg-green-700');
+
+        document.getElementById('status').innerHTML =
+          '<span class="w-2 h-2 rounded-full bg-yellow-500"></span><span class="text-sm text-yellow-400">Stopped</span>';
+
+        document.getElementById('sim-content').innerHTML = `
+          <p class="text-6xl mb-4">🔌</p>
+          <p class="text-gray-400 mb-4">Simulation stopped</p>
+        `;
+
+        if (serialInterval) {
+          clearInterval(serialInterval);
+          serialInterval = null;
+        }
+
+        addSerialOutput('=== Simulation Stopped ===');
+      }
+    }
+
+    function resetSimulation() {
+      if (simulationRunning) {
+        startSimulation(); // Stop first
+      }
+
+      // Reset all values
+      sensorData = { temp: 25, humidity: 50, light: 512, distance: 50 };
+      buttons = { 1: false, 2: false };
+      motionDetected = false;
+
+      // Reset sliders
+      document.getElementById('temp-slider').value = 25;
+      document.getElementById('humidity-slider').value = 50;
+      document.getElementById('light-slider').value = 512;
+      document.getElementById('distance-slider').value = 50;
+
+      // Reset displays
+      updateSensor('temp', 25);
+      updateSensor('humidity', 50);
+      updateSensor('light', 512);
+      updateSensor('distance', 50);
+
+      // Reset buttons
+      document.getElementById('btn1').textContent = 'Button 1: OFF';
+      document.getElementById('btn1').classList.remove('bg-green-600');
+      document.getElementById('btn1').classList.add('bg-gray-800');
+      document.getElementById('btn2').textContent = 'Button 2: OFF';
+      document.getElementById('btn2').classList.remove('bg-green-600');
+      document.getElementById('btn2').classList.add('bg-gray-800');
+      document.getElementById('motion-btn').textContent = 'PIR Motion: No Motion';
+      document.getElementById('motion-btn').classList.remove('bg-red-600');
+      document.getElementById('motion-btn').classList.add('bg-gray-800');
+
+      clearSerial();
+    }
+
+    function addSerialOutput(msg) {
+      const output = document.getElementById('serial-output');
+      const time = new Date().toLocaleTimeString();
+      output.innerHTML += `<p><span class="text-gray-500">[${time}]</span> ${msg}</p>`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function clearSerial() {
+      document.getElementById('serial-output').innerHTML = '<p class="text-gray-500">Serial output cleared</p>';
+    }
+
+    function sendSerial() {
+      const input = document.getElementById('serial-input');
+      if (input.value) {
+        addSerialOutput(`<span class="text-blue-400">&gt; ${input.value}</span>`);
+        input.value = '';
+      }
+    }
+  </script>
+</body>
+</html>

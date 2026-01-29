@@ -1,0 +1,39 @@
+{
+  "id": "06-web3-dapp",
+  "name": "Web3 DApp (Hardhat)",
+  "description": "Dezentralisierte Anwendung mit Ethereum Smart Contracts. Hardhat für lokale Blockchain-Entwicklung und Testing.",
+  "version": "1.0.0",
+  "category": "blockchain",
+  "tags": ["web3", "ethereum", "hardhat", "solidity", "blockchain", "dapp"],
+  "difficulty": "advanced",
+  "estimated_setup_time": "10 minutes",
+  "tech_stack": {
+    "frontend": {
+      "framework": "Next.js 14",
+      "web3": "wagmi + viem",
+      "wallet": "RainbowKit"
+    },
+    "backend": {
+      "blockchain": "Hardhat (Local)",
+      "network": "Ethereum / Polygon / Base",
+      "language": "Solidity"
+    },
+    "deployment": {
+      "testnet": "Sepolia / Mumbai",
+      "mainnet": "Ethereum / Polygon"
+    }
+  },
+  "prerequisites": ["Node.js 20+", "MetaMask Browser Extension"],
+  "features": [
+    "Smart Contract Development",
+    "Lokale Blockchain Node",
+    "Automatisierte Tests",
+    "Wallet Integration",
+    "Testnet Deployment"
+  ],
+  "placeholders": {
+    "PROJECT_NAME": "My DApp",
+    "PROJECT_NAME_KEBAB": "my-dapp",
+    "CONTRACT_NAME": "MyContract"
+  }
+}

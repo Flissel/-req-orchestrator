@@ -1,0 +1,38 @@
+{
+  "id": "13-operating-system",
+  "name": "Operating System (QEMU)",
+  "description": "Mini-Betriebssystem-Entwicklung mit QEMU-Emulation. Ideal für OS-Lernerfahrungen und experimentelle Kernel.",
+  "version": "1.0.0",
+  "category": "systems",
+  "tags": ["os", "kernel", "qemu", "assembly", "c", "low-level"],
+  "difficulty": "advanced",
+  "estimated_setup_time": "20 minutes",
+  "tech_stack": {
+    "backend": {
+      "languages": ["C", "Assembly (x86_64)"],
+      "build": "Make / CMake",
+      "bootloader": "GRUB / Custom"
+    },
+    "emulation": {
+      "emulator": "QEMU",
+      "architectures": ["x86_64", "ARM"]
+    },
+    "debugging": {
+      "debugger": "GDB",
+      "serial": "QEMU Serial Console"
+    }
+  },
+  "prerequisites": ["GCC/Clang Cross-Compiler", "QEMU", "Make", "NASM (optional)"],
+  "features": [
+    "QEMU Emulation",
+    "GDB Debug Support",
+    "Boot Process Demo",
+    "Kernel Mode Programming",
+    "Interrupt Handling"
+  ],
+  "placeholders": {
+    "PROJECT_NAME": "MyOS",
+    "PROJECT_NAME_LOWER": "myos",
+    "KERNEL_NAME": "kernel"
+  }
+}

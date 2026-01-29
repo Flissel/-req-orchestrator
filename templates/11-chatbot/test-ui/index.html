@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Chatbot - Development Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+  <style>
+    .typing-indicator span {
+      animation: bounce 1.4s infinite ease-in-out both;
+    }
+    .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+    .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1); }
+    }
+    .message-content pre { margin: 0.5rem 0; border-radius: 0.5rem; overflow-x: auto; }
+    .message-content code { background: #1f2937; padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-size: 0.875em; }
+    .message-content pre code { background: transparent; padding: 0; }
+    .message-content p { margin-bottom: 0.5rem; }
+    .message-content ul, .message-content ol { margin-left: 1.5rem; margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <!-- Header -->
+  <header class="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <h1 class="text-lg font-semibold flex items-center gap-2">
+        <span class="text-2xl">🤖</span> AI Chatbot Dashboard
+      </h1>
+      <div id="status" class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-green-500"></span>
+        <span class="text-sm text-green-400">Online</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="clearChat()" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium">
+        Clear Chat
+      </button>
+      <button onclick="toggleTheme()" id="themeBtn" class="p-2 hover:bg-gray-800 rounded">
+        <span class="mdi mdi-weather-night text-xl"></span>
+      </button>
+      <button onclick="showSettings()" class="p-2 hover:bg-gray-800 rounded">
+        <span class="mdi mdi-cog text-xl"></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="flex h-[calc(100vh-57px)]">
+    <!-- Sidebar: Configuration -->
+    <aside class="w-80 bg-gray-900 border-r border-gray-800 overflow-y-auto">
+      <div class="p-4 space-y-6">
+        <!-- Model Selection -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Model</h2>
+          <select id="model-select" onchange="changeModel()" class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+            <optgroup label="OpenAI">
+              <option value="gpt-4o">GPT-4o</option>
+              <option value="gpt-4o-mini" selected>GPT-4o Mini</option>
+              <option value="gpt-4-turbo">GPT-4 Turbo</option>
+              <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+            </optgroup>
+            <optgroup label="Anthropic">
+              <option value="claude-3-opus">Claude 3 Opus</option>
+              <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+              <option value="claude-3-haiku">Claude 3 Haiku</option>
+            </optgroup>
+            <optgroup label="Local">
+              <option value="ollama-llama3">Ollama - Llama 3</option>
+              <option value="ollama-mistral">Ollama - Mistral</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <!-- System Prompt -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">System Prompt</h2>
+          <textarea id="system-prompt" rows="4" class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm resize-none"
+            placeholder="You are a helpful assistant...">You are a helpful AI assistant. Be concise and accurate in your responses.</textarea>
+        </div>
+
+        <!-- Parameters -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Parameters</h2>
+          <div class="space-y-4">
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span>Temperature</span>
+                <span id="temp-value">0.7</span>
+              </div>
+              <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7"
+                onchange="document.getElementById('temp-value').textContent = this.value"
+                class="w-full" />
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span>Max Tokens</span>
+                <span id="tokens-value">2048</span>
+              </div>
+              <input type="range" id="max-tokens" min="256" max="8192" step="256" value="2048"
+                onchange="document.getElementById('tokens-value').textContent = this.value"
+                class="w-full" />
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm">Streaming</span>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="streaming" checked class="sr-only peer" />
+                <div class="w-9 h-5 bg-gray-700 peer-checked:bg-green-600 rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Token Usage -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Token Usage</h2>
+          <div class="bg-gray-800/50 rounded-lg p-3 space-y-2">
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-400">Prompt</span>
+              <span id="prompt-tokens">0</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-400">Completion</span>
+              <span id="completion-tokens">0</span>
+            </div>
+            <div class="border-t border-gray-700 pt-2 flex justify-between text-sm font-medium">
+              <span>Total</span>
+              <span id="total-tokens">0</span>
+            </div>
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>Est. Cost</span>
+              <span id="est-cost">$0.000</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Suggested Prompts -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Quick Prompts</h2>
+          <div class="space-y-2">
+            <button onclick="sendQuickPrompt('Explain quantum computing in simple terms')"
+              class="w-full text-left px-3 py-2 bg-gray-800/50 hover:bg-gray-700 rounded text-sm truncate">
+              Explain quantum computing...
+            </button>
+            <button onclick="sendQuickPrompt('Write a Python function to sort a list')"
+              class="w-full text-left px-3 py-2 bg-gray-800/50 hover:bg-gray-700 rounded text-sm truncate">
+              Write a Python function...
+            </button>
+            <button onclick="sendQuickPrompt('What are the benefits of microservices?')"
+              class="w-full text-left px-3 py-2 bg-gray-800/50 hover:bg-gray-700 rounded text-sm truncate">
+              Benefits of microservices...
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Chat Area -->
+    <main class="flex-1 flex flex-col">
+      <!-- Messages -->
+      <div id="chat-messages" class="flex-1 overflow-y-auto p-6 space-y-6">
+        <!-- Welcome Message -->
+        <div class="flex gap-4">
+          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
+            <span class="mdi mdi-robot text-white text-xl"></span>
+          </div>
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="font-semibold">Assistant</span>
+              <span class="text-xs text-gray-500">Just now</span>
+            </div>
+            <div class="message-content text-gray-300">
+              <p>Hello! I'm your AI assistant. How can I help you today?</p>
+              <p>You can ask me questions, request code examples, or just have a conversation.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Typing Indicator -->
+      <div id="typing-indicator" class="px-6 pb-2 hidden">
+        <div class="flex gap-4">
+          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
+            <span class="mdi mdi-robot text-white text-xl"></span>
+          </div>
+          <div class="bg-gray-800 rounded-2xl px-4 py-3">
+            <div class="typing-indicator flex gap-1">
+              <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
+              <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
+              <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Input Area -->
+      <div class="border-t border-gray-800 p-4">
+        <div class="max-w-4xl mx-auto">
+          <div class="flex gap-3">
+            <button onclick="uploadFile()" class="p-3 bg-gray-800 hover:bg-gray-700 rounded-xl">
+              <span class="mdi mdi-paperclip text-xl text-gray-400"></span>
+            </button>
+            <div class="flex-1 relative">
+              <textarea id="message-input" rows="1"
+                class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 pr-12 text-sm resize-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                placeholder="Type your message..."
+                onkeydown="handleKeyDown(event)"
+                oninput="autoResize(this)"></textarea>
+              <button onclick="sendMessage()" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-purple-600 hover:bg-purple-700 rounded-lg">
+                <span class="mdi mdi-send text-white"></span>
+              </button>
+            </div>
+          </div>
+          <div class="flex items-center justify-between mt-2 text-xs text-gray-500">
+            <span>Press Enter to send, Shift+Enter for new line</span>
+            <span id="char-count">0 / 4096</span>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Panel: History & RAG -->
+    <aside class="w-80 bg-gray-900 border-l border-gray-800 flex flex-col">
+      <!-- Tabs -->
+      <div class="flex border-b border-gray-800">
+        <button onclick="switchRightTab('history')" class="right-tab-btn flex-1 px-4 py-3 text-sm font-medium border-b-2 border-purple-500 text-purple-400">
+          History
+        </button>
+        <button onclick="switchRightTab('rag')" class="right-tab-btn flex-1 px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white">
+          RAG
+        </button>
+        <button onclick="switchRightTab('tools')" class="right-tab-btn flex-1 px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white">
+          Tools
+        </button>
+      </div>
+
+      <!-- History Tab -->
+      <div id="right-tab-history" class="right-tab-content flex-1 overflow-y-auto p-4 space-y-2">
+        <div class="flex items-center gap-2 mb-3">
+          <input type="text" placeholder="Search conversations..."
+            class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm" />
+        </div>
+        <button onclick="loadConversation('conv1')" class="w-full text-left p-3 bg-gray-800/50 hover:bg-gray-700 rounded-lg">
+          <p class="font-medium text-sm truncate">Quantum Computing Basics</p>
+          <p class="text-xs text-gray-500">Today, 2:30 PM</p>
+        </button>
+        <button onclick="loadConversation('conv2')" class="w-full text-left p-3 bg-gray-800/50 hover:bg-gray-700 rounded-lg">
+          <p class="font-medium text-sm truncate">Python Sorting Algorithms</p>
+          <p class="text-xs text-gray-500">Today, 11:15 AM</p>
+        </button>
+        <button onclick="loadConversation('conv3')" class="w-full text-left p-3 bg-gray-800/50 hover:bg-gray-700 rounded-lg">
+          <p class="font-medium text-sm truncate">Microservices Architecture</p>
+          <p class="text-xs text-gray-500">Yesterday</p>
+        </button>
+      </div>
+
+      <!-- RAG Tab -->
+      <div id="right-tab-rag" class="right-tab-content flex-1 overflow-y-auto p-4 hidden">
+        <div class="space-y-4">
+          <div>
+            <h3 class="font-semibold mb-2 text-sm">Knowledge Base</h3>
+            <div class="space-y-2">
+              <div class="flex items-center gap-2 p-2 bg-gray-800/50 rounded text-sm">
+                <span class="mdi mdi-file-document text-blue-400"></span>
+                <span class="flex-1 truncate">company_docs.pdf</span>
+                <span class="text-xs text-gray-500">2.3 MB</span>
+              </div>
+              <div class="flex items-center gap-2 p-2 bg-gray-800/50 rounded text-sm">
+                <span class="mdi mdi-file-document text-blue-400"></span>
+                <span class="flex-1 truncate">api_reference.md</span>
+                <span class="text-xs text-gray-500">156 KB</span>
+              </div>
+            </div>
+            <button class="w-full mt-2 px-3 py-2 border border-dashed border-gray-700 rounded text-sm text-gray-400 hover:border-gray-500">
+              <span class="mdi mdi-plus mr-1"></span> Add Documents
+            </button>
+          </div>
+          <div>
+            <h3 class="font-semibold mb-2 text-sm">Retrieved Context</h3>
+            <div id="rag-context" class="text-xs text-gray-500 bg-gray-800/50 rounded p-3">
+              No context retrieved yet. Start a conversation to see relevant documents.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tools Tab -->
+      <div id="right-tab-tools" class="right-tab-content flex-1 overflow-y-auto p-4 hidden">
+        <div class="space-y-4">
+          <h3 class="font-semibold text-sm">Available Tools</h3>
+          <div class="space-y-2">
+            <div class="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg">
+              <span class="mdi mdi-magnify text-xl text-blue-400"></span>
+              <div class="flex-1">
+                <p class="font-medium text-sm">Web Search</p>
+                <p class="text-xs text-gray-500">Search the web for information</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" checked class="sr-only peer" />
+                <div class="w-8 h-4 bg-gray-700 peer-checked:bg-green-600 rounded-full peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0 after:left-0 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+              </label>
+            </div>
+            <div class="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg">
+              <span class="mdi mdi-calculator text-xl text-green-400"></span>
+              <div class="flex-1">
+                <p class="font-medium text-sm">Calculator</p>
+                <p class="text-xs text-gray-500">Perform calculations</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" checked class="sr-only peer" />
+                <div class="w-8 h-4 bg-gray-700 peer-checked:bg-green-600 rounded-full peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0 after:left-0 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+              </label>
+            </div>
+            <div class="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg">
+              <span class="mdi mdi-code-braces text-xl text-purple-400"></span>
+              <div class="flex-1">
+                <p class="font-medium text-sm">Code Interpreter</p>
+                <p class="text-xs text-gray-500">Execute Python code</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" class="sr-only peer" />
+                <div class="w-8 h-4 bg-gray-700 peer-checked:bg-green-600 rounded-full peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-0 after:left-0 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
+    <div class="bg-gray-900 rounded-xl max-w-md w-full mx-4 border border-gray-800">
+      <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+        <h2 class="text-lg font-semibold">Settings</h2>
+        <button onclick="hideSettings()" class="p-1 hover:bg-gray-800 rounded">
+          <span class="mdi mdi-close text-xl"></span>
+        </button>
+      </div>
+      <div class="p-4 space-y-4">
+        <div>
+          <label class="text-sm font-medium mb-1 block">API Endpoint</label>
+          <input type="text" value="http://localhost:8000/api/chat"
+            class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label class="text-sm font-medium mb-1 block">API Key</label>
+          <input type="password" placeholder="sk-..."
+            class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm" />
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-sm">Save History Locally</span>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" checked class="sr-only peer" />
+            <div class="w-9 h-5 bg-gray-700 peer-checked:bg-green-600 rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+          </label>
+        </div>
+      </div>
+      <div class="p-4 border-t border-gray-800 flex justify-end gap-2">
+        <button onclick="hideSettings()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm">Cancel</button>
+        <button onclick="saveSettings()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded text-sm">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let messages = [];
+    let totalPromptTokens = 0;
+    let totalCompletionTokens = 0;
+
+    function handleKeyDown(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    }
+
+    function autoResize(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+      document.getElementById('char-count').textContent = `${textarea.value.length} / 4096`;
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('message-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      addMessage('user', text);
+      input.value = '';
+      input.style.height = 'auto';
+      document.getElementById('char-count').textContent = '0 / 4096';
+
+      // Show typing indicator
+      document.getElementById('typing-indicator').classList.remove('hidden');
+
+      // Simulate response
+      setTimeout(() => {
+        simulateResponse(text);
+      }, 1000 + Math.random() * 2000);
+    }
+
+    function sendQuickPrompt(prompt) {
+      document.getElementById('message-input').value = prompt;
+      sendMessage();
+    }
+
+    function addMessage(role, content) {
+      const container = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = 'flex gap-4';
+
+      const isUser = role === 'user';
+      const avatar = isUser
+        ? '<div class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0"><span class="mdi mdi-account text-gray-300 text-xl"></span></div>'
+        : '<div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0"><span class="mdi mdi-robot text-white text-xl"></span></div>';
+
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      div.innerHTML = `
+        ${avatar}
+        <div class="flex-1 ${isUser ? '' : 'max-w-3xl'}">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="font-semibold">${isUser ? 'You' : 'Assistant'}</span>
+            <span class="text-xs text-gray-500">${time}</span>
+          </div>
+          <div class="message-content text-gray-300 ${isUser ? '' : 'prose prose-invert prose-sm max-w-none'}">
+            ${isUser ? escapeHtml(content) : marked.parse(content)}
+          </div>
+          ${!isUser ? `
+            <div class="flex items-center gap-2 mt-2">
+              <button onclick="copyMessage(this)" class="p-1 hover:bg-gray-800 rounded text-gray-500 hover:text-gray-300">
+                <span class="mdi mdi-content-copy"></span>
+              </button>
+              <button onclick="rateMessage(1)" class="p-1 hover:bg-gray-800 rounded text-gray-500 hover:text-green-400">
+                <span class="mdi mdi-thumb-up-outline"></span>
+              </button>
+              <button onclick="rateMessage(-1)" class="p-1 hover:bg-gray-800 rounded text-gray-500 hover:text-red-400">
+                <span class="mdi mdi-thumb-down-outline"></span>
+              </button>
+            </div>
+          ` : ''}
+        </div>
+      `;
+
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+
+      // Apply syntax highlighting
+      div.querySelectorAll('pre code').forEach(block => hljs.highlightElement(block));
+
+      messages.push({ role, content });
+    }
+
+    function simulateResponse(userMessage) {
+      document.getElementById('typing-indicator').classList.add('hidden');
+
+      // Generate contextual response
+      let response = '';
+      if (userMessage.toLowerCase().includes('quantum')) {
+        response = `## Quantum Computing Basics
+
+Quantum computing uses **quantum bits (qubits)** instead of classical bits. Here are the key concepts:
+
+1. **Superposition**: Qubits can be in multiple states simultaneously
+2. **Entanglement**: Qubits can be correlated in ways impossible classically
+3. **Interference**: Quantum states can interfere constructively or destructively
+
+\`\`\`python
+# Simple quantum circuit example
+from qiskit import QuantumCircuit
+
+qc = QuantumCircuit(2)
+qc.h(0)  # Hadamard gate
+qc.cx(0, 1)  # CNOT gate
+\`\`\`
+
+Would you like me to explain any of these concepts in more detail?`;
+      } else if (userMessage.toLowerCase().includes('python') || userMessage.toLowerCase().includes('sort')) {
+        response = `Here's a Python function to sort a list:
+
+\`\`\`python
+def quicksort(arr):
+    """Efficient quicksort implementation."""
+    if len(arr) <= 1:
+        return arr
+
+    pivot = arr[len(arr) // 2]
+    left = [x for x in arr if x < pivot]
+    middle = [x for x in arr if x == pivot]
+    right = [x for x in arr if x > pivot]
+
+    return quicksort(left) + middle + quicksort(right)
+
+# Usage
+numbers = [3, 6, 8, 10, 1, 2, 1]
+sorted_numbers = quicksort(numbers)
+print(sorted_numbers)  # [1, 1, 2, 3, 6, 8, 10]
+\`\`\`
+
+This implementation has an average time complexity of **O(n log n)**.`;
+      } else if (userMessage.toLowerCase().includes('microservice')) {
+        response = `## Benefits of Microservices
+
+| Benefit | Description |
+|---------|-------------|
+| **Scalability** | Scale individual services independently |
+| **Flexibility** | Use different tech stacks per service |
+| **Resilience** | Failure isolation prevents cascade |
+| **Deployment** | Deploy services independently |
+| **Team Autonomy** | Teams own their services end-to-end |
+
+### Trade-offs to Consider:
+- Increased operational complexity
+- Network latency between services
+- Data consistency challenges
+- Distributed debugging difficulty`;
+      } else {
+        response = `I understand you're asking about: "${userMessage}"
+
+I'd be happy to help with that! Could you provide a bit more context about what specific aspect you'd like me to focus on?
+
+I can help with:
+- Explanations and concepts
+- Code examples
+- Best practices
+- Troubleshooting`;
+      }
+
+      addMessage('assistant', response);
+      updateTokenUsage(userMessage, response);
+    }
+
+    function updateTokenUsage(prompt, completion) {
+      // Rough token estimation (4 chars per token)
+      const promptTokens = Math.ceil(prompt.length / 4);
+      const completionTokens = Math.ceil(completion.length / 4);
+
+      totalPromptTokens += promptTokens;
+      totalCompletionTokens += completionTokens;
+
+      document.getElementById('prompt-tokens').textContent = totalPromptTokens;
+      document.getElementById('completion-tokens').textContent = totalCompletionTokens;
+      document.getElementById('total-tokens').textContent = totalPromptTokens + totalCompletionTokens;
+
+      // Estimate cost (GPT-4o-mini pricing)
+      const cost = (totalPromptTokens * 0.00015 + totalCompletionTokens * 0.0006) / 1000;
+      document.getElementById('est-cost').textContent = `$${cost.toFixed(4)}`;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function copyMessage(btn) {
+      const content = btn.closest('.flex-1').querySelector('.message-content').textContent;
+      navigator.clipboard.writeText(content);
+      btn.innerHTML = '<span class="mdi mdi-check"></span>';
+      setTimeout(() => btn.innerHTML = '<span class="mdi mdi-content-copy"></span>', 2000);
+    }
+
+    function rateMessage(rating) {
+      console.log('Message rated:', rating);
+    }
+
+    function clearChat() {
+      const container = document.getElementById('chat-messages');
+      container.innerHTML = `
+        <div class="flex gap-4">
+          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
+            <span class="mdi mdi-robot text-white text-xl"></span>
+          </div>
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="font-semibold">Assistant</span>
+              <span class="text-xs text-gray-500">Just now</span>
+            </div>
+            <div class="message-content text-gray-300">
+              <p>Hello! I'm your AI assistant. How can I help you today?</p>
+            </div>
+          </div>
+        </div>
+      `;
+      messages = [];
+      totalPromptTokens = 0;
+      totalCompletionTokens = 0;
+      updateTokenUsage('', '');
+    }
+
+    function changeModel() {
+      const model = document.getElementById('model-select').value;
+      console.log('Switched to model:', model);
+    }
+
+    function uploadFile() {
+      console.log('File upload triggered');
+    }
+
+    function loadConversation(id) {
+      console.log('Loading conversation:', id);
+    }
+
+    function switchRightTab(tab) {
+      document.querySelectorAll('.right-tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.right-tab-btn').forEach(el => {
+        el.classList.remove('border-purple-500', 'text-purple-400');
+        el.classList.add('border-transparent', 'text-gray-400');
+      });
+
+      document.getElementById('right-tab-' + tab).classList.remove('hidden');
+      event.target.classList.add('border-purple-500', 'text-purple-400');
+      event.target.classList.remove('border-transparent', 'text-gray-400');
+    }
+
+    function showSettings() {
+      document.getElementById('settings-modal').classList.remove('hidden');
+    }
+
+    function hideSettings() {
+      document.getElementById('settings-modal').classList.add('hidden');
+    }
+
+    function saveSettings() {
+      hideSettings();
+      console.log('Settings saved');
+    }
+
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      const btn = document.getElementById('themeBtn');
+      btn.innerHTML = document.documentElement.classList.contains('dark')
+        ? '<span class="mdi mdi-weather-night text-xl"></span>'
+        : '<span class="mdi mdi-weather-sunny text-xl"></span>';
+    }
+
+    // Initialize marked with highlight.js
+    marked.setOptions({
+      highlight: function(code, lang) {
+        if (lang && hljs.getLanguage(lang)) {
+          return hljs.highlight(code, { language: lang }).value;
+        }
+        return hljs.highlightAuto(code).value;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>C++ Simulation - Control Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@2.0.0"></script>
+  <style>
+    .terminal-output { font-family: 'Fira Code', 'Monaco', monospace; }
+    .simulation-canvas { image-rendering: pixelated; }
+    .param-slider::-webkit-slider-thumb { cursor: grab; }
+    .param-slider::-webkit-slider-thumb:active { cursor: grabbing; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <!-- Header -->
+  <header class="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <h1 class="text-lg font-semibold flex items-center gap-2">
+        <span class="text-2xl">🔬</span> Simulation Dashboard
+      </h1>
+      <div id="sim-status" class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+        <span class="text-sm text-yellow-400">Ready</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="compileCode()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium">
+        <span class="mdi mdi-wrench mr-1"></span> Compile
+      </button>
+      <button onclick="toggleSimulation()" id="run-btn" class="px-4 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">
+        <span class="mdi mdi-play mr-1"></span> Run
+      </button>
+      <button onclick="toggleTheme()" id="themeBtn" class="p-2 hover:bg-gray-800 rounded">
+        <span class="mdi mdi-weather-night text-xl"></span>
+      </button>
+    </div>
+  </header>
+
+  <div class="flex h-[calc(100vh-57px)]">
+    <!-- Sidebar: Parameters -->
+    <aside class="w-80 bg-gray-900 border-r border-gray-800 overflow-y-auto">
+      <div class="p-4 space-y-6">
+        <!-- Simulation Type -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Simulation</h2>
+          <select id="sim-type" onchange="changeSimType()" class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm">
+            <optgroup label="Physics">
+              <option value="particles" selected>Particle System</option>
+              <option value="nbody">N-Body Gravity</option>
+              <option value="fluid">Fluid Dynamics</option>
+              <option value="wave">Wave Propagation</option>
+            </optgroup>
+            <optgroup label="Cellular">
+              <option value="gameoflife">Game of Life</option>
+              <option value="langton">Langton's Ant</option>
+            </optgroup>
+            <optgroup label="Optimization">
+              <option value="genetic">Genetic Algorithm</option>
+              <option value="annealing">Simulated Annealing</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <!-- Parameters -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Parameters</h2>
+          <div class="space-y-4">
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span>Particle Count</span>
+                <span id="param-count-val" class="text-blue-400">1000</span>
+              </div>
+              <input type="range" id="param-count" min="100" max="5000" value="1000"
+                onchange="updateParam('count', this.value)"
+                class="w-full param-slider" />
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span>Time Step (dt)</span>
+                <span id="param-dt-val" class="text-blue-400">0.016</span>
+              </div>
+              <input type="range" id="param-dt" min="1" max="100" value="16"
+                onchange="updateParam('dt', this.value / 1000)"
+                class="w-full param-slider" />
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span>Gravity</span>
+                <span id="param-gravity-val" class="text-blue-400">9.81</span>
+              </div>
+              <input type="range" id="param-gravity" min="0" max="20" step="0.1" value="9.81"
+                onchange="updateParam('gravity', this.value)"
+                class="w-full param-slider" />
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span>Damping</span>
+                <span id="param-damping-val" class="text-blue-400">0.99</span>
+              </div>
+              <input type="range" id="param-damping" min="90" max="100" value="99"
+                onchange="updateParam('damping', this.value / 100)"
+                class="w-full param-slider" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Performance -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Performance</h2>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+              <p id="fps-display" class="text-2xl font-bold text-green-400">60</p>
+              <p class="text-xs text-gray-500">FPS</p>
+            </div>
+            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+              <p id="frame-time" class="text-2xl font-bold text-blue-400">16.7</p>
+              <p class="text-xs text-gray-500">Frame (ms)</p>
+            </div>
+            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+              <p id="sim-time" class="text-2xl font-bold text-purple-400">0:00</p>
+              <p class="text-xs text-gray-500">Sim Time</p>
+            </div>
+            <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+              <p id="memory-usage" class="text-2xl font-bold text-orange-400">42</p>
+              <p class="text-xs text-gray-500">Memory (MB)</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Export -->
+        <div>
+          <h2 class="font-semibold mb-3 text-sm text-gray-400 uppercase tracking-wide">Export</h2>
+          <div class="space-y-2">
+            <button onclick="exportData('csv')" class="w-full px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left flex items-center gap-2">
+              <span class="mdi mdi-file-delimited text-green-400"></span> Export as CSV
+            </button>
+            <button onclick="exportData('json')" class="w-full px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left flex items-center gap-2">
+              <span class="mdi mdi-code-json text-blue-400"></span> Export as JSON
+            </button>
+            <button onclick="exportData('png')" class="w-full px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm text-left flex items-center gap-2">
+              <span class="mdi mdi-image text-purple-400"></span> Capture Screenshot
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col">
+      <!-- Visualization Tabs -->
+      <div class="flex border-b border-gray-800 bg-gray-900/50">
+        <button onclick="switchVizTab('2d')" class="viz-tab-btn px-6 py-3 text-sm font-medium border-b-2 border-green-500 text-green-400">
+          2D View
+        </button>
+        <button onclick="switchVizTab('charts')" class="viz-tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white">
+          Charts
+        </button>
+        <button onclick="switchVizTab('terminal')" class="viz-tab-btn px-6 py-3 text-sm font-medium border-b-2 border-transparent text-gray-400 hover:text-white">
+          Terminal
+        </button>
+      </div>
+
+      <!-- 2D Visualization -->
+      <div id="viz-tab-2d" class="viz-tab-content flex-1 p-6">
+        <div class="h-full bg-gray-900 rounded-xl border border-gray-800 overflow-hidden relative">
+          <canvas id="sim-canvas" class="simulation-canvas w-full h-full"></canvas>
+          <!-- Overlay Controls -->
+          <div class="absolute top-4 right-4 flex gap-2">
+            <button onclick="resetView()" class="p-2 bg-gray-800/80 hover:bg-gray-700 rounded" title="Reset View">
+              <span class="mdi mdi-fit-to-screen"></span>
+            </button>
+            <button onclick="toggleGrid()" class="p-2 bg-gray-800/80 hover:bg-gray-700 rounded" title="Toggle Grid">
+              <span class="mdi mdi-grid"></span>
+            </button>
+            <button onclick="toggleVectors()" class="p-2 bg-gray-800/80 hover:bg-gray-700 rounded" title="Show Vectors">
+              <span class="mdi mdi-arrow-all"></span>
+            </button>
+          </div>
+          <!-- Stats Overlay -->
+          <div class="absolute bottom-4 left-4 bg-gray-900/90 rounded-lg p-3 text-xs font-mono">
+            <div class="flex gap-4">
+              <span>Particles: <span id="overlay-particles" class="text-green-400">1000</span></span>
+              <span>Energy: <span id="overlay-energy" class="text-blue-400">4521.3</span></span>
+              <span>Collisions: <span id="overlay-collisions" class="text-orange-400">127</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div id="viz-tab-charts" class="viz-tab-content flex-1 p-6 hidden">
+        <div class="grid grid-cols-2 gap-6 h-full">
+          <div class="bg-gray-900 rounded-xl border border-gray-800 p-4">
+            <h3 class="font-semibold mb-2">Energy Over Time</h3>
+            <canvas id="energy-chart"></canvas>
+          </div>
+          <div class="bg-gray-900 rounded-xl border border-gray-800 p-4">
+            <h3 class="font-semibold mb-2">Velocity Distribution</h3>
+            <canvas id="velocity-chart"></canvas>
+          </div>
+          <div class="bg-gray-900 rounded-xl border border-gray-800 p-4">
+            <h3 class="font-semibold mb-2">Position Heatmap</h3>
+            <canvas id="heatmap-chart"></canvas>
+          </div>
+          <div class="bg-gray-900 rounded-xl border border-gray-800 p-4">
+            <h3 class="font-semibold mb-2">Collision Frequency</h3>
+            <canvas id="collision-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Terminal -->
+      <div id="viz-tab-terminal" class="viz-tab-content flex-1 p-6 hidden">
+        <div class="h-full bg-gray-900 rounded-xl border border-gray-800 overflow-hidden flex flex-col">
+          <div class="p-2 bg-gray-800/50 border-b border-gray-800 flex items-center justify-between">
+            <span class="text-sm text-gray-400">Build Output</span>
+            <button onclick="clearTerminal()" class="text-xs text-gray-500 hover:text-gray-300">Clear</button>
+          </div>
+          <div id="terminal-output" class="flex-1 overflow-y-auto p-4 terminal-output text-sm space-y-1">
+            <div class="text-gray-500">[INFO] Simulation engine v2.1.0</div>
+            <div class="text-gray-500">[INFO] Compiler: g++ 13.2.0</div>
+            <div class="text-gray-500">[INFO] Optimization: -O3 -march=native</div>
+            <div class="text-green-400">[OK] Compilation successful</div>
+            <div class="text-gray-500">[INFO] Initializing particle system...</div>
+            <div class="text-blue-400">[SIM] Created 1000 particles</div>
+            <div class="text-blue-400">[SIM] Physics engine ready</div>
+            <div class="text-gray-500">[INFO] Press 'Run' to start simulation</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Panel: State Inspector -->
+    <aside class="w-80 bg-gray-900 border-l border-gray-800 flex flex-col">
+      <div class="p-4 border-b border-gray-800">
+        <h2 class="font-semibold">State Inspector</h2>
+      </div>
+      <div class="flex-1 overflow-y-auto p-4 space-y-4">
+        <!-- Selected Particle -->
+        <div>
+          <h3 class="text-sm text-gray-400 mb-2">Selected Particle #42</h3>
+          <div class="bg-gray-800/50 rounded-lg p-3 space-y-2 text-sm font-mono">
+            <div class="flex justify-between">
+              <span class="text-gray-500">Position</span>
+              <span>(324.5, 218.7)</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Velocity</span>
+              <span>(12.3, -8.9)</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Acceleration</span>
+              <span>(0.0, 9.81)</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Mass</span>
+              <span>1.0 kg</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Kinetic Energy</span>
+              <span class="text-green-400">115.3 J</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- System State -->
+        <div>
+          <h3 class="text-sm text-gray-400 mb-2">System State</h3>
+          <div class="bg-gray-800/50 rounded-lg p-3 space-y-2 text-sm font-mono">
+            <div class="flex justify-between">
+              <span class="text-gray-500">Total Kinetic</span>
+              <span class="text-green-400">4521.3 J</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Total Potential</span>
+              <span class="text-blue-400">1872.1 J</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Total Energy</span>
+              <span class="text-purple-400">6393.4 J</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Center of Mass</span>
+              <span>(400.0, 300.0)</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Momentum</span>
+              <span>(0.12, -0.08)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Simulation Log -->
+        <div>
+          <h3 class="text-sm text-gray-400 mb-2">Event Log</h3>
+          <div class="bg-gray-800/50 rounded-lg p-3 space-y-1 text-xs font-mono max-h-48 overflow-y-auto">
+            <div class="text-gray-500">[0.000s] Simulation started</div>
+            <div class="text-orange-400">[0.234s] Collision: #12 x #45</div>
+            <div class="text-orange-400">[0.567s] Collision: #23 x #67</div>
+            <div class="text-blue-400">[1.000s] Checkpoint saved</div>
+            <div class="text-orange-400">[1.234s] Collision: #8 x wall</div>
+            <div class="text-orange-400">[1.456s] Collision: #91 x #34</div>
+            <div class="text-yellow-400">[2.000s] Energy drift: 0.01%</div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div>
+          <h3 class="text-sm text-gray-400 mb-2">Controls</h3>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="stepSimulation()" class="p-2 bg-gray-800 hover:bg-gray-700 rounded text-sm">
+              <span class="mdi mdi-skip-next mr-1"></span> Step
+            </button>
+            <button onclick="resetSimulation()" class="p-2 bg-gray-800 hover:bg-gray-700 rounded text-sm">
+              <span class="mdi mdi-restart mr-1"></span> Reset
+            </button>
+            <button onclick="saveCheckpoint()" class="p-2 bg-gray-800 hover:bg-gray-700 rounded text-sm">
+              <span class="mdi mdi-content-save mr-1"></span> Save
+            </button>
+            <button onclick="loadCheckpoint()" class="p-2 bg-gray-800 hover:bg-gray-700 rounded text-sm">
+              <span class="mdi mdi-folder-open mr-1"></span> Load
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    let running = false;
+    let animationId = null;
+    let particles = [];
+    let canvas, ctx;
+    let startTime = null;
+    let frameCount = 0;
+    let lastFrameTime = 0;
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      canvas = document.getElementById('sim-canvas');
+      ctx = canvas.getContext('2d');
+      resizeCanvas();
+      initParticles();
+      initCharts();
+      window.addEventListener('resize', resizeCanvas);
+    });
+
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      if (!running) render();
+    }
+
+    function initParticles() {
+      const count = parseInt(document.getElementById('param-count').value);
+      particles = [];
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          vx: (Math.random() - 0.5) * 5,
+          vy: (Math.random() - 0.5) * 5,
+          radius: 3,
+          color: `hsl(${Math.random() * 360}, 70%, 50%)`
+        });
+      }
+      document.getElementById('overlay-particles').textContent = count;
+    }
+
+    function toggleSimulation() {
+      if (running) {
+        stopSimulation();
+      } else {
+        startSimulation();
+      }
+    }
+
+    function startSimulation() {
+      running = true;
+      startTime = Date.now();
+      document.getElementById('run-btn').innerHTML = '<span class="mdi mdi-pause mr-1"></span> Pause';
+      document.getElementById('run-btn').classList.remove('bg-green-600', 'hover:bg-green-700');
+      document.getElementById('run-btn').classList.add('bg-orange-600', 'hover:bg-orange-700');
+      document.getElementById('sim-status').innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span><span class="text-sm text-green-400">Running</span>';
+
+      addTerminalLine('[SIM] Simulation started', 'green');
+      animate();
+    }
+
+    function stopSimulation() {
+      running = false;
+      if (animationId) cancelAnimationFrame(animationId);
+      document.getElementById('run-btn').innerHTML = '<span class="mdi mdi-play mr-1"></span> Run';
+      document.getElementById('run-btn').classList.remove('bg-orange-600', 'hover:bg-orange-700');
+      document.getElementById('run-btn').classList.add('bg-green-600', 'hover:bg-green-700');
+      document.getElementById('sim-status').innerHTML = '<span class="w-2 h-2 rounded-full bg-yellow-500"></span><span class="text-sm text-yellow-400">Paused</span>';
+
+      addTerminalLine('[SIM] Simulation paused', 'yellow');
+    }
+
+    function animate() {
+      if (!running) return;
+
+      const now = performance.now();
+      const dt = (now - lastFrameTime) / 1000 || 0.016;
+      lastFrameTime = now;
+
+      update(dt);
+      render();
+
+      // Update FPS
+      frameCount++;
+      const elapsed = (Date.now() - startTime) / 1000;
+      const fps = Math.round(frameCount / elapsed);
+      document.getElementById('fps-display').textContent = fps;
+      document.getElementById('frame-time').textContent = (dt * 1000).toFixed(1);
+      document.getElementById('sim-time').textContent = formatTime(elapsed);
+
+      animationId = requestAnimationFrame(animate);
+    }
+
+    function update(dt) {
+      const gravity = parseFloat(document.getElementById('param-gravity').value);
+      const damping = parseFloat(document.getElementById('param-damping').value) / 100;
+
+      let collisions = 0;
+      let totalEnergy = 0;
+
+      particles.forEach(p => {
+        // Apply gravity
+        p.vy += gravity * dt;
+
+        // Update position
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // Boundary collision
+        if (p.x < p.radius) { p.x = p.radius; p.vx *= -damping; collisions++; }
+        if (p.x > canvas.width - p.radius) { p.x = canvas.width - p.radius; p.vx *= -damping; collisions++; }
+        if (p.y < p.radius) { p.y = p.radius; p.vy *= -damping; collisions++; }
+        if (p.y > canvas.height - p.radius) { p.y = canvas.height - p.radius; p.vy *= -damping; collisions++; }
+
+        // Calculate energy
+        totalEnergy += 0.5 * (p.vx * p.vx + p.vy * p.vy);
+      });
+
+      document.getElementById('overlay-energy').textContent = totalEnergy.toFixed(1);
+      document.getElementById('overlay-collisions').textContent = collisions;
+    }
+
+    function render() {
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      particles.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+      });
+    }
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function updateParam(name, value) {
+      document.getElementById(`param-${name}-val`).textContent = value;
+
+      if (name === 'count') {
+        initParticles();
+        if (!running) render();
+      }
+
+      addTerminalLine(`[PARAM] ${name} = ${value}`, 'blue');
+    }
+
+    function compileCode() {
+      addTerminalLine('[BUILD] Compiling...', 'gray');
+      setTimeout(() => {
+        addTerminalLine('[BUILD] g++ -O3 -march=native -o simulation main.cpp', 'gray');
+        addTerminalLine('[BUILD] Linking libraries...', 'gray');
+        setTimeout(() => {
+          addTerminalLine('[OK] Build successful (0.42s)', 'green');
+        }, 500);
+      }, 300);
+    }
+
+    function changeSimType() {
+      const type = document.getElementById('sim-type').value;
+      addTerminalLine(`[SIM] Switched to: ${type}`, 'blue');
+      initParticles();
+      if (!running) render();
+    }
+
+    function stepSimulation() {
+      update(0.016);
+      render();
+      addTerminalLine('[SIM] Single step executed', 'gray');
+    }
+
+    function resetSimulation() {
+      stopSimulation();
+      initParticles();
+      render();
+      frameCount = 0;
+      document.getElementById('sim-time').textContent = '0:00';
+      addTerminalLine('[SIM] Simulation reset', 'yellow');
+    }
+
+    function saveCheckpoint() {
+      addTerminalLine('[SAVE] Checkpoint saved: checkpoint_001.bin', 'green');
+    }
+
+    function loadCheckpoint() {
+      addTerminalLine('[LOAD] Loading checkpoint...', 'blue');
+    }
+
+    function exportData(format) {
+      addTerminalLine(`[EXPORT] Exporting as ${format.toUpperCase()}...`, 'blue');
+      setTimeout(() => {
+        addTerminalLine(`[OK] Exported: simulation_data.${format}`, 'green');
+      }, 500);
+    }
+
+    function addTerminalLine(text, color = 'gray') {
+      const terminal = document.getElementById('terminal-output');
+      const div = document.createElement('div');
+      div.className = `text-${color}-400`;
+      div.textContent = text;
+      terminal.appendChild(div);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function clearTerminal() {
+      document.getElementById('terminal-output').innerHTML = '';
+    }
+
+    function switchVizTab(tab) {
+      document.querySelectorAll('.viz-tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.viz-tab-btn').forEach(el => {
+        el.classList.remove('border-green-500', 'text-green-400');
+        el.classList.add('border-transparent', 'text-gray-400');
+      });
+
+      document.getElementById('viz-tab-' + tab).classList.remove('hidden');
+      event.target.classList.add('border-green-500', 'text-green-400');
+      event.target.classList.remove('border-transparent', 'text-gray-400');
+
+      if (tab === '2d') resizeCanvas();
+    }
+
+    function resetView() { console.log('Reset view'); }
+    function toggleGrid() { console.log('Toggle grid'); }
+    function toggleVectors() { console.log('Toggle vectors'); }
+
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      const btn = document.getElementById('themeBtn');
+      btn.innerHTML = document.documentElement.classList.contains('dark')
+        ? '<span class="mdi mdi-weather-night text-xl"></span>'
+        : '<span class="mdi mdi-weather-sunny text-xl"></span>';
+    }
+
+    // Initialize charts
+    function initCharts() {
+      // Energy Chart
+      new Chart(document.getElementById('energy-chart'), {
+        type: 'line',
+        data: {
+          labels: Array(50).fill(0).map((_, i) => i),
+          datasets: [{
+            label: 'Total Energy',
+            data: Array(50).fill(0).map(() => 4000 + Math.random() * 1000),
+            borderColor: '#22c55e',
+            tension: 0.3,
+            fill: false
+          }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+
+      // Velocity Distribution
+      new Chart(document.getElementById('velocity-chart'), {
+        type: 'bar',
+        data: {
+          labels: ['0-2', '2-4', '4-6', '6-8', '8-10', '10+'],
+          datasets: [{
+            label: 'Particles',
+            data: [120, 280, 350, 180, 50, 20],
+            backgroundColor: '#3b82f6'
+          }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+
+      // Heatmap (simplified as scatter)
+      new Chart(document.getElementById('heatmap-chart'), {
+        type: 'scatter',
+        data: {
+          datasets: [{
+            label: 'Density',
+            data: Array(100).fill(0).map(() => ({
+              x: Math.random() * 100,
+              y: Math.random() * 100
+            })),
+            backgroundColor: 'rgba(168, 85, 247, 0.5)'
+          }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+
+      // Collision frequency
+      new Chart(document.getElementById('collision-chart'), {
+        type: 'line',
+        data: {
+          labels: Array(20).fill(0).map((_, i) => i),
+          datasets: [{
+            label: 'Collisions/s',
+            data: Array(20).fill(0).map(() => Math.floor(Math.random() * 50)),
+            borderColor: '#f97316',
+            backgroundColor: 'rgba(249, 115, 22, 0.1)',
+            fill: true
+          }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+    }
+
+    // Simulate memory usage updates
+    setInterval(() => {
+      if (running) {
+        document.getElementById('memory-usage').textContent = 40 + Math.floor(Math.random() * 20);
+      }
+    }, 2000);
+  </script>
+</body>
+</html>

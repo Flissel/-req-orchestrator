@@ -22,6 +22,57 @@ router = APIRouter(prefix="/api/v1/manifest", tags=["manifest"])
 logger = logging.getLogger(__name__)
 
 
+@router.get("/sources")
+async def get_manifest_sources():
+    """
+    Get list of unique source files (projects) with requirement counts.
+    
+    Returns:
+    - List of source files with statistics
+    - Useful for selecting which project/file to load
+    
+    Example: GET /api/v1/manifest/sources
+    """
+    try:
+        conn = _db.get_db()
+        try:
+            query = """
+                SELECT 
+                    source_file,
+                    source_type,
+                    COUNT(*) as requirement_count,
+                    MIN(created_at) as first_created,
+                    MAX(created_at) as last_created
+                FROM requirement_manifest
+                WHERE source_file IS NOT NULL AND source_file != ''
+                GROUP BY source_file, source_type
+                ORDER BY last_created DESC
+            """
+            rows = conn.execute(query).fetchall()
+            
+            sources = []
+            for row in rows:
+                sources.append({
+                    "source_file": row["source_file"],
+                    "source_type": row["source_type"],
+                    "requirement_count": row["requirement_count"],
+                    "first_created": row["first_created"],
+                    "last_created": row["last_created"]
+                })
+            
+            return {
+                "sources": sources,
+                "total_sources": len(sources)
+            }
+            
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        logger.error(f"Failed to get manifest sources: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{requirement_id}", response_model=RequirementManifest)
 async def get_manifest(requirement_id: str):
     """
@@ -180,7 +231,8 @@ async def query_manifests(
             query = f"""
                 SELECT requirement_id, requirement_checksum, source_type, source_file,
                        source_file_sha1, chunk_index, original_text, current_text,
-                       current_stage, parent_id, created_at, updated_at, metadata
+                       current_stage, parent_id, validation_score, validation_verdict,
+                       created_at, updated_at, metadata
                 FROM requirement_manifest
                 WHERE {where_sql}
                 ORDER BY created_at DESC

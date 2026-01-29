@@ -1,0 +1,33 @@
+{
+  "id": "14-vr-webxr",
+  "name": "VR Experience (WebXR)",
+  "description": "Virtual Reality Anwendung mit WebXR. Läuft im Browser und auf VR-Headsets wie Quest, Pico und mehr.",
+  "version": "1.0.0",
+  "category": "vr",
+  "tags": ["webxr", "vr", "three.js", "aframe", "immersive", "3d"],
+  "difficulty": "intermediate",
+  "estimated_setup_time": "10 minutes",
+  "tech_stack": {
+    "frontend": {
+      "framework": "Three.js / A-Frame",
+      "xr": "WebXR API",
+      "language": "TypeScript"
+    },
+    "deployment": {
+      "platforms": ["Browser", "Quest", "Pico", "Any WebXR Headset"],
+      "hosting": "Any Static Host"
+    }
+  },
+  "prerequisites": ["Node.js 20+", "WebXR-fähiger Browser oder VR-Headset"],
+  "features": [
+    "Immersive VR Experiences",
+    "Controller Input",
+    "3D Scene Rendering",
+    "Spatial Audio",
+    "Cross-Platform (Browser & Headset)"
+  ],
+  "placeholders": {
+    "PROJECT_NAME": "My VR Experience",
+    "PROJECT_NAME_KEBAB": "my-vr-experience"
+  }
+}

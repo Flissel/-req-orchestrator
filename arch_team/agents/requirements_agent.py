@@ -71,16 +71,35 @@ def _init_model_client(model_name: Optional[str] = None) -> OpenAIChatCompletion
     adapter = OpenAIAdapter()
     model = model_name or adapter.default_model
 
-    # Get API key from environment (same as OpenAIAdapter does)
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY environment variable not set")
+    # Get provider-specific configuration
+    try:
+        from backend.core.settings import get_llm_config
+        llm_config = get_llm_config()
+        api_key = llm_config["api_key"]
+        base_url = llm_config["base_url"]
+    except ImportError:
+        # Fallback to direct env vars if backend.core.settings not available
+        provider = os.environ.get("LLM_PROVIDER", "openai")
+        if provider == "openrouter":
+            api_key = os.environ.get("OPENROUTER_API_KEY", "")
+            base_url = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        else:
+            api_key = os.environ.get("OPENAI_API_KEY", "")
+            base_url = None
 
-    return OpenAIChatCompletionClient(
-        model=model,
-        api_key=api_key,
-        # Additional config from adapter if needed
-    )
+    if not api_key:
+        provider = os.environ.get("LLM_PROVIDER", "openai")
+        raise RuntimeError(f"API key not set for provider: {provider}")
+
+    # Create client with base_url for OpenRouter support
+    client_kwargs = {
+        "model": model,
+        "api_key": api_key
+    }
+    if base_url:
+        client_kwargs["base_url"] = base_url
+
+    return OpenAIChatCompletionClient(**client_kwargs)
 
 
 # NOTE: _create_ask_user_tool has been removed.

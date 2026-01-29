@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arch Platform - Space Mission Control</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3e 50%, #0a0a2a 100%);
+      min-height: 100vh;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    /* Stars Background */
+    .stars {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .star {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: white;
+      border-radius: 50%;
+      animation: twinkle 2s infinite;
+    }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    /* Main Container */
+    .space-container {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      height: 100vh;
+      padding: 20px;
+      gap: 30px;
+    }
+
+    /* Left Panel - Planets & Mission Info */
+    .left-panel {
+      width: 250px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Planet */
+    .planet {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      position: relative;
+      margin: 20px auto;
+    }
+
+    .planet-earth {
+      background: radial-gradient(circle at 30% 30%, #4a9eff, #1a5a9e, #0a2a4e);
+      box-shadow:
+        0 0 40px rgba(74, 158, 255, 0.4),
+        inset -20px -20px 30px rgba(0,0,0,0.4);
+    }
+
+    .planet-mars {
+      background: radial-gradient(circle at 30% 30%, #ff6b4a, #9e3a1a, #4e1a0a);
+      box-shadow:
+        0 0 40px rgba(255, 107, 74, 0.4),
+        inset -20px -20px 30px rgba(0,0,0,0.4);
+      width: 80px;
+      height: 80px;
+    }
+
+    /* Orbit Ring */
+    .orbit {
+      position: absolute;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 50%;
+      animation: rotate 20s linear infinite;
+    }
+
+    .orbit-1 {
+      width: 200px;
+      height: 200px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    @keyframes rotate {
+      from { transform: translate(-50%, -50%) rotate(0deg); }
+      to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+
+    /* Mission Info Card */
+    .mission-card {
+      background: rgba(0, 20, 40, 0.6);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      border-radius: 12px;
+      padding: 15px;
+    }
+
+    .mission-card h3 {
+      color: #00d4ff;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+
+    .mission-stat {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .mission-stat:last-child { border: none; }
+
+    .stat-value { color: #00ff88; }
+
+    /* Center Panel - Shuttle */
+    .center-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Shuttle Container - Embedded from Shuttle.jsx/css */
+    .shuttle-container {
+      position: relative;
+      width: 220px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .shuttle-body {
+      background: linear-gradient(145deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      border-radius: 12px;
+      padding: 15px;
+      width: 100%;
+      box-shadow:
+        0 0 20px rgba(0, 212, 255, 0.15),
+        inset 0 0 30px rgba(0, 0, 0, 0.5);
+      transition: all 0.3s ease;
+    }
+
+    .shuttle-container.processing .shuttle-body {
+      border-color: rgba(0, 255, 136, 0.5);
+      box-shadow:
+        0 0 30px rgba(0, 255, 136, 0.3),
+        inset 0 0 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .shuttle-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .shuttle-icon {
+      font-size: 20px;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+
+    .shuttle-title {
+      color: #00d4ff;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      flex: 1;
+    }
+
+    .queue-badge {
+      background: rgba(0, 212, 255, 0.2);
+      border: 1px solid rgba(0, 212, 255, 0.4);
+      color: #00d4ff;
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 10px;
+    }
+
+    /* File Queue */
+    .file-queue {
+      margin-bottom: 12px;
+      max-height: 180px;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 6px;
+      padding: 8px;
+    }
+
+    .queue-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      margin-bottom: 6px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.3);
+      transition: all 0.2s ease;
+    }
+
+    .queue-item:last-child { margin-bottom: 0; }
+
+    .queue-item-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .queue-status-icon { font-size: 14px; }
+
+    .queue-filename {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.7);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .queue-pending { border-left: 2px solid rgba(255, 255, 255, 0.3); }
+    .queue-processing {
+      border-left: 2px solid #00d4ff;
+      background: rgba(0, 212, 255, 0.1);
+    }
+    .queue-processing .queue-filename { color: #00d4ff; }
+    .queue-done { border-left: 2px solid #00ff88; }
+    .queue-done .queue-filename { color: #00ff88; }
+    .queue-failed { border-left: 2px solid #ff6464; }
+    .queue-failed .queue-filename { color: #ff6464; }
+
+    /* Phase Indicators */
+    .queue-phases-mini {
+      display: flex;
+      gap: 4px;
+    }
+
+    .mini-phase {
+      font-size: 10px;
+      width: 12px;
+      text-align: center;
+    }
+
+    .mini-pending { color: rgba(255, 255, 255, 0.3); }
+    .mini-running { color: #00d4ff; animation: pulse 1s ease-in-out infinite; }
+    .mini-done { color: #00ff88; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Drop Zone */
+    .shuttle-dropzone {
+      background: rgba(0, 0, 0, 0.3);
+      border: 2px dashed rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 20px 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .shuttle-dropzone:hover {
+      border-color: rgba(0, 212, 255, 0.5);
+      background: rgba(0, 212, 255, 0.05);
+    }
+
+    .shuttle-dropzone.dragging {
+      border-color: #00ff88;
+      background: rgba(0, 255, 136, 0.1);
+      transform: scale(1.02);
+    }
+
+    .dropzone-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dropzone-icon { font-size: 28px; opacity: 0.6; }
+    .dropzone-text { color: rgba(255, 255, 255, 0.7); font-size: 12px; }
+    .dropzone-hint { color: rgba(255, 255, 255, 0.4); font-size: 10px; }
+
+    /* Launch Button */
+    .shuttle-actions {
+      margin-top: 12px;
+    }
+
+    .btn-launch {
+      width: 100%;
+      background: linear-gradient(135deg, #00d4ff 0%, #00a8cc 100%);
+      border: none;
+      color: white;
+      padding: 10px 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-launch:hover:not(:disabled) {
+      background: linear-gradient(135deg, #00e5ff 0%, #00bcd4 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 212, 255, 0.4);
+    }
+
+    .btn-launch:disabled {
+      background: rgba(100, 100, 100, 0.3);
+      cursor: not-allowed;
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .btn-launch.processing {
+      background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+    }
+
+    .spinner {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* Thruster Animation */
+    .shuttle-thruster {
+      position: relative;
+      width: 70px;
+      height: 50px;
+      margin-top: -8px;
+      display: flex;
+      justify-content: center;
+      gap: 3px;
+    }
+
+    .flame {
+      width: 10px;
+      background: linear-gradient(to bottom, #ff6600, #ffcc00, transparent);
+      border-radius: 0 0 50% 50%;
+      animation: flicker 0.1s ease-in-out infinite alternate;
+    }
+
+    .flame-1 { height: 30px; animation-delay: 0s; }
+    .flame-2 { height: 40px; animation-delay: 0.05s; }
+    .flame-3 { height: 30px; animation-delay: 0.1s; }
+
+    @keyframes flicker {
+      0% { opacity: 0.8; transform: scaleY(0.95); }
+      100% { opacity: 1; transform: scaleY(1.05); }
+    }
+
+    /* Right Panel - DNA Helix & Results */
+    .right-panel {
+      width: 350px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* DNA Helix */
+    .dna-container {
+      background: rgba(0, 20, 40, 0.6);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      border-radius: 12px;
+      padding: 15px;
+      height: 300px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .dna-title {
+      color: #00d4ff;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+
+    .dna-helix {
+      position: relative;
+      height: calc(100% - 30px);
+      display: flex;
+      justify-content: center;
+    }
+
+    .dna-strand {
+      position: absolute;
+      width: 100px;
+      height: 100%;
+    }
+
+    .dna-node {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      animation: dna-rotate 4s linear infinite;
+    }
+
+    @keyframes dna-rotate {
+      0% { transform: rotateY(0deg) translateX(30px); }
+      100% { transform: rotateY(360deg) translateX(30px); }
+    }
+
+    .dna-node:nth-child(odd) { background: #00d4ff; }
+    .dna-node:nth-child(even) { background: #00ff88; animation-delay: -2s; }
+
+    /* Results Panel */
+    .results-panel {
+      background: rgba(0, 20, 40, 0.6);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      border-radius: 12px;
+      padding: 15px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .results-title {
+      color: #00d4ff;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+
+    .result-item {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 8px;
+      border-left: 2px solid #00ff88;
+    }
+
+    .result-item.pending {
+      border-left-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .result-id {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 4px;
+    }
+
+    .result-text {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.8);
+      line-height: 1.4;
+    }
+
+    .result-tag {
+      display: inline-block;
+      background: rgba(0, 212, 255, 0.2);
+      color: #00d4ff;
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      margin-top: 6px;
+    }
+
+    /* Connection Lines */
+    .connection-line {
+      position: absolute;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #00d4ff, transparent);
+      top: 50%;
+      z-index: 0;
+    }
+
+    .connection-left {
+      left: 270px;
+      width: calc(50% - 380px);
+    }
+
+    .connection-right {
+      right: 350px;
+      width: calc(50% - 380px);
+    }
+
+    /* Hidden file input */
+    .hidden-input { display: none; }
+
+    /* Remove button */
+    .btn-remove {
+      background: none;
+      border: none;
+      color: rgba(255, 100, 100, 0.7);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 6px;
+    }
+
+    .btn-remove:hover {
+      color: #ff6464;
+    }
+  </style>
+</head>
+<body>
+  <!-- Stars Background -->
+  <div class="stars" id="stars"></div>
+
+  <!-- Connection Lines -->
+  <div class="connection-line connection-left"></div>
+  <div class="connection-line connection-right"></div>
+
+  <div class="space-container">
+    <!-- Left Panel - Planets -->
+    <div class="left-panel">
+      <div style="position: relative; height: 200px;">
+        <div class="planet planet-earth"></div>
+        <div class="orbit orbit-1"></div>
+      </div>
+
+      <div class="planet planet-mars" style="align-self: flex-end;"></div>
+
+      <div class="mission-card">
+        <h3>Mission Status</h3>
+        <div class="mission-stat">
+          <span>Backend</span>
+          <span class="stat-value" id="backend-status">Connecting...</span>
+        </div>
+        <div class="mission-stat">
+          <span>Files Processed</span>
+          <span class="stat-value" id="files-processed">0</span>
+        </div>
+        <div class="mission-stat">
+          <span>Requirements</span>
+          <span class="stat-value" id="req-count">0</span>
+        </div>
+        <div class="mission-stat">
+          <span>KG Nodes</span>
+          <span class="stat-value" id="kg-nodes">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Panel - Shuttle -->
+    <div class="center-panel">
+      <div class="shuttle-container" id="shuttle">
+        <div class="shuttle-body">
+          <div class="shuttle-header">
+            <span class="shuttle-icon">🚀</span>
+            <span class="shuttle-title">Arch Platform</span>
+            <span class="queue-badge" id="queue-badge">0/0</span>
+          </div>
+
+          <div class="file-queue" id="file-queue" style="display: none;"></div>
+
+          <div class="shuttle-dropzone" id="dropzone">
+            <input type="file" class="hidden-input" id="file-input" accept=".md,.txt,.pdf,.docx" multiple>
+            <div class="dropzone-content">
+              <span class="dropzone-icon">📄</span>
+              <span class="dropzone-text">Drop files here</span>
+              <span class="dropzone-hint">.md .txt .pdf .docx</span>
+            </div>
+          </div>
+
+          <div class="shuttle-actions">
+            <button class="btn-launch" id="launch-btn" disabled>
+              ▶ Launch Queue (0)
+            </button>
+          </div>
+        </div>
+
+        <div class="shuttle-thruster" id="thruster" style="display: none;">
+          <div class="flame flame-1"></div>
+          <div class="flame flame-2"></div>
+          <div class="flame flame-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel - DNA & Results -->
+    <div class="right-panel">
+      <div class="dna-container">
+        <div class="dna-title">🧬 Requirements DNA</div>
+        <div class="dna-helix">
+          <div class="dna-strand" id="dna-strand"></div>
+        </div>
+      </div>
+
+      <div class="results-panel">
+        <div class="results-title">📋 Extracted Requirements</div>
+        <div id="results-list">
+          <div class="result-item pending">
+            <div class="result-text" style="color: rgba(255,255,255,0.4);">
+              Drop a requirements document to begin extraction...
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Configuration - Use host.docker.internal for Docker browser access
+    const BACKEND_URL = 'http://host.docker.internal:8087'
+
+    // State
+    let fileQueue = []
+    let isProcessing = false
+    let filesProcessed = 0
+    let totalRequirements = 0
+    let totalKgNodes = 0
+
+    // Elements
+    const shuttle = document.getElementById('shuttle')
+    const dropzone = document.getElementById('dropzone')
+    const fileInput = document.getElementById('file-input')
+    const fileQueueEl = document.getElementById('file-queue')
+    const queueBadge = document.getElementById('queue-badge')
+    const launchBtn = document.getElementById('launch-btn')
+    const thruster = document.getElementById('thruster')
+    const resultsList = document.getElementById('results-list')
+    const dnaStrand = document.getElementById('dna-strand')
+
+    // Generate stars
+    function generateStars() {
+      const stars = document.getElementById('stars')
+      for (let i = 0; i < 100; i++) {
+        const star = document.createElement('div')
+        star.className = 'star'
+        star.style.left = Math.random() * 100 + '%'
+        star.style.top = Math.random() * 100 + '%'
+        star.style.animationDelay = Math.random() * 2 + 's'
+        stars.appendChild(star)
+      }
+    }
+
+    // Generate DNA nodes
+    function generateDNA(count = 10) {
+      dnaStrand.innerHTML = ''
+      for (let i = 0; i < count; i++) {
+        const node = document.createElement('div')
+        node.className = 'dna-node'
+        node.style.top = (i * (100 / count)) + '%'
+        node.style.animationDelay = (i * 0.2) + 's'
+        dnaStrand.appendChild(node)
+      }
+    }
+
+    // Check backend health
+    async function checkBackend() {
+      try {
+        const response = await fetch(`${BACKEND_URL}/health`)
+        if (response.ok) {
+          document.getElementById('backend-status').textContent = 'Online'
+          document.getElementById('backend-status').style.color = '#00ff88'
+        }
+      } catch (e) {
+        document.getElementById('backend-status').textContent = 'Offline'
+        document.getElementById('backend-status').style.color = '#ff6464'
+      }
+    }
+
+    // Update queue display
+    function updateQueueDisplay() {
+      const pending = fileQueue.filter(f => f.status === 'pending').length
+      queueBadge.textContent = `${pending}/${fileQueue.length}`
+
+      if (fileQueue.length === 0) {
+        fileQueueEl.style.display = 'none'
+      } else {
+        fileQueueEl.style.display = 'block'
+        fileQueueEl.innerHTML = fileQueue.map(item => `
+          <div class="queue-item queue-${item.status}">
+            <div class="queue-item-info">
+              <span class="queue-status-icon">
+                ${item.status === 'pending' ? '⏸️' : item.status === 'processing' ? '⏳' : item.status === 'done' ? '✅' : '❌'}
+              </span>
+              <span class="queue-filename" title="${item.fileName}">
+                ${item.fileName.length > 18 ? item.fileName.slice(0, 15) + '...' : item.fileName}
+              </span>
+            </div>
+            ${item.status === 'processing' ? `
+              <div class="queue-phases-mini">
+                <span class="mini-phase mini-${item.phases.mining}">${item.phases.mining === 'running' ? '◌' : item.phases.mining === 'done' ? '●' : '○'}</span>
+                <span class="mini-phase mini-${item.phases.kg}">${item.phases.kg === 'running' ? '◌' : item.phases.kg === 'done' ? '●' : '○'}</span>
+                <span class="mini-phase mini-${item.phases.validation}">${item.phases.validation === 'running' ? '◌' : item.phases.validation === 'done' ? '●' : '○'}</span>
+                <span class="mini-phase mini-${item.phases.rewrite}">${item.phases.rewrite === 'running' ? '◌' : item.phases.rewrite === 'done' ? '●' : '○'}</span>
+              </div>
+            ` : ''}
+            ${(item.status === 'pending' || item.status === 'failed') ? `
+              <button class="btn-remove" onclick="removeFromQueue('${item.id}')">✕</button>
+            ` : ''}
+          </div>
+        `).join('')
+      }
+
+      launchBtn.disabled = pending === 0 || isProcessing
+      launchBtn.textContent = isProcessing ? '◌ Processing...' : `▶ Launch Queue (${pending})`
+    }
+
+    // Add files to queue
+    function addFilesToQueue(files) {
+      const newItems = Array.from(files).map(file => ({
+        id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        file,
+        fileName: file.name,
+        status: 'pending',
+        phases: { mining: 'pending', kg: 'pending', validation: 'pending', rewrite: 'pending' }
+      }))
+      fileQueue = [...fileQueue, ...newItems]
+      updateQueueDisplay()
+    }
+
+    // Remove from queue
+    window.removeFromQueue = function(id) {
+      fileQueue = fileQueue.filter(f => f.id !== id)
+      updateQueueDisplay()
+    }
+
+    // Process single file
+    async function processFile(item) {
+      item.status = 'processing'
+      item.phases.mining = 'running'
+      updateQueueDisplay()
+
+      try {
+        const formData = new FormData()
+        formData.append('files', item.file)
+        formData.append('correlation_id', `shuttle-${item.id}-${Date.now()}`)
+        formData.append('provider', 'openrouter')
+        formData.append('model', 'google/gemini-2.5-flash:nitro')
+        formData.append('neighbor_refs', '1')
+        formData.append('auto_validate', 'true')
+
+        const response = await fetch(`${BACKEND_URL}/api/arch_team/process`, {
+          method: 'POST',
+          body: formData
+        })
+
+        if (!response.ok) throw new Error(`API Error: ${response.status}`)
+
+        const data = await response.json()
+
+        if (data.success) {
+          // Update phases with visual delays
+          item.phases.mining = 'done'
+          item.phases.kg = 'running'
+          updateQueueDisplay()
+          await new Promise(r => setTimeout(r, 200))
+
+          item.phases.kg = 'done'
+          item.phases.validation = 'running'
+          updateQueueDisplay()
+          await new Promise(r => setTimeout(r, 200))
+
+          item.phases.validation = 'done'
+          item.phases.rewrite = 'running'
+          updateQueueDisplay()
+          await new Promise(r => setTimeout(r, 200))
+
+          item.phases.rewrite = 'done'
+          item.status = 'done'
+
+          // Update stats
+          filesProcessed++
+          document.getElementById('files-processed').textContent = filesProcessed
+
+          const requirements = data.requirements || []
+          totalRequirements += requirements.length
+          document.getElementById('req-count').textContent = totalRequirements
+
+          const kgData = data.kg_data || { nodes: [] }
+          totalKgNodes += kgData.nodes?.length || 0
+          document.getElementById('kg-nodes').textContent = totalKgNodes
+
+          // Update DNA
+          generateDNA(Math.min(totalRequirements, 20))
+
+          // Display requirements
+          displayRequirements(requirements)
+
+          return { requirements, kgData }
+        } else {
+          throw new Error(data.error || 'Processing failed')
+        }
+      } catch (error) {
+        console.error('Error processing file:', error)
+        item.status = 'failed'
+        Object.keys(item.phases).forEach(p => {
+          if (item.phases[p] === 'running') item.phases[p] = 'failed'
+        })
+        return null
+      } finally {
+        updateQueueDisplay()
+      }
+    }
+
+    // Display requirements
+    function displayRequirements(requirements) {
+      if (requirements.length === 0) return
+
+      resultsList.innerHTML = requirements.map(req => `
+        <div class="result-item">
+          <div class="result-id">${req.req_id || 'REQ-XXX'}</div>
+          <div class="result-text">${req.title || req.text || 'No text'}</div>
+          <span class="result-tag">${req.tag || 'untagged'}</span>
+        </div>
+      `).join('')
+    }
+
+    // Process queue
+    async function processQueue() {
+      if (isProcessing) return
+
+      const pendingFiles = fileQueue.filter(f => f.status === 'pending')
+      if (pendingFiles.length === 0) return
+
+      isProcessing = true
+      shuttle.classList.add('processing')
+      launchBtn.classList.add('processing')
+      thruster.style.display = 'flex'
+      updateQueueDisplay()
+
+      for (const item of pendingFiles) {
+        await processFile(item)
+      }
+
+      isProcessing = false
+      shuttle.classList.remove('processing')
+      launchBtn.classList.remove('processing')
+      thruster.style.display = 'none'
+      updateQueueDisplay()
+    }
+
+    // Event Listeners
+    dropzone.addEventListener('click', () => {
+      if (!isProcessing) fileInput.click()
+    })
+
+    fileInput.addEventListener('change', (e) => {
+      addFilesToQueue(e.target.files)
+      e.target.value = ''
+    })
+
+    dropzone.addEventListener('dragenter', (e) => {
+      e.preventDefault()
+      dropzone.classList.add('dragging')
+    })
+
+    dropzone.addEventListener('dragleave', (e) => {
+      e.preventDefault()
+      dropzone.classList.remove('dragging')
+    })
+
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault()
+    })
+
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault()
+      dropzone.classList.remove('dragging')
+      const files = Array.from(e.dataTransfer.files).filter(f =>
+        /\.(md|txt|pdf|docx)$/i.test(f.name)
+      )
+      if (files.length > 0) addFilesToQueue(files)
+    })
+
+    launchBtn.addEventListener('click', processQueue)
+
+    // Initialize
+    generateStars()
+    generateDNA()
+    checkBackend()
+    setInterval(checkBackend, 10000)
+  </script>
+</body>
+</html>

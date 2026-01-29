@@ -1,0 +1,64 @@
+{
+  "id": "01-web-app",
+  "name": "Web Application",
+  "version": "1.0.0",
+  "description": "Full-Stack Web Application with Next.js 14, Prisma, PostgreSQL, and Tailwind CSS",
+  "category": "web",
+
+  "stack": [
+    "Next.js 14",
+    "React 18",
+    "TypeScript",
+    "Tailwind CSS",
+    "Prisma ORM",
+    "PostgreSQL",
+    "NextAuth.js"
+  ],
+
+  "pc_requirements": [
+    "Docker Desktop",
+    "Node.js 18+ (optional, for local dev)"
+  ],
+
+  "commands": {
+    "install": "docker-compose up -d && npm install",
+    "dev": "npm run dev",
+    "build": "npm run build",
+    "test": "npm test",
+    "lint": "npm run lint",
+    "db:migrate": "npx prisma migrate dev",
+    "db:studio": "npx prisma studio"
+  },
+
+  "ports": {
+    "app": 3000,
+    "db": 5432
+  },
+
+  "features": [
+    "Server Components",
+    "App Router",
+    "API Routes",
+    "Authentication",
+    "Database ORM",
+    "Type Safety",
+    "Hot Reload",
+    "Dark Mode Support"
+  ],
+
+  "use_cases": [
+    "SaaS Applications",
+    "E-Commerce",
+    "Dashboards",
+    "Content Platforms",
+    "Admin Panels"
+  ],
+
+  "estimated_setup_time": "5 minutes",
+  "difficulty": "beginner",
+
+  "related_templates": [
+    "02-api-service",
+    "05-static-site"
+  ]
+}
