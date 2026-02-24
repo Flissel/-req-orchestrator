@@ -1,18 +1,33 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, lazy, Suspense, useMemo } from 'react'
 import './AppV2.css'
 import TabNavigation from './components/TabNavigation'
 import AgentStatus from './components/AgentStatus'
 import Configuration from './components/Configuration'
 import RequirementsTable from './components/RequirementsTable'
-import KnowledgeGraph from './components/KnowledgeGraph'
 import ManifestViewer from './components/ManifestViewer'
-import ValidationModal from './components/ValidationModal'
 import ToastNotification from './components/ToastNotification'
-import ValidationTab from './components/ValidationTab'
-import EnhancementModal from './components/EnhancementModal'
-import TechStackTab from './components/TechStackTab'
 import ProjectSelectorModal from './components/ProjectSelectorModal'
 import Shuttle from './components/Shuttle'
+
+// Lazy load heavy components for better initial load performance
+const KnowledgeGraph = lazy(() => import('./components/KnowledgeGraph'))
+const ValidationTab = lazy(() => import('./components/ValidationTab'))
+const ValidationModal = lazy(() => import('./components/ValidationModal'))
+const EnhancementModal = lazy(() => import('./components/EnhancementModal'))
+const TechStackTab = lazy(() => import('./components/TechStackTab'))
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div style={{
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '200px',
+    color: 'var(--muted)'
+  }}>
+    <span>Loading...</span>
+  </div>
+)
 
 // Use relative URLs to leverage Vite's proxy
 const API_BASE = ''
@@ -22,6 +37,9 @@ const generateSessionId = () => `session-${Date.now()}-${Math.random().toString(
 function AppV2() {
   const sessionIdRef = useRef(generateSessionId())
   const sessionId = sessionIdRef.current
+
+  // AbortController for cancellable fetch requests
+  const abortControllerRef = useRef(null)
 
   // Tab state
   const [activeTab, setActiveTab] = useState('mining')
@@ -124,6 +142,12 @@ function AppV2() {
       return
     }
 
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    abortControllerRef.current = new AbortController()
+
     setIsLoading(true)
     setStatus({ message: 'Starting Master Workflow...', type: 'info' })
     addLog(`🚀 Starting mining with ${filesToUse.length} file(s)`)
@@ -183,6 +207,7 @@ function AppV2() {
       const response = await fetch(`${API_BASE}/api/arch_team/process`, {
         method: 'POST',
         body: formData,
+        signal: abortControllerRef.current.signal,
       })
 
       const result = await response.json()
@@ -280,15 +305,27 @@ function AppV2() {
       }
 
     } catch (error) {
+      // Ignore abort errors (user cancelled)
+      if (error.name === 'AbortError') {
+        addLog('⚠️ Request cancelled', 'info')
+        return
+      }
       updateAgentStatus('all', 'error', 'Error occurred')
       setStatus({ message: `Error: ${error.message}`, type: 'err' })
       addLog(`❌ Error: ${error.message}`, 'error')
     } finally {
       setIsLoading(false)
+      abortControllerRef.current = null
     }
   }
 
   const handleReset = () => {
+    // Cancel any ongoing requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+
     setRequirements([])
     setKgData({ nodes: [], edges: [] })
     setValidationResults(null)
@@ -491,11 +528,14 @@ function AppV2() {
     setPendingAutoValidation(null)
   }
 
-  // Calculate failing requirements for validation tab
-  const failingRequirements = requirements.filter(req => {
-    const score = req.validation_score
-    return score !== undefined && score !== null && score < 0.7
-  })
+  // Memoize failing requirements calculation for validation tab
+  const failingRequirements = useMemo(() =>
+    requirements.filter(req => {
+      const score = req.validation_score
+      return score !== undefined && score !== null && score < 0.7
+    }),
+    [requirements]
+  )
 
   // Load requirements from external sources
   const handleLoadData = async (action) => {
@@ -805,22 +845,24 @@ function AppV2() {
           </div>
         )}
 
-        {/* Tab 3: Validation */}
+        {/* Tab 3: Validation (Lazy Loaded) */}
         {activeTab === 'validation' && (
           <div className="tab-panel validation-panel">
-            <ValidationTab
-              requirements={requirements}
-              onRequirementClick={handleRequirementClick}
-              onValidateAll={handleStartBatchValidation}
-              onValidationComplete={handleInlineValidationComplete}
-              onEnhanceRequirement={handleEnhanceRequirement}
-              batchValidationState={batchValidationState}
-              setBatchValidationState={setBatchValidationState}
-            />
+            <Suspense fallback={<LoadingFallback />}>
+              <ValidationTab
+                requirements={requirements}
+                onRequirementClick={handleRequirementClick}
+                onValidateAll={handleStartBatchValidation}
+                onValidationComplete={handleInlineValidationComplete}
+                onEnhanceRequirement={handleEnhanceRequirement}
+                batchValidationState={batchValidationState}
+                setBatchValidationState={setBatchValidationState}
+              />
+            </Suspense>
           </div>
         )}
 
-        {/* Tab 4: Knowledge Graph */}
+        {/* Tab 4: Knowledge Graph (Lazy Loaded) */}
         {activeTab === 'knowledge-graph' && (
           <div className="tab-panel kg-panel">
             <div className="kg-split-layout">
@@ -833,24 +875,28 @@ function AppV2() {
                 />
               </div>
               <div className="kg-right-panel">
-                <KnowledgeGraph data={kgData} requirements={requirements} />
+                <Suspense fallback={<LoadingFallback />}>
+                  <KnowledgeGraph data={kgData} requirements={requirements} />
+                </Suspense>
               </div>
             </div>
           </div>
         )}
 
-        {/* Tab 5: TechStack */}
+        {/* Tab 5: TechStack (Lazy Loaded) */}
         {activeTab === 'techstack' && (
           <div className="tab-panel techstack-panel">
-            <TechStackTab
-              requirements={requirements}
-              onTemplateSelect={(template, result) => {
-                addLog(`🛠️ Template selected: ${template.name}`)
-                if (result?.success) {
-                  addLog(`✅ Project created: ${result.path}`)
-                }
-              }}
-            />
+            <Suspense fallback={<LoadingFallback />}>
+              <TechStackTab
+                requirements={requirements}
+                onTemplateSelect={(template, result) => {
+                  addLog(`🛠️ Template selected: ${template.name}`)
+                  if (result?.success) {
+                    addLog(`✅ Project created: ${result.path}`)
+                  }
+                }}
+              />
+            </Suspense>
           </div>
         )}
       </div>
@@ -864,11 +910,13 @@ function AppV2() {
       )}
 
       {validatingRequirement && (
-        <ValidationModal
-          requirement={validatingRequirement}
-          sessionId={`val-${Date.now()}`}
-          onClose={() => setValidatingRequirement(null)}
-        />
+        <Suspense fallback={<LoadingFallback />}>
+          <ValidationModal
+            requirement={validatingRequirement}
+            sessionId={`val-${Date.now()}`}
+            onClose={() => setValidatingRequirement(null)}
+          />
+        </Suspense>
       )}
 
       {showAutoValidateToast && (
@@ -880,13 +928,15 @@ function AppV2() {
         />
       )}
 
-      {/* Enhancement Modal */}
+      {/* Enhancement Modal (Lazy Loaded) */}
       {enhancingRequirement && (
-        <EnhancementModal
-          requirement={enhancingRequirement}
-          onClose={() => setEnhancingRequirement(null)}
-          onEnhancementComplete={handleEnhancementComplete}
-        />
+        <Suspense fallback={<LoadingFallback />}>
+          <EnhancementModal
+            requirement={enhancingRequirement}
+            onClose={() => setEnhancingRequirement(null)}
+            onEnhancementComplete={handleEnhancementComplete}
+          />
+        </Suspense>
       )}
 
       {/* Project Selector Modal */}

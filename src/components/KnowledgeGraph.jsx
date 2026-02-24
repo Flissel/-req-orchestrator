@@ -1,15 +1,16 @@
-import { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useMemo, useCallback } from 'react'
 
-export default function KnowledgeGraph({ data, requirements }) {
+const KnowledgeGraph = React.memo(function KnowledgeGraph({ data, requirements }) {
   const cyRef = useRef(null)
   const cyInstance = useRef(null)
 
-  const stats = {
+  // Memoize stats calculation
+  const stats = useMemo(() => ({
     nodes: data.nodes?.length || 0,
     edges: data.edges?.length || 0,
     requirements: requirements?.length || 0,
     tags: new Set(requirements?.map(r => r.tag).filter(Boolean)).size || 0
-  }
+  }), [data.nodes?.length, data.edges?.length, requirements])
 
   useEffect(() => {
     if (!cyRef.current || stats.nodes === 0) return
@@ -148,13 +149,14 @@ export default function KnowledgeGraph({ data, requirements }) {
     }
   }, [data])
 
-  const handleFit = () => {
+  // Memoize handlers
+  const handleFit = useCallback(() => {
     if (cyInstance.current) {
       cyInstance.current.fit(null, 50)
     }
-  }
+  }, [])
 
-  const handleExportPNG = () => {
+  const handleExportPNG = useCallback(() => {
     if (cyInstance.current) {
       const png = cyInstance.current.png({ full: true, scale: 2 })
       const link = document.createElement('a')
@@ -162,19 +164,17 @@ export default function KnowledgeGraph({ data, requirements }) {
       link.href = png
       link.click()
     }
-  }
+  }, [])
 
-  // Calculate dynamic height based on node count
-  const calculateGraphHeight = () => {
+  // Memoize dynamic height calculation
+  const graphHeight = useMemo(() => {
     const baseHeight = 1000
     const nodeCount = stats.nodes
     if (nodeCount <= 20) return baseHeight
     if (nodeCount <= 50) return baseHeight + 600
     if (nodeCount <= 100) return baseHeight + 1200
     return baseHeight + 2000 // Over 100 nodes
-  }
-
-  const graphHeight = calculateGraphHeight()
+  }, [stats.nodes])
 
   return (
     <div style={{
@@ -288,4 +288,6 @@ export default function KnowledgeGraph({ data, requirements }) {
       )}
     </div>
   )
-}
+})
+
+export default KnowledgeGraph

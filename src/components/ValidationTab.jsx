@@ -1,11 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import './ValidationTab.css'
 import ValidationRequirementCard from './ValidationRequirementCard'
 import ValidationDetailPanel from './ValidationDetailPanel'
 import QuestionPanel from './QuestionPanel'
 import QuestionReportPanel from './QuestionReportPanel'
 
-const ValidationTab = (props) => {
+const ValidationTab = React.memo((props) => {
   const {
     requirements,
     onRequirementClick,
@@ -92,35 +92,34 @@ const ValidationTab = (props) => {
     return req
   }
 
-  // Filter failing requirements - considering batch results
-  // Only include requirements that have been validated AND have a score below 0.7
-  // Requirements with null/undefined scores are "not validated" not "failing"
-  const failingRequirements = requirements.filter(req => {
-    const score = getUpdatedScore(req.req_id)
-    // Must have a real score (not null/undefined) AND score < 0.7
-    return score !== undefined && score !== null && score < 0.7
-  })
+  // Memoize filtered requirements - expensive operations
+  const failingRequirements = useMemo(() =>
+    requirements.filter(req => {
+      const score = getUpdatedScore(req.req_id)
+      return score !== undefined && score !== null && score < 0.7
+    }),
+    [requirements, batchResults]
+  )
 
   // Requirements that were failing but now pass after batch validation
-  // Also include split children that pass (they won't exist in requirements array yet)
-  const newlyPassingRequirements = batchResults.filter(r => {
-    if (!r.passed || r.score < 0.7) return false
+  const newlyPassingRequirements = useMemo(() =>
+    batchResults.filter(r => {
+      if (!r.passed || r.score < 0.7) return false
+      const req = requirements.find(req => req.req_id === r.req_id)
+      if (!req && (r.req_id.includes('-CHILD-') || r.parent_id)) return true
+      const originalScore = req?.validation_score
+      return originalScore !== undefined && originalScore < 0.7
+    }),
+    [requirements, batchResults]
+  )
 
-    const req = requirements.find(req => req.req_id === r.req_id)
-
-    // Include split children (identified by -CHILD- in ID or parent_id property)
-    if (!req && (r.req_id.includes('-CHILD-') || r.parent_id)) return true
-
-    // Include if original requirement was failing and now passes
-    const originalScore = req?.validation_score
-    return originalScore !== undefined && originalScore < 0.7
-  })
-
-  const passingRequirements = requirements.filter(req => {
-    const score = getUpdatedScore(req.req_id)
-    // Must have a real score (not null/undefined) AND score >= 0.7
-    return score !== undefined && score !== null && score >= 0.7
-  })
+  const passingRequirements = useMemo(() =>
+    requirements.filter(req => {
+      const score = getUpdatedScore(req.req_id)
+      return score !== undefined && score !== null && score >= 0.7
+    }),
+    [requirements, batchResults]
+  )
 
   // Get selected requirement - also check passing requirements
   const selectedRequirement = requirements.find(r => r.req_id === selectedReqId) || null
@@ -1366,6 +1365,6 @@ const ValidationTab = (props) => {
       </div>
     </div>
   )
-}
+})
 
 export default ValidationTab
