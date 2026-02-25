@@ -1,6 +1,6 @@
 # Backend-Dokumentation
 
-Ziel: Backend für Requirements-Validierung mit LLM-Integration auf Basis Flask, OpenAI API und SQLite. Keine Speicherung sensibler Klartextinhalte, nur Metadaten und Ergebnisse.
+Ziel: Backend für Requirements-Validierung mit LLM-Integration auf Basis FastAPI, OpenAI API und SQLite. Keine Speicherung sensibler Klartextinhalte, nur Metadaten und Ergebnisse.
 
 Architekturvorgaben
 - LLM: OpenAI API mit Mock-Fallback
@@ -11,14 +11,14 @@ Architekturvorgaben
 - Nichtfunktionale Anforderungen: 30 rpm, p95 ≤ 2000 ms
 
 Struktur
-- Paket: backend_app/
+- Paket: backend/core/
   - settings.py: Env-Variablen und Defaults
   - db.py: SQLite DDL, Init, Queries
   - utils.py: Hash, Parser, Scoring
   - llm.py: OpenAI-Adapter + Mock
   - api.py: Basis-API Endpunkte
   - batch.py: Batch-API Endpunkte
-- WSGI Entry: wsgi.py
+- Entry: backend/main.py (FastAPI)
 - Beispiel-Input: docs/requirements.md (Markdown-Tabelle)
 
 Konfiguration (Auszug)
@@ -76,7 +76,7 @@ Sicherheit und Betrieb
 - Purge alter Daten via PURGE_RETENTION_H
 
 Deployment Kurzleitfaden
-- Dockerfile nutzt gunicorn wsgi:app
+- Dockerfile nutzt uvicorn backend.main:fastapi_app
 - docker-compose bindet
   - ./docs nach /app/docs:ro (Markdown-Input)
   - ./data nach /data (SQLite persist)

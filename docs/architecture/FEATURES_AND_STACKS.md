@@ -109,7 +109,7 @@ flowchart LR
 
 Hauptcode:
 
-- API: [backend.core.api.files_ingest()](../../backend/core/api.py) (Flask legacy)
+- API: [backend.routers.vector_router.files_ingest()](../../backend/routers/vector_router.py)
 - Ingest: [backend.core.ingest.extract_texts()](../../backend/core/ingest.py:230), [backend.core.ingest.chunk_payloads()](../../backend/core/ingest.py:287)
 - Embeddings: [backend.core.embeddings.build_embeddings()](../../backend/core/embeddings.py:59)
 - Vector Store: [backend.core.vector_store.upsert_points()](../../backend/core/vector_store.py:109)
@@ -233,11 +233,10 @@ Hauptcode:
 
 ## 2) Technologie-Stacks
 
-### 2.1 Backend/Consolidated (FastAPI + Flask)
+### 2.1 Backend/Consolidated (FastAPI)
 
 **Struktur:**
-- FastAPI App: [backend/main.py](../../backend/main.py) - Haupt-Entry mit Flask WSGI mount
-- Flask App: [backend.core.__init__.create_app()](../../backend/core/__init__.py:13) - Legacy-Kompatibilität
+- FastAPI App: [backend/main.py](../../backend/main.py) - Haupt-Entry
 - FastAPI Routers: [backend/routers/](../../backend/routers/) - lx_router, validate_router, vector_router, batch_router, corrections_router, gold_router, structure_router
 - Service Layer: [backend/services/](../../backend/services/) - Port-Adapter pattern
 - Core Business Logic: [backend/core/](../../backend/core/) - llm, db, embeddings, vector_store, ingest, rag, agents
@@ -257,14 +256,14 @@ Hauptcode:
 
 **Laufzeit:**
 - Port: 8087 (API_PORT in ENV)
-- WSGI: Gunicorn (siehe [Dockerfile](../../Dockerfile))
+- Server: uvicorn (siehe [Dockerfile](../../Dockerfile))
 
 ### 2.2 Arch Team (Society of Mind Multi-Agent System)
 
 **Purpose:** Requirements mining, Knowledge Graph construction, validation with AutoGen 0.4+
 
 **Struktur:**
-- Service: [arch_team/service.py](../../arch_team/service.py) - Flask app mit SSE streaming
+- Service: [arch_team/service.py](../../arch_team/service.py) - FastAPI app mit SSE streaming
 - Master Agent: [arch_team.agents.master_agent.*](../../arch_team/agents/master_agent.py) - Society of Mind orchestration
 - Specialized Agents:
   - ChunkMiner: [arch_team.agents.chunk_miner.*](../../arch_team/agents/chunk_miner.py)
@@ -376,7 +375,7 @@ Hauptcode:
 
 **Backend Image:**
 - Dockerfile: [Dockerfile](../../Dockerfile)
-- Konsolidierte Backend (FastAPI+Flask): Port 8087
+- Konsolidierte Backend (FastAPI): Port 8087
 
 **Arch Team Image:**
 - Separater Service: Port 8000
@@ -431,7 +430,7 @@ Ziel: Vielfalt bei Länge/Scope, alle rein aus Bestandteilen dieses Repos.
 
 - Ziel: Query → topK Treffer aus Qdrant.
 - Endpunkt: [backend.routers.vector_router.*](../../backend/routers/vector_router.py) (rag_search)
-- Voraussetzung: Ingest via [files/ingest](../../backend/core/api.py) (Flask legacy)
+- Voraussetzung: Ingest via [files/ingest](../../backend/routers/vector_router.py)
 
 ### 6) RAG Semantic Search (Arch Team)
 
@@ -512,7 +511,7 @@ Ziel: Vielfalt bei Länge/Scope, alle rein aus Bestandteilen dieses Repos.
 
 **Files Ingest**
 - Multipart: `files[]` + optional `chunkMin`, `chunkMax`, `chunkOverlap`, `collection`
-- Implementierung: [backend.core.api.files_ingest()](../../backend/core/api.py) (Flask legacy)
+- Implementierung: [backend.routers.vector_router.files_ingest()](../../backend/routers/vector_router.py)
 
 ### Arch Team Endpoints
 
@@ -544,12 +543,8 @@ Ziel: Vielfalt bei Länge/Scope, alle rein aus Bestandteilen dieses Repos.
 **Backend (FastAPI):**
 - Global CORS Middleware: [backend/main.py](../../backend/main.py) - CORSMiddleware with allow_origins=["*"]
 
-**Backend (Flask Legacy):**
-- Globaler Intercept: [backend.core.__init__._global_api_preflight()](../../backend/core/__init__.py)
-- OPTIONS-Catches: [backend.core.api.options_cors_catch_all()](../../backend/core/api.py)
-
 **Arch Team:**
-- Flask-CORS: [arch_team/service.py](../../arch_team/service.py) - CORS(app)
+- CORS Middleware: [arch_team/service.py](../../arch_team/service.py) - CORS(app)
 
 **Retention & Migrationen:**
 - Retention: [backend.core.db.purge_old_evaluations()](../../backend/core/db.py)

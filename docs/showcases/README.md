@@ -7,7 +7,7 @@ Weitere Systemübersicht:
 - Feature-/Stack-Übersichten: [docs/architecture/FEATURES_AND_STACKS.md](../architecture/FEATURES_AND_STACKS.md)
 
 Hinweis Link-Konvention:
-- Sprachelement: z. B. [backend_app.api.validate_batch_optimized()](../../backend_app/api.py:599)
+- Sprachelement: z. B. [backend.core.api.validate_batch_optimized()](../../backend/core/api.py:599)
 - Datei: z. B. [frontend/app_optimized.js](../../frontend/app_optimized.js)
 
 
@@ -19,7 +19,7 @@ Ziel
 - Ein einzelnes Requirement (oder Array) gegen die Bewertungslogik prüfen.
 
 Primärer Endpunkt
-- [backend_app.api.validate_batch_optimized()](../../backend_app/api.py:599)
+- [backend.core.api.validate_batch_optimized()](../../backend/core/api.py:599)
 
 Beispiel
 ```
@@ -29,9 +29,9 @@ curl -s -X POST "$API_BASE/api/v1/validate/batch" \
 ```
 
 Was passiert intern
-- Sicherung oder Erstellung der Evaluation: [backend_app.batch.ensure_evaluation_exists()](../../backend_app/batch.py:28)
-- LLM-/Heuristikbewertung: [backend_app.llm.llm_evaluate()](../../backend_app/llm.py:102)
-- Aggregation/Decision: [backend_app.utils.weighted_score()](../../backend_app/utils.py:14), [backend_app.utils.compute_verdict()](../../backend_app/utils.py:25)
+- Sicherung oder Erstellung der Evaluation: [backend.core.batch.ensure_evaluation_exists()](../../backend/core/batch.py:28)
+- LLM-/Heuristikbewertung: [backend.core.llm.llm_evaluate()](../../backend/core/llm.py:102)
+- Aggregation/Decision: [backend.core.utils.weighted_score()](../../backend/core/utils.py:14), [backend.core.utils.compute_verdict()](../../backend/core/utils.py:25)
 
 
 ----------------------------------------------------------------
@@ -42,9 +42,9 @@ Ziel
 - Zu einem Text atomare Vorschläge abrufen, konsolidieren und neu bewerten.
 
 Endpunkte
-- Vorschläge: [backend_app.api.validate_suggest()](../../backend_app/api.py:571)
-- Anwenden: [backend_app.api.apply_corrections()](../../backend_app/api.py:255) → [backend_app.llm.llm_apply_with_suggestions()](../../backend_app/llm.py:339)
-- Re-Analyse: [backend_app.api.validate_batch_optimized()](../../backend_app/api.py:599)
+- Vorschläge: [backend.core.api.validate_suggest()](../../backend/core/api.py:571)
+- Anwenden: [backend.core.api.apply_corrections()](../../backend/core/api.py:255) → [backend.core.llm.llm_apply_with_suggestions()](../../backend/core/llm.py:339)
+- Re-Analyse: [backend.core.api.validate_batch_optimized()](../../backend/core/api.py:599)
 
 Ablauf (vereinfacht)
 1. POST /api/v1/validate/suggest mit `[originalText]`
@@ -83,11 +83,11 @@ Ziel
 - Markdown-Datei (Tabelle) serverseitig verarbeiten und Merge-Report erzeugen.
 
 Endpunkte
-- Evaluate/Suggest/Rewrite Batch: [backend_app.batch.batch_evaluate()](../../backend_app/batch.py:282), [backend_app.batch.batch_suggest()](../../backend_app/batch.py:301), [backend_app.batch.batch_rewrite()](../../backend_app/batch.py:319)
+- Evaluate/Suggest/Rewrite Batch: [backend.core.batch.batch_evaluate()](../../backend/core/batch.py:282), [backend.core.batch.batch_suggest()](../../backend/core/batch.py:301), [backend.core.batch.batch_rewrite()](../../backend/core/batch.py:319)
 
 Wichtige Helfer
-- Parser: [backend_app.utils.parse_requirements_md()](../../backend_app/utils.py:39)
-- Merge-Tabelle: [backend_app.batch.merged_markdown()](../../backend_app/batch.py:66)
+- Parser: [backend.core.utils.parse_requirements_md()](../../backend/core/utils.py:39)
+- Merge-Tabelle: [backend.core.batch.merged_markdown()](../../backend/core/batch.py:66)
 
 Konfiguration
 - Pfad: [.env REQUIREMENTS_MD_PATH](../../.env), Ausgabe optional [.env OUTPUT_MD_PATH](../../.env)
@@ -101,7 +101,7 @@ Ziel
 - Eine Query in Vektorraum suchen und Treffer mit Quelle/Chunk anzeigen.
 
 Endpunkt
-- [backend_app.api.rag_search()](../../backend_app/api.py:1286)
+- [backend.core.api.rag_search()](../../backend/core/api.py:1286)
 
 Voraussetzung
 - Ingest/Indexierung vorgenommen (siehe Showcase 6)
@@ -120,16 +120,16 @@ Ziel
 - Dokumente hochladen, extrahieren, chunken, embedden und in Qdrant upserten.
 
 Endpunkt
-- [backend_app.api.files_ingest()](../../backend_app/api.py:1068)
+- [backend.core.api.files_ingest()](../../backend/core/api.py:1068)
 
 Pipeline
-- Extraktion/Chunking: [backend_app.ingest.extract_texts()](../../backend_app/ingest.py:230), [backend_app.ingest.chunk_payloads()](../../backend_app/ingest.py:287)
-- Embeddings: [backend_app.embeddings.build_embeddings()](../../backend_app/embeddings.py:59)
-- Upsert: [backend_app.vector_store.upsert_points()](../../backend_app/vector_store.py:109)
+- Extraktion/Chunking: [backend.core.ingest.extract_texts()](../../backend/core/ingest.py:230), [backend.core.ingest.chunk_payloads()](../../backend/core/ingest.py:287)
+- Embeddings: [backend.core.embeddings.build_embeddings()](../../backend/core/embeddings.py:59)
+- Upsert: [backend.core.vector_store.upsert_points()](../../backend/core/vector_store.py:109)
 
 Hinweise
 - Chunk-Parameter: `chunkMin`, `chunkMax`, `chunkOverlap`
-- Collection/Dim: ENV in [backend_app.settings](../../backend_app/settings.py:26)
+- Collection/Dim: ENV in [backend.core.settings](../../backend/core/settings.py:26)
 
 
 ----------------------------------------------------------------
@@ -140,15 +140,15 @@ Ziel
 - Agent-/Policy-gestütztes Antwortformat, inkl. prefer_sources, topK-Anpassung, agentNotes.
 
 Endpunkt
-- [backend_app.api.agent_answer()](../../backend_app/api.py:1512)
+- [backend.core.api.agent_answer()](../../backend/core/api.py:1512)
 
 Policies & Memory
-- Regeln/Defaults: [backend_app.memory.MemoryStore.load_policies()](../../backend_app/memory.py:71)
-- Ereignisprotokoll: [backend_app.memory.MemoryStore.append_event()](../../backend_app/memory.py:37)
+- Regeln/Defaults: [backend.core.memory.MemoryStore.load_policies()](../../backend/core/memory.py:71)
+- Ereignisprotokoll: [backend.core.memory.MemoryStore.append_event()](../../backend/core/memory.py:37)
 
 Ranking/Context
-- Re-Ranking: [backend_app.api._re_rank_hits()](../../backend_app/api.py:1389)
-- Kontextfenster: [backend_app.api._build_context_from_hit()](../../backend_app/api.py:1412)
+- Re-Ranking: [backend.core.api._re_rank_hits()](../../backend/core/api.py:1389)
+- Kontextfenster: [backend.core.api._build_context_from_hit()](../../backend/core/api.py:1412)
 
 Optionaler externer Worker
 - [agent_worker.app.mine()](../../agent_worker/app.py:261)
@@ -162,11 +162,11 @@ Ziel
 - Collection neu aufsetzen, Status prüfen, Collections listen.
 
 Endpunkte
-- Reset (POST/DELETE/GET confirm=1): [backend_app.api.vector_reset()](../../backend_app/api.py:1158), [backend_app.api.vector_reset_get()](../../backend_app/api.py:1202)
-- Health/List: [backend_app.api.vector_health()](../../backend_app/api.py:1149), [backend_app.api.vector_collections()](../../backend_app/api.py:1140)
+- Reset (POST/DELETE/GET confirm=1): [backend.core.api.vector_reset()](../../backend/core/api.py:1158), [backend.core.api.vector_reset_get()](../../backend/core/api.py:1202)
+- Health/List: [backend.core.api.vector_health()](../../backend/core/api.py:1149), [backend.core.api.vector_collections()](../../backend/core/api.py:1140)
 
 Qdrant-Client
-- [backend_app.vector_store.get_qdrant_client()](../../backend_app/vector_store.py:41) mit Port-Fallback (6333/6401)
+- [backend.core.vector_store.get_qdrant_client()](../../backend/core/vector_store.py:41) mit Port-Fallback (6333/6401)
 
 
 ----------------------------------------------------------------
@@ -177,8 +177,8 @@ Ziel
 - Ergebnisse pro Item streamen (schnelle Sichtbarkeit), kompatibel mit Browser-Streams.
 
 Endpunkt
-- [backend_app.api.validate_batch_stream()](../../backend_app/api.py:828)
-- Suggestions-Stream: [backend_app.api.validate_suggest_stream()](../../backend_app/api.py:967)
+- [backend.core.api.validate_batch_stream()](../../backend/core/api.py:828)
+- Suggestions-Stream: [backend.core.api.validate_suggest_stream()](../../backend/core/api.py:967)
 
 Client-Hinweise
 - Browser: fetch + ReadableStream + Zeilenweise JSON parse

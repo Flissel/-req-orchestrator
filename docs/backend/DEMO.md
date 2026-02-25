@@ -1,16 +1,16 @@
 # Demo Ablauf und Architektur
 
 Verweise
-- Demo Endpoint laden aus MD: [demo_requirements()](backend_app/api.py:206)
-- Validierung Endpoint: [validate_batch()](backend_app/api.py:232)
-- Markdown Parser: [parse_requirements_md()](backend_app/utils.py:39)
-- Verdict und Scoring: [compute_verdict()](backend_app/utils.py:25), [weighted_score()](backend_app/utils.py:14)
+- Demo Endpoint laden aus MD: [demo_requirements()](backend/core/api.py:206)
+- Validierung Endpoint: [validate_batch()](backend/core/api.py:232)
+- Markdown Parser: [parse_requirements_md()](backend/core/utils.py:39)
+- Verdict und Scoring: [compute_verdict()](backend/core/utils.py:25), [weighted_score()](backend/core/utils.py:14)
 - React Frontend Haupt-App: [react-app.jsx](frontend/react-app.jsx:1)
 
 Hinweis Pfade
 - REQUIREMENTS_MD_PATH Standard: /data/requirements.md
 - Fallbacks: /data/docs/requirements.md, /app/docs/requirements.md
-- Konfiguration: [settings.py](backend_app/settings.py:26)
+- Konfiguration: [settings.py](backend/core/settings.py:26)
 
 ## Komponenten Überblick
 
@@ -25,7 +25,7 @@ graph LR
   end
 
   subgraph Backend
-    API[Flask API]
+    API[FastAPI]
     LLM[LLM Heuristik oder Upstream]
     UTIL[Utils Scoring]
   end
@@ -53,7 +53,7 @@ sequenceDiagram
   autonumber
   participant U as User
   participant UI as React UI
-  participant API as Flask API
+  participant API as FastAPI
   participant FS as Files
   participant HEU as Heuristik
 
@@ -91,7 +91,7 @@ sequenceDiagram
   - Process bewertet in Batches und nutzt mock=true für schnelle Heuristik
 - Fehlervermeidung
   - Große Eingabelisten werden clientseitig in Chunks gesendet
-  - Server Timeout erhöht über Gunicorn Parameter
+  - Server Timeout erhöht über uvicorn Parameter
 - Testaufrufe
   - GET /api/demo/requirements
   - POST /api/validate?mock=true mit JSON Array

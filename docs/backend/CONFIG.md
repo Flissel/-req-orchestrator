@@ -40,8 +40,8 @@ LLM_MAX_TOKENS=0
 ```
 
 Code-Referenzen
-- Einstellungen in [backend_app/settings.py](../../backend_app/settings.py)
-- Anwendung der Feineinstellungen in [backend_app/llm.py](../../backend_app/llm.py)
+- Einstellungen in [backend/core/settings.py](../../backend/core/settings.py)
+- Anwendung der Feineinstellungen in [backend/core/llm.py](../../backend/core/llm.py)
 
 ---
 
@@ -77,7 +77,7 @@ JSON-Datei: [config/criteria.json](../../config/criteria.json)
 
 Wirkung
 - Beim App-Start werden Einträge upserted (Create/Update) in Tabelle criterion
-- Bewertungsaggregation nutzt die Gewichte (siehe [backend_app/utils.py](../../backend_app/utils.py))
+- Bewertungsaggregation nutzt die Gewichte (siehe [backend/core/utils.py](../../backend/core/utils.py))
 
 ---
 
@@ -88,7 +88,7 @@ Env-Variable
   - Ab Score ≥ Threshold → verdict=pass, sonst fail
 
 Wirkung im Code
-- Anwendung in [backend_app/batch.py](../../backend_app/batch.py) und [backend_app/api.py](../../backend_app/api.py)
+- Anwendung in [backend/core/batch.py](../../backend/core/batch.py) und [backend/core/api.py](../../backend/core/api.py)
 
 ---
 
@@ -98,7 +98,7 @@ Env-Variable
 - SUGGEST_MAX (Default 3)
 
 Wirkung im Code
-- Limitierung bei Vorschlägen in [backend_app/llm.py](../../backend_app/llm.py)
+- Limitierung bei Vorschlägen in [backend/core/llm.py](../../backend/core/llm.py)
 
 ---
 
@@ -154,34 +154,34 @@ Diese Variablen ergänzen die bestehende Konfiguration und wurden im Zuge der v2
   - Typ: boolean (1/true/yes/on)
   - Default: false
   - Wirkung: Wenn aktiv und OPENAI_API_KEY vorhanden ist, wird beim Runtime‑Snapshot eine 1‑Element‑Probe gegen das Embeddings‑Modell durchgeführt, um die effektive Vektordimension zu ermitteln. Fallback bleibt die statische Dimension aus dem Embeddings‑Modul.
-  - Quelle/Implementierung: [python.get_runtime_config()](../../backend_app/settings.py:108)
+  - Quelle/Implementierung: [python.get_runtime_config()](../../backend/core/settings.py:108)
 
 - QDRANT_AUTODETECT
   - Typ: boolean (1/true/yes/on)
   - Default: true
   - Wirkung: Ermittelt in der Runtime‑Konfiguration effective_url, Collection‑Existenz und (falls vorhanden) die konfigurierte Collection‑Dimension. Fehler werden non‑fatal als error‑Feld im vector‑Block ausgegeben.
-  - Quelle/Implementierung: [python.get_runtime_config()](../../backend_app/settings.py:108)
+  - Quelle/Implementierung: [python.get_runtime_config()](../../backend/core/settings.py:108)
 
 - QDRANT_AUTOCREATE
   - Typ: boolean (1/true/yes/on)
   - Default: false
   - Wirkung: Wenn aktiv, wird die Collection bei fehlender Existenz (oder Dim‑Mismatch) automatisch (re)erstellt. Achtung: „recreate“ ist destruktiv (Drop + Create). Verwenden Sie dies nur in nicht‑produktiven Umgebungen oder mit ausdrücklicher Freigabe.
   - Alternativ/Tooling: CLI‑Skript [dev/qdrant_migrate.py](../../dev/qdrant_migrate.py) für Dry‑Run/Auto‑Create/Recreate.
-  - Quelle/Implementierung: [python.get_runtime_config()](../../backend_app/settings.py:108), [python.reset_collection()](../../backend_app/vector_store.py:197)
+  - Quelle/Implementierung: [python.get_runtime_config()](../../backend/core/settings.py:108), [python.reset_collection()](../../backend/core/vector_store.py:197)
 
 - FEATURE_FLAG_USE_V2
   - Typ: boolean (1/true/yes/on)
   - Default: false
   - Wirkung: Canary/Cutover‑Flag – wenn gesetzt, markiert alle Requests als „v2“. Dient im aktuellen Hybrid‑Setup der Observability (Header/Cookies/Logs), nicht dem harten Routing‑Umschalter.
   - Observability: Response‑Header X‑Variant, X‑Variant‑Reason; Cookie „variant“. Logging enthält variant/variantReason.
-  - Quelle/Implementierung: [python.add_request_id_header()](../../backend_app_v2/main.py:46)
+  - Quelle/Implementierung: [python.add_request_id_header()](../../backend/main.py:46)
 
 - CANARY_PERCENT
   - Typ: integer (0..100)
   - Default: 0
   - Wirkung: Prozentualer Anteil (sticky via SHA‑256(Request‑Id) Bucket), der als „v2“ markiert wird, sofern FEATURE_FLAG_USE_V2=false ist. 0 = aus, 100 = alle.
   - Observability wie oben; nur Markierung/Telemetry, kein hartes Umschalten.
-  - Quelle/Implementierung: [python.add_request_id_header()](../../backend_app_v2/main.py:46)
+  - Quelle/Implementierung: [python.add_request_id_header()](../../backend/main.py:46)
 
 ### Beispiel (.env)
 

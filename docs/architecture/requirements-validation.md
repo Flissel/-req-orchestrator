@@ -65,7 +65,7 @@ Automatisierte Requirements-Qualitätssicherung mit:
 ### **1. evaluate_requirement**
 
 **API Endpoint**: `POST /api/v2/evaluate/single`
-**Service**: `backend_app_v2/services/evaluation_service.py`
+**Service**: `backend/services/evaluation_service.py`
 
 **Input**:
 ```python
@@ -116,7 +116,7 @@ async def evaluate_requirement(
 ### **2. rewrite_requirement**
 
 **API Endpoint**: `POST /api/v1/validate/batch`
-**Service**: `backend_app_v2/routers/validate_router.py`
+**Service**: `backend/routers/validate_router.py`
 
 **Input**:
 ```python
@@ -150,7 +150,7 @@ async def rewrite_requirement(
 ### **3. suggest_improvements**
 
 **API Endpoint**: `POST /api/v1/validate/suggest`
-**Service**: `backend_app/llm.py:llm_suggest`
+**Service**: `backend/core/llm.py:llm_suggest`
 
 **Input**:
 ```python
@@ -501,9 +501,9 @@ result = await delegator.validate_batch(
 ### **Phase 1: Tools** (2-3 Stunden)
 - [x] Design: Tool-Spezifikation
 - [ ] Code: `arch_team/tools/validation_tools.py`
-  - [ ] evaluate_requirement (HTTP → backend_app_v2)
-  - [ ] rewrite_requirement (HTTP → backend_app_v2)
-  - [ ] suggest_improvements (HTTP → backend_app_v2)
+  - [ ] evaluate_requirement (HTTP → backend)
+  - [ ] rewrite_requirement (HTTP → backend)
+  - [ ] suggest_improvements (HTTP → backend)
   - [ ] detect_duplicates (Qdrant semantic search)
   - [ ] VALIDATION_TOOLS export
 
@@ -553,5 +553,5 @@ result = await delegator.validate_batch(
 
 - **AutoGen Society of Mind**: https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/society-of-mind.html
 - **Referenz-Implementation**: `arch_team/dev_folder_/agent.py` (GitHub MCP Agent)
-- **Backend Evaluation API**: `backend_app_v2/services/evaluation_service.py`
+- **Backend Evaluation API**: `backend/services/evaluation_service.py`
 - **Requirements Engineering Best Practices**: IEEE 29148, IREB CPRE

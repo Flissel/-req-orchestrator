@@ -13,10 +13,10 @@ Ziel
 6) Zusammenführen und persistieren: Merged Markdown mit zusätzlichen Spalten (evaluationScore, verdict, suggestions, redefinedRequirement) in Datei schreiben
 
 Konfiguration (Konfigurierbar via Env/Dateien)
-- Modell und Laufzeit: siehe [backend_app/settings.py](backend_app/settings.py:1)
+- Modell und Laufzeit: siehe [backend/core/settings.py](backend/core/settings.py:1)
   - OPENAI_MODEL, OPENAI_API_KEY, MOCK_MODE
   - LLM_TEMPERATURE, LLM_TOP_P, LLM_MAX_TOKENS
-- System-Prompts (Dateien, optional): siehe [backend_app/settings.py](backend_app/settings.py:33)
+- System-Prompts (Dateien, optional): siehe [backend/core/settings.py](backend/core/settings.py:33)
   - EVAL_SYSTEM_PROMPT_PATH, SUGGEST_SYSTEM_PROMPT_PATH, REWRITE_SYSTEM_PROMPT_PATH
   - Standard-Prompts in:
     - [config/prompts/evaluate.system.txt](config/prompts/evaluate.system.txt)
@@ -24,11 +24,11 @@ Konfiguration (Konfigurierbar via Env/Dateien)
     - [config/prompts/rewrite.system.txt](config/prompts/rewrite.system.txt)
 - Kriterien (Gewichte, Aktivierung, Texte)
   - Datei: [config/criteria.json](config/criteria.json)
-  - Upsert beim Start: [backend_app/db.py](backend_app/db.py:85)
+  - Upsert beim Start: [backend/core/db.py](backend/core/db.py:85)
 - Entscheidungsgrenzen
-  - VERDICT_THRESHOLD (z B 0.7), Anwendung in [backend_app/api.py](backend_app/api.py:1) und [backend_app/batch.py](backend_app/batch.py:1)
+  - VERDICT_THRESHOLD (z B 0.7), Anwendung in [backend/core/api.py](backend/core/api.py:1) und [backend/core/batch.py](backend/core/batch.py:1)
 - Vorschlagsmenge
-  - SUGGEST_MAX (Default 3), Anwendung in [backend_app/llm.py](backend_app/llm.py:1)
+  - SUGGEST_MAX (Default 3), Anwendung in [backend/core/llm.py](backend/core/llm.py:1)
 
 Input Tabellenformat (Markdown)
 - Eingabe (anforderungen): Pflichtspalten
@@ -154,8 +154,8 @@ Kriteriensteuerung
   - Aktivierte Kriterien (active=true|false)
   - Gewichte (weight) → Einfluss auf evaluationScore
   - Anzeigenamen/Description
-- Upsert beim Start: [backend_app/db.py](backend_app/db.py:85)
-- Aggregation: [backend_app/utils.py](backend_app/utils.py:14)
+- Upsert beim Start: [backend/core/db.py](backend/core/db.py:85)
+- Aggregation: [backend/core/utils.py](backend/core/utils.py:14)
 
 Ablage/Output-Dateien
 - mergedMarkdown: Der API-Response enthält den fertigen Tabellentext; das Frontend/Caller schreibt ihn in Zielpfad (z B ./docs/requirements.out.md)

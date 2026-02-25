@@ -6,7 +6,7 @@
 ## Executive Summary
 
 This is a **hybrid requirements engineering system** combining:
-- **FastAPI + Flask** hybrid backend (port 8087) for validation, RAG, and LangExtract
+- **FastAPI** backend (port 8087) for validation, RAG, and LangExtract
 - **AutoGen 0.4+ Society of Mind** multi-agent system (arch_team) for requirements mining
 - **React + Vite** frontend with real-time SSE streaming
 - **Qdrant** vector store for semantic search and knowledge graphs
@@ -32,7 +32,7 @@ This is a **hybrid requirements engineering system** combining:
 ┌─────────────────────────────────────────────────────────────────┐
 │                      APPLICATION LAYER                          │
 ├───────────────────────────┬─────────────────────────────────────┤
-│  BACKEND (FastAPI+Flask)  │  ARCH_TEAM (Flask)                  │
+│  BACKEND (FastAPI)        │  ARCH_TEAM (FastAPI)                │
 │  Port: 8087               │  Port: 8000                         │
 ├───────────────────────────┼─────────────────────────────────────┤
 │  FastAPI Routers:         │  Society of Mind Agents:            │
@@ -44,9 +44,9 @@ This is a **hybrid requirements engineering system** combining:
 │  - gold_router            │  - QA Agent (final review)          │
 │  - structure_router       │  - UserClarification (human loop)   │
 │                           │                                     │
-│  Flask Legacy (WSGI):     │  Endpoints:                         │
-│  - /api/v1/evaluations    │  - /api/mining/upload               │
-│  - /api/v1/files/*        │  - /api/kg/build                    │
+│                           │  Endpoints:                         │
+│                           │  - /api/mining/upload               │
+│                           │  - /api/kg/build                    │
 │                           │  - /api/arch_team/process           │
 │                           │  - /api/clarification/stream (SSE)  │
 │                           │  - /api/workflow/stream (SSE)       │
@@ -103,7 +103,7 @@ This is a **hybrid requirements engineering system** combining:
 
 **Location:** `backend/`
 
-**Purpose:** Unified production backend combining FastAPI v2 routers with Flask legacy via WSGIMiddleware.
+**Purpose:** Unified production backend using FastAPI routers.
 
 #### Sub-modules:
 
@@ -139,12 +139,9 @@ This is a **hybrid requirements engineering system** combining:
 - `gold_router.py` - Gold example management for few-shot learning
 - `structure_router.py` - Structural analysis (traceability, dependency graphs)
 
-**`backend/legacy/`** - Original Flask code (reference only, phased out)
-
-**`backend/main.py`** - FastAPI entry point with Flask WSGI mount
+**`backend/main.py`** - FastAPI entry point
 
 **Key Patterns:**
-- **Hybrid Architecture**: FastAPI handles new v2 routes, Flask WSGI handles legacy v1 routes
 - **Port-Adapter (Hexagonal)**: Services depend on abstract ports, adapters bind to concrete implementations
 - **Request-ID Middleware**: All requests get UUID for tracing and observability
 - **Canary Routing**: Feature flags + sticky canary for A/B testing (v1 vs v2)
@@ -208,7 +205,7 @@ This is a **hybrid requirements engineering system** combining:
 - `host_stub.py` - gRPC host stub
 - `worker_stub.py` - gRPC worker stub
 
-**`arch_team/service.py`** - Flask web service with SSE streaming
+**`arch_team/service.py`** - FastAPI web service with SSE streaming
 
 **Key Patterns:**
 - **Society of Mind**: 7 specialized agents coordinated via RoundRobinGroupChat
@@ -859,7 +856,7 @@ GET http://localhost:8087/api/v1/vector/health
 
 ### 3. CORS Policy
 - **Backend:** `allow_origins=["*"]` (restrictive in production)
-- **Arch Team:** Flask-CORS with wildcard (fine for internal tools)
+- **Arch Team:** FastAPI CORSMiddleware with wildcard (fine for internal tools)
 
 ### 4. LLM Prompt Injection
 - **Mitigation:** Use system messages with clear role boundaries
@@ -878,10 +875,10 @@ GET http://localhost:8087/api/v1/vector/health
 ### Local Development
 
 ```bash
-# Backend (FastAPI+Flask)
+# Backend (FastAPI)
 python -m uvicorn backend.main:fastapi_app --host 0.0.0.0 --port 8087 --reload
 
-# Arch Team (Flask)
+# Arch Team (FastAPI)
 python -m arch_team.service
 
 # Frontend (React)
@@ -897,14 +894,14 @@ docker-compose -f docker-compose.qdrant.yml up
 docker-compose up --build
 
 # Services:
-# - Flask backend: http://localhost:8083
+# - FastAPI backend: http://localhost:8083
 # - Agent worker: http://localhost:8090
 # - Nginx frontend: http://localhost:8081
 ```
 
 ### Production Considerations
 
-1. **Backend:** Use `gunicorn` or `uvicorn` with multiple workers
+1. **Backend:** Use `uvicorn` with multiple workers
 2. **Frontend:** Build static assets (`npm run build`) and serve via Nginx
 3. **Qdrant:** Run as persistent Docker container with volume mounts
 4. **Environment:** Use `.env.production` with secrets from vault

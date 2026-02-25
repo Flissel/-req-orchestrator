@@ -121,7 +121,7 @@ Beispiele
 - description: Länge > 500 (zu lang)
 
 Domänenregeln
-- Summe der aktiven Gewichte kann 1.0 sein, muss es aber nicht. Die Aggregation normalisiert auf Summe der Gewichte (siehe Scoring in [backend_app/utils.py](../../backend_app/utils.py)).
+- Summe der aktiven Gewichte kann 1.0 sein, muss es aber nicht. Die Aggregation normalisiert auf Summe der Gewichte (siehe Scoring in [backend/core/utils.py](../../backend/core/utils.py)).
 
 Migrationshinweise (optional)
 - Für SQLite kann ein CHECK auf weight ergänzt werden (nur bei Neuaufbau; ALTER TABLE eingeschränkt).
@@ -140,7 +140,7 @@ Zweck
 
 Persistenz (SQLite)
 - Tabellen: `evaluation`, `evaluation_detail`
-- Quelle: DDL bereits enthalten in [schema.sql](schema.sql) und [backend_app/db.py](../../backend_app/db.py)
+- Quelle: DDL bereits enthalten in [schema.sql](schema.sql) und [backend/core/db.py](../../backend/core/db.py)
 
 DDL (Konsolidierte Referenz)
 ```sql
@@ -267,7 +267,7 @@ Ungültige Fälle
 - verdict ≠ "pass"|"fail"
 
 Domänenregeln
-- Aggregation: gewichteter Score gemäß `criterion.weight`, Normalisierung auf Summe der Gewichte (siehe [backend_app/utils.py](../../backend_app/utils.py))
+- Aggregation: gewichteter Score gemäß `criterion.weight`, Normalisierung auf Summe der Gewichte (siehe [backend/core/utils.py](../../backend/core/utils.py))
 - Idempotenz: es existieren mehrere Evaluationen zur gleichen checksum über die Zeit; die „neueste“ wird über created_at selektiert
 - Klartext-Schutz: kein Ablegen des requirementText, nur die Prüfsumme
 
@@ -431,7 +431,7 @@ Ableitung
 
 ## 7. Nächste Schritte (Datenmodell-Reihenfolge)
 
-1) Implementieren `correction_decision` (DDL, DB-Access) in [backend_app/db.py](../../backend_app/db.py)
+1) Implementieren `correction_decision` (DDL, DB-Access) in [backend/core/db.py](../../backend/core/db.py)
 2) API-Endpoints für Entscheidungen spezifizieren und implementieren
 3) Frontend-Flow: Accept/Reject Buttons binden (Einzel & „Accept All/Reject All“)
 4) Optional: Erweiterter Audit (decided_by, Quelle der Entscheidung)

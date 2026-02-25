@@ -18,17 +18,15 @@ Hinweis zur Link-Konvention:
 
 ## 1) Komponentenlandschaft
 
-### Backend (Konsolidiert - FastAPI + Flask Hybrid, Port 8087)
+### Backend (Konsolidiert - FastAPI, Port 8087)
 
 **Hauptstruktur:**
-- Entry Point: [backend/main.py](../../backend/main.py) - FastAPI App mit Flask WSGI Mount
+- Entry Point: [backend/main.py](../../backend/main.py) - FastAPI App
 - FastAPI Routers: [backend/routers/](../../backend/routers/)
 - Shared Business Logic: [backend/core/](../../backend/core/)
 - Service Layer: [backend/services/](../../backend/services/)
-- Legacy Flask: [backend/legacy/](../../backend/legacy/) (Rückwärtskompatibilität)
-
 **Core Module:**
-- App-Fabrik: [backend.core.__init__.create_app()](../../backend/core/__init__.py:13) (Flask)
+- App-Fabrik: [backend.core.__init__.create_app()](../../backend/core/__init__.py:13)
 - LLM-Adapter: [backend.core.llm.*](../../backend/core/llm.py) - [llm_evaluate()](../../backend/core/llm.py:102), [llm_suggest()](../../backend/core/llm.py:158), [llm_rewrite()](../../backend/core/llm.py:253)
 - AutoGen Agents: [backend.core.agents.*](../../backend/core/agents.py) - RequirementsEvaluatorAgent, RequirementsSuggestionAgent, RequirementsRewriteAgent, RequirementsOrchestratorAgent
 - Vektor-/RAG: [backend.core.ingest.*](../../backend/core/ingest.py), [backend.core.embeddings.*](../../backend/core/embeddings.py), [backend.core.vector_store.*](../../backend/core/vector_store.py), [backend.core.rag.*](../../backend/core/rag.py)
@@ -59,7 +57,7 @@ Hinweis zur Link-Konvention:
 **Purpose**: Requirements mining, Knowledge Graph construction, validation
 
 **Main Service:**
-- Entry: [arch_team/service.py](../../arch_team/service.py) - Flask app mit SSE streaming
+- Entry: [arch_team/service.py](../../arch_team/service.py) - FastAPI app mit SSE streaming
 
 **Society of Mind Agents:**
 - Master Agent: [arch_team.agents.master_agent.*](../../arch_team/agents/master_agent.py) - [create_master_agent()](../../arch_team/agents/master_agent.py:150), [run_master_workflow()](../../arch_team/agents/master_agent.py:305)
@@ -166,7 +164,7 @@ Hinweis zur Link-Konvention:
 - POST /api/v1/batch/rewrite → [backend.routers.batch_router.*](../../backend/routers/batch_router.py)
 
 **RAG/Vector:**
-- POST /api/v1/files/ingest → [backend.core.api.*](../../backend/core/api.py) (Flask legacy)
+- POST /api/v1/files/ingest → [backend.routers.vector_router.*](../../backend/routers/vector_router.py)
 - GET /api/v1/vector/collections → [backend.routers.vector_router.*](../../backend/routers/vector_router.py)
 - GET /api/v1/vector/health → [backend.routers.vector_router.*](../../backend/routers/vector_router.py)
 - POST /api/v1/vector/reset → [backend.routers.vector_router.*](../../backend/routers/vector_router.py)
@@ -287,7 +285,7 @@ flowchart LR
 
 Relevante Funktionen:
 
-- [backend.core.api.files_ingest()](../../backend/core/api.py) (Flask legacy)
+- [backend.routers.vector_router.files_ingest()](../../backend/routers/vector_router.py)
 - [backend.core.ingest.extract_texts()](../../backend/core/ingest.py:230), [backend.core.ingest.chunk_payloads()](../../backend/core/ingest.py:287)
 - [backend.core.embeddings.build_embeddings()](../../backend/core/embeddings.py:59)
 - [backend.core.vector_store.upsert_points()](../../backend/core/vector_store.py:109)
@@ -374,11 +372,11 @@ Relevante Funktionen:
 
 | Ebene/Modul                     | Abhängigkeiten                                                                                                                                                                          | Genutzt von                       | Verantwortung                                                          | Schlüsselfunktionen                                                                                                                                                          |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Backend: FastAPI+Flask**      | [backend/main.py](../../backend/main.py), [backend.core.*](../../backend/core/), [backend.routers.*](../../backend/routers/), [backend.services.*](../../backend/services/)             | Frontend, Tests                   | Hybrid API (FastAPI v2 + Flask legacy)                                 | [fastapi_app](../../backend/main.py), [create_app()](../../backend/core/__init__.py:13)                                                                                      |
+| **Backend: FastAPI**            | [backend/main.py](../../backend/main.py), [backend.core.*](../../backend/core/), [backend.routers.*](../../backend/routers/), [backend.services.*](../../backend/services/)             | Frontend, Tests                   | FastAPI API                                                            | [fastapi_app](../../backend/main.py), [create_app()](../../backend/core/__init__.py:13)                                                                                      |
 | **Backend: Core**               | [backend.core.llm](../../backend/core/llm.py), [backend.core.db](../../backend/core/db.py), [backend.core.embeddings](../../backend/core/embeddings.py), [backend.core.vector_store](../../backend/core/vector_store.py) | Services, Routers                 | Shared business logic                                                  | [llm_evaluate()](../../backend/core/llm.py:102), [init_db()](../../backend/core/db.py)                                                                                       |
 | **Backend: Services**           | [backend.services.ports](../../backend/services/ports.py), [backend.services.adapters](../../backend/services/adapters.py)                                                               | Routers                           | Port-Adapter pattern, business logic orchestration                     | [EvaluationService](../../backend/services/evaluation_service.py), [BatchService](../../backend/services/batch_service.py)                                                   |
 | **Backend: Routers**            | [backend.routers.*](../../backend/routers/)                                                                                                                                             | Frontend via HTTP                 | FastAPI endpoint implementations                                       | [lx_router](../../backend/routers/lx_router.py), [validate_router](../../backend/routers/validate_router.py)                                                                 |
-| **Arch Team: Service**          | [arch_team.service](../../arch_team/service.py), Flask                                                                                                                                 | Frontend via HTTP, SSE            | Society of Mind web service, SSE streaming                             | [arch_team_process()](../../arch_team/service.py:1358), [workflow_stream()](../../arch_team/service.py:1214)                                                                 |
+| **Arch Team: Service**          | [arch_team.service](../../arch_team/service.py), FastAPI                                                                                                                               | Frontend via HTTP, SSE            | Society of Mind web service, SSE streaming                             | [arch_team_process()](../../arch_team/service.py:1358), [workflow_stream()](../../arch_team/service.py:1214)                                                                 |
 | **Arch Team: Agents**           | [arch_team.agents.*](../../arch_team/agents/), AutoGen 0.4+                                                                                                                             | Master Agent                      | Specialized agents (ChunkMiner, KG, Validator, etc.)                   | [create_master_agent()](../../arch_team/agents/master_agent.py:150), [ChunkMinerAgent](../../arch_team/agents/chunk_miner.py)                                                |
 | **Arch Team: Memory**           | [arch_team.memory.*](../../arch_team/memory/), Qdrant                                                                                                                                  | Agents                            | Knowledge graph storage, RAG retrieval, trace persistence              | [QdrantKGClient](../../arch_team/memory/qdrant_kg.py), [Retriever](../../arch_team/memory/retrieval.py)                                                                      |
 | **Arch Team: Tools**            | [arch_team.tools.*](../../arch_team/tools/), AutoGen FunctionTool                                                                                                                       | Agents                            | Agent tool implementations                                             | [mining_tools](../../arch_team/tools/mining_tools.py), [kg_tools](../../arch_team/tools/kg_tools.py)                                                                         |
@@ -454,12 +452,8 @@ Wichtige Schlüssel:
 **Backend (FastAPI):**
 - Global CORS Middleware: [backend/main.py](../../backend/main.py) - CORSMiddleware with allow_origins=["*"]
 
-**Backend (Flask Legacy):**
-- Globaler Intercept vor Routing: [backend.core.__init__._global_api_preflight()](../../backend/core/__init__.py)
-- OPTIONS-Catch-All: [backend.core.api.options_cors_catch_all()](../../backend/core/api.py)
-
 **Arch Team:**
-- Flask-CORS: [arch_team/service.py](../../arch_team/service.py) - CORS(app)
+- CORS Middleware: [arch_team/service.py](../../arch_team/service.py) - CORS(app)
 
 Ziel: 204-Antworten inkl. Access-Control-* für alle /api/* Preflights, kein 404.
 
@@ -474,8 +468,8 @@ flowchart LR
   user["User"]
   fe_react["React Frontend (Vite)"]
   fe_static["Static Frontend"]
-  backend["Backend (FastAPI+Flask)"]
-  arch["Arch Team (Flask)"]
+  backend["Backend (FastAPI)"]
+  arch["Arch Team (FastAPI)"]
   db["SQLite"]
   qd["Qdrant"]
   oa["OpenAI"]
@@ -504,7 +498,7 @@ flowchart TB
   end
 
   subgraph Backend
-    fastapi["FastAPI+Flask :8087"]
+    fastapi["FastAPI :8087"]
     arch["Arch Team :8000"]
   end
 
@@ -541,11 +535,6 @@ flowchart TB
     corrections["corrections_router"]
   end
 
-  subgraph Flask Layer
-    flask["Flask App<br/>(WSGIMiddleware)"]
-    legacy["legacy/ APIs"]
-  end
-
   subgraph Service Layer
     ports["ports.py<br/>(Protocols)"]
     adapters["adapters.py"]
@@ -564,7 +553,6 @@ flowchart TB
   main --> lx
   main --> validate
   main --> vector
-  main --> flask
   lx --> eval_svc
   validate --> eval_svc
   eval_svc --> adapters
@@ -817,8 +805,7 @@ Dieser Überblick ist zentral. Ergänzende Dokumente:
 ## 11) Wichtige Code-Bezüge (Deep Links)
 
 **Backend (Consolidated):**
-- App-Bootstrap (FastAPI): [backend/main.py:32](../../backend/main.py:32)
-- App-Bootstrap (Flask): [backend.core.__init__.create_app()](../../backend/core/__init__.py:13)
+- App-Bootstrap: [backend/main.py:32](../../backend/main.py:32)
 - Validate Batch: [backend.routers.validate_router.*](../../backend/routers/validate_router.py)
 - Service Layer: [backend.services.evaluation_service.evaluate_batch()](../../backend/services/evaluation_service.py)
 - LLM Calls: [backend.core.llm.llm_evaluate()](../../backend/core/llm.py:102), [backend.core.llm.llm_suggest()](../../backend/core/llm.py:158), [backend.core.llm.llm_rewrite()](../../backend/core/llm.py:253)
@@ -847,8 +834,7 @@ Dieser Überblick ist zentral. Ergänzende Dokumente:
 
 - **CORS-Preflight:**
   - FastAPI: Global CORSMiddleware in [backend/main.py](../../backend/main.py)
-  - Flask Legacy: explizit implementiert in [backend.core.__init__](../../backend/core/__init__.py), [backend.core.api](../../backend/core/api.py)
-  - Arch Team: Flask-CORS in [arch_team/service.py](../../arch_team/service.py)
+  - Arch Team: CORS Middleware in [arch_team/service.py](../../arch_team/service.py)
 
 - **RAG-Port-Fallback:**
   - [backend.core.vector_store.get_qdrant_client()](../../backend/core/vector_store.py:41) prüft 6333/6401

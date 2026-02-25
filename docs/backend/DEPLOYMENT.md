@@ -3,61 +3,14 @@
 Dieses Dokument beschreibt Build, Konfiguration und Betrieb des Backends in der modularisierten Struktur.
 
 Struktur-Überblick
-- Paket: [backend_app](../backend_app/__init__.py)
-  - [backend_app/settings.py](../backend_app/settings.py)
-  - [backend_app/db.py](../backend_app/db.py)
-  - [backend_app/utils.py](../backend_app/utils.py)
-  - [backend_app/llm.py](../backend_app/llm.py)
-  - [backend_app/api.py](../backend_app/api.py)
-  - [backend_app/batch.py](../backend_app/batch.py)
-- WSGI Entry: [wsgi.py](../wsgi.py)
-- Beispiel-Input: [docs/requirements.md](../docs/requirements.md)
-- Compose: [docker-compose.yml](../docker-compose.yml)
-- Dockerfile: [Dockerfile](../Dockerfile)
-- Env Vorlage: [.env.example](../.env.example)
-
-Konfiguration über Env Variablen
-- API_HOST, API_PORT
-- OPENAI_API_KEY, OPENAI_MODEL (z B gpt-4o-mini)
-- MOCK_MODE=true|false (true = Heuristik, keine externen LLM-Calls)
-- SQLITE_PATH (Compose setzt /data/app.db)
-- PURGE_RETENTION_H (Stunden bis Purge)
-- BATCH_SIZE, MAX_PARALLEL (Steuerung für parallele LLM-Calls)
-- REQUIREMENTS_MD_PATH (Standard ./docs/requirements.md)
-
-Beispiel .env
-```
-# Runtime
-API_HOST=0.0.0.0
-API_PORT=5000
-
-# LLM
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-4o-mini
-MOCK_MODE=false
-
-# DB
-SQLITE_PATH=/data/app.db
-PURGE_RETENTION_H=24
-
-# Batch
-BATCH_SIZE=10
-MAX_PARALLEL=3
-REQUIREMENTS_MD_PATH=./docs/requirements.md
-```
-# Deployment Leitfaden
-
-Dieses Dokument beschreibt Build, Konfiguration und Betrieb des Backends in der modularisierten Struktur.
-
-Struktur-Überblick
-- Paket: [backend_app](../backend_app/__init__.py)
-  - [backend_app/settings.py](../backend_app/settings.py)
-  - [backend_app/db.py](../backend_app/db.py)
-  - [backend_app/utils.py](../backend_app/utils.py)
-  - [backend_app/llm.py](../backend_app/llm.py)
-  - [backend_app/api.py](../backend_app/api.py)
-  - [backend_app/batch.py](../backend_app/batch.py)
-- WSGI Entry: [wsgi.py](../wsgi.py)
+- Paket: [backend/core](../backend/core/__init__.py)
+  - [backend/core/settings.py](../backend/core/settings.py)
+  - [backend/core/db.py](../backend/core/db.py)
+  - [backend/core/utils.py](../backend/core/utils.py)
+  - [backend/core/llm.py](../backend/core/llm.py)
+  - [backend/core/api.py](../backend/core/api.py)
+  - [backend/core/batch.py](../backend/core/batch.py)
+- Entry: [backend/main.py](../backend/main.py) (FastAPI)
 - Beispiel-Input: [docs/requirements.md](../docs/requirements.md)
 - Compose: [docker-compose.yml](../docker-compose.yml)
 - Dockerfile: [Dockerfile](../Dockerfile)
@@ -125,9 +78,8 @@ Docker Compose
   curl http://localhost:5000/health
   ```
 
-WSGI und Start
-- Gunicorn startet [wsgi:app](../wsgi.py:1), was die App-Factory aus [backend_app](../backend_app/__init__.py:1) lädt.
-- Flask-Debug ist im WSGI-Skript nur für lokalen Direktstart vorgesehen.
+Server-Start
+- uvicorn startet die FastAPI-App aus [backend/main.py](../backend/main.py:1).
 
 APIs kurz getestet
 - Health
@@ -174,11 +126,11 @@ Ziel
 - Minimierung von Daten-/Indexrisiken und Ausfallzeit.
 
 Voraussetzungen
-- v1 (Flask, WSGI-Mount) bleibt lauffähig und erreichbar (Hybridbetrieb).
+- v1 (vorheriges stabiles Image) bleibt lauffähig und erreichbar.
 - Canary-Mechanik und Flags sind konfiguriert:
   - FEATURE_FLAG_USE_V2 (bool, Standard: false)
   - CANARY_PERCENT (0..100, Standard: 0)
-- v2 (FastAPI) ist als separater Container/Prozess verfügbar (Uvicorn), aber per Flags steuerbar.
+- v2 (FastAPI) ist als separater Container/Prozess verfügbar (uvicorn), aber per Flags steuerbar.
 - Vector-Store (Qdrant) kann getrennt validiert werden (keine destruktiven Migrationsschritte ohne Confirm/Flags).
 
 Schnell-Rollback (Flags, ohne Re-Deploy)
@@ -189,7 +141,7 @@ Schnell-Rollback (Flags, ohne Re-Deploy)
 3) Validierung:
    - GET /health (soll ok liefern)
    - Funktionstest: POST /api/v1/validate/batch (Baseline-Flow)
-   - UI gegen /index.html (API_BASE zeigt auf 8087, WSGI-Mount liefert v1‑Routen)
+   - UI gegen /index.html (API_BASE zeigt auf 8087)
 
 Canary stoppen (wenn v2 nur teilweise aktiv war)
 - CANARY_PERCENT schrittweise auf 0 setzen (z. B. 10 → 0) und Monitoring prüfen (Fehler/Latenz).
@@ -217,7 +169,7 @@ Validierungs-Checkliste nach Rollback
   - index/mining_demo/reports: Bedienelemente/Flows ok
 - Logs/Metriken:
   - Fehlerquote niedrig, Latenz im bekannten Bereich
-  - Keine Exceptions/Tracebacks im Uvicorn/Gunicorn‑Log
+  - Keine Exceptions/Tracebacks im uvicorn‑Log
 
 Entscheidung: v2 isolieren oder weiter debuggen
 - v2 weiterlaufen lassen (nur deaktiviert) für Debugging (keine Kundentransaktionen).
@@ -237,7 +189,7 @@ Rollforward (erneuter v2‑Versuch)
 - Messbar machen: Header (X-Variant), Logs (variant/variantReason) prüfen.
 
 Hinweise
-- Flags/Canary wirken lediglich auf Markierung/Observability im aktuellen Hybrid-Setup. Routing‑Änderungen erfolgen kontrolliert über den WSGI‑Mount/Infra‑LB und Release‑Prozesse.
+- Flags/Canary wirken lediglich auf Markierung/Observability. Routing‑Änderungen erfolgen kontrolliert über Infra‑LB und Release‑Prozesse.
 - Für destruktive Vektor‑Operationen (Reset/Migration) stets Confirm/Tools nutzen (siehe dev/qdrant_migrate.py). 
 - Backups/Export der Collections (falls geschäftskritisch) vor großen Änderungen einplanen.
 
@@ -259,6 +211,6 @@ Leistungsziele
 - Parallelität über MAX_PARALLEL/BATCH_SIZE feinsteuerbar
 
 Änderungen für Deployment
-- Modularisierung in backend_app/*
-- WSGI-Entry auf backend_app umgestellt ([wsgi.py](../wsgi.py:1))
+- Modularisierung in backend/core/*
+- Entry: [backend/main.py](../backend/main.py) (uvicorn)
 - Compose bindet Docs und Data

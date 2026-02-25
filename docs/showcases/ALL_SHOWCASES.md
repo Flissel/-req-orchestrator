@@ -2,7 +2,7 @@
 
 Hinweis
 - Alle Flows nutzen ausschließlich die vorhandenen Module/Endpunkte dieses Repos.
-- Deep-Links sind klickbar und verweisen auf Dateien oder Sprachelemente inkl. Zeilenangaben, z. B. [backend_app.api.validate_batch_optimized()](../../backend_app/api.py:599), [frontend/app_optimized.js](../../frontend/app_optimized.js).
+- Deep-Links sind klickbar und verweisen auf Dateien oder Sprachelemente inkl. Zeilenangaben, z. B. [backend.core.api.validate_batch_optimized()](../../backend/core/api.py:599), [frontend/app_optimized.js](../../frontend/app_optimized.js).
 
 Inhalt
 1. Evaluate-Only API (kurz)
@@ -24,7 +24,7 @@ Ziel
 - Schnelle Bewertung eines einzelnen Requirements ohne UI.
 
 Primärer Endpunkt
-- [backend_app.api.validate_batch_optimized()](../../backend_app/api.py:599)
+- [backend.core.api.validate_batch_optimized()](../../backend/core/api.py:599)
 
 Beispiel
 ```
@@ -35,9 +35,9 @@ curl -s -X POST "$API_BASE/api/v1/validate/batch" \
 ```
 
 Wesentliche Pfade
-- Evaluation sichern/ermitteln: [backend_app.batch.ensure_evaluation_exists()](../../backend_app/batch.py:28)
-- Scoring/Decision: [backend_app.utils.weighted_score()](../../backend_app/utils.py:14), [backend_app.utils.compute_verdict()](../../backend_app/utils.py:25)
-- Heuristik-Fallback: [backend_app.llm.llm_evaluate()](../../backend_app/llm.py:102)
+- Evaluation sichern/ermitteln: [backend.core.batch.ensure_evaluation_exists()](../../backend/core/batch.py:28)
+- Scoring/Decision: [backend.core.utils.weighted_score()](../../backend/core/utils.py:14), [backend.core.utils.compute_verdict()](../../backend/core/utils.py:25)
+- Heuristik-Fallback: [backend.core.llm.llm_evaluate()](../../backend/core/llm.py:102)
 
 ----------------------------------------------------------------
 
@@ -53,7 +53,7 @@ curl -s -X POST "$API_BASE/api/v1/validate/suggest" \
   -H "Content-Type: application/json" \
   -d '["The API shall return JSON."]' | jq .
 ```
-- Server: [backend_app.api.validate_suggest()](../../backend_app/api.py:571) → [backend_app.batch.process_suggestions()](../../backend_app/batch.py:152)
+- Server: [backend.core.api.validate_suggest()](../../backend/core/api.py:571) → [backend.core.batch.process_suggestions()](../../backend/core/batch.py:152)
 
 2) Apply (merge)
 ```
@@ -70,7 +70,7 @@ curl -s -X POST "$API_BASE/api/v1/corrections/apply" \
 }
 JSON
 ```
-- Server: [backend_app.api.apply_corrections()](../../backend_app/api.py:255) → [backend_app.llm.llm_apply_with_suggestions()](../../backend_app/llm.py:339)
+- Server: [backend.core.api.apply_corrections()](../../backend/core/api.py:255) → [backend.core.llm.llm_apply_with_suggestions()](../../backend/core/llm.py:339)
 
 3) Re-Analyse
 - POST /api/v1/validate/batch mit dem „merged“ Text (s. Showcase 1)
@@ -109,13 +109,13 @@ Ziel
 - Serverseitig Requirements aus Markdown-Tabelle verarbeiten und Merge-Report erzeugen.
 
 Wichtige Endpunkte
-- [backend_app.batch.batch_evaluate()](../../backend_app/batch.py:282)
-- [backend_app.batch.batch_suggest()](../../backend_app/batch.py:301)
-- [backend_app.batch.batch_rewrite()](../../backend_app/batch.py:319)
+- [backend.core.batch.batch_evaluate()](../../backend/core/batch.py:282)
+- [backend.core.batch.batch_suggest()](../../backend/core/batch.py:301)
+- [backend.core.batch.batch_rewrite()](../../backend/core/batch.py:319)
 
 Hilfen
-- Markdown-Parser: [backend_app.utils.parse_requirements_md()](../../backend_app/utils.py:39)
-- Merge-Tabelle: [backend_app.batch.merged_markdown()](../../backend_app/batch.py:66)
+- Markdown-Parser: [backend.core.utils.parse_requirements_md()](../../backend/core/utils.py:39)
+- Merge-Tabelle: [backend.core.batch.merged_markdown()](../../backend/core/batch.py:66)
 
 Konfiguration
 - [.env REQUIREMENTS_MD_PATH](../../.env) → Pfad zur Markdown-Tabelle
@@ -129,7 +129,7 @@ Ziel
 - Abfrage in Vektorraum, Treffer inkl. Quelle/Chunk ansehen.
 
 Endpunkt
-- [backend_app.api.rag_search()](../../backend_app/api.py:1286)
+- [backend.core.api.rag_search()](../../backend/core/api.py:1286)
 
 Voraussetzung
 - Ingest durchgeführt (Showcase 6)
@@ -147,7 +147,7 @@ Ziel
 - Dokumente hochladen, extrahieren, chunken, embedden, upserten.
 
 Endpunkt
-- [backend_app.api.files_ingest()](../../backend_app/api.py:1068)
+- [backend.core.api.files_ingest()](../../backend/core/api.py:1068)
 
 Form-Data (Beispiel)
 ```
@@ -158,10 +158,10 @@ curl -s -X POST "$API_BASE/api/v1/files/ingest" \
 ```
 
 Pipeline
-- Extraktion: [backend_app.ingest.extract_texts()](../../backend_app/ingest.py:230)
-- Chunking: [backend_app.ingest.chunk_payloads()](../../backend_app/ingest.py:287)
-- Embeddings: [backend_app.embeddings.build_embeddings()](../../backend_app/embeddings.py:59)
-- Upsert: [backend_app.vector_store.upsert_points()](../../backend_app/vector_store.py:109)
+- Extraktion: [backend.core.ingest.extract_texts()](../../backend/core/ingest.py:230)
+- Chunking: [backend.core.ingest.chunk_payloads()](../../backend/core/ingest.py:287)
+- Embeddings: [backend.core.embeddings.build_embeddings()](../../backend/core/embeddings.py:59)
+- Upsert: [backend.core.vector_store.upsert_points()](../../backend/core/vector_store.py:109)
 
 ----------------------------------------------------------------
 
@@ -171,15 +171,15 @@ Ziel
 - Policy-/Memory-gestützte Antwort, Re-Ranking bevorzugter Quellen, Agent-Notizen.
 
 Endpunkt
-- [backend_app.api.agent_answer()](../../backend_app/api.py:1512)
+- [backend.core.api.agent_answer()](../../backend/core/api.py:1512)
 
 Policies/Memory
-- Default-Policies: [backend_app.memory.MemoryStore.load_policies()](../../backend_app/memory.py:71)
-- Eventlog: [backend_app.memory.MemoryStore.append_event()](../../backend_app/memory.py:37)
+- Default-Policies: [backend.core.memory.MemoryStore.load_policies()](../../backend/core/memory.py:71)
+- Eventlog: [backend.core.memory.MemoryStore.append_event()](../../backend/core/memory.py:37)
 
 Ranking/Context
-- Re-Ranking: [backend_app.api._re_rank_hits()](../../backend_app/api.py:1389)
-- Kontextfenster: [backend_app.api._build_context_from_hit()](../../backend_app/api.py:1412)
+- Re-Ranking: [backend.core.api._re_rank_hits()](../../backend/core/api.py:1389)
+- Kontextfenster: [backend.core.api._build_context_from_hit()](../../backend/core/api.py:1412)
 
 Optionaler Worker (Dokumenten-Mining)
 - [agent_worker.app.mine()](../../agent_worker/app.py:261), [agent_worker.app.mine_team()](../../agent_worker/app.py:721)
@@ -192,8 +192,8 @@ Ziel
 - Reset, Health, Collections.
 
 Endpunkte
-- Reset: [backend_app.api.vector_reset()](../../backend_app/api.py:1158) / [backend_app.api.vector_reset_get()](../../backend_app/api.py:1202)
-- Health/List: [backend_app.api.vector_health()](../../backend_app/api.py:1149), [backend_app.api.vector_collections()](../../backend_app/api.py:1140)
+- Reset: [backend.core.api.vector_reset()](../../backend/core/api.py:1158) / [backend.core.api.vector_reset_get()](../../backend/core/api.py:1202)
+- Health/List: [backend.core.api.vector_health()](../../backend/core/api.py:1149), [backend.core.api.vector_collections()](../../backend/core/api.py:1140)
 
 Hinweis UI
 - Frontend-Button „Reset index“: [frontend/index.html](../../frontend/index.html), Handler [frontend.app_optimized.resetIndex()](../../frontend/app_optimized.js:424)
@@ -206,8 +206,8 @@ Ziel
 - Ergebnisse pro Item als NDJSON streamen (UX: erste Resultate sehr früh).
 
 Endpunkte
-- [backend_app.api.validate_batch_stream()](../../backend_app/api.py:828)
-- [backend_app.api.validate_suggest_stream()](../../backend_app/api.py:967)
+- [backend.core.api.validate_batch_stream()](../../backend/core/api.py:828)
+- [backend.core.api.validate_suggest_stream()](../../backend/core/api.py:967)
 
 Client-Hinweise
 - Browser: fetch + ReadableStream, zeilenweise JSON parse
@@ -234,6 +234,6 @@ Metriken
 ----------------------------------------------------------------
 
 Anhang (Kurz-Referenzen)
-- App-Bootstrap: [backend_app.__init__.create_app()](../../backend_app/__init__.py:13)
-- DB DDL/Migration: [backend_app.db.DDL](../../backend_app/db.py:11), [backend_app.db.ensure_schema_migrations()](../../backend_app/db.py:84)
-- CORS/Preflight: [backend_app.__init__._global_api_preflight()](../../backend_app/__init__.py:37), [backend_app.api.options_cors_catch_all()](../../backend_app/api.py:45)
+- App-Bootstrap: [backend.core.__init__.create_app()](../../backend/core/__init__.py:13)
+- DB DDL/Migration: [backend.core.db.DDL](../../backend/core/db.py:11), [backend.core.db.ensure_schema_migrations()](../../backend/core/db.py:84)
+- CORS/Preflight: [backend.core.__init__._global_api_preflight()](../../backend/core/__init__.py:37), [backend.core.api.options_cors_catch_all()](../../backend/core/api.py:45)
