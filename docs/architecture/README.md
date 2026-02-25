@@ -1,110 +1,84 @@
-# Architektur-Index
+# Architecture Overview
 
-Ziel: Zentrale Einstiegspunkt für alle Architektur-/Feature-/Stack-Dokumente, inkl. klickbarer Deep-Links in den Code.
+req-orchestrator is composed of four main subsystems that work together to provide AI-powered requirements engineering.
 
-Hinweis zur Link-Konvention:
-- Sprachelemente werden als z. B. [backend_app.api.validate_batch_optimized()](../../backend_app/api.py:599) verlinkt (mit Zeile).
-- Dateien werden als z. B. [docs/architecture/SYSTEM_OVERVIEW.md](./SYSTEM_OVERVIEW.md) verlinkt.
+```
+                    ┌─────────────────────┐
+                    │   React Frontend    │
+                    │  (Vite, port 3000)  │
+                    └────────┬────────────┘
+                             │ HTTP / WebSocket
+                    ┌────────▼────────────┐
+                    │   FastAPI Backend   │
+                    │   (port 8087)       │
+                    │  13 routers         │
+                    │  14 services        │
+                    └──┬──────────┬───────┘
+                       │          │
+          ┌────────────▼──┐  ┌───▼──────────────┐
+          │  Arch Team    │  │   Qdrant          │
+          │  Agent Service│  │   Vector DB       │
+          │  (port 8000)  │  │   (port 6333)     │
+          │  15+ agents   │  │   RAG + KG store  │
+          └───────────────┘  └───────────────────┘
+```
 
+## Subsystems
 
-----------------------------------------------------------------
+### 1. FastAPI Backend (`backend/`)
 
-## 1) Systemüberblick und Abhängigkeits-Matrix
+The REST API layer with 13 route modules and 14 service classes.
 
-- Überblick & End-to-End-Logik: [docs/architecture/SYSTEM_OVERVIEW.md](./SYSTEM_OVERVIEW.md)
-- Kern-Bootstrap: [backend_app.__init__.create_app()](../../backend_app/__init__.py:13)
-- Wichtigste API-Orchestrierung: [backend_app.api.validate_batch_optimized()](../../backend_app/api.py:599)
+**Key routers:** validation, LangExtract (mining), RAG search, corrections, batch processing, WebSocket real-time updates.
 
+**Data flow:** HTTP request → Router → Service → Core logic (LLM / DB / Vector) → Response
 
-----------------------------------------------------------------
+### 2. Multi-Agent System (`arch_team/`)
 
-## 2) Features, Diagramme, Stacks
+AutoGen 0.4+-based agent orchestration for intelligent requirements analysis.
 
-- Features & Stacks (kompakt, mit Diagrammen): [docs/architecture/FEATURES_AND_STACKS.md](./FEATURES_AND_STACKS.md)
-- Einzel-Feature-Doks (nach und nach separat ausführlich):
-  - Validate Batch → siehe Abschnitt in [FEATURES_AND_STACKS.md](./FEATURES_AND_STACKS.md)
-  - Suggestions + Apply (merge) → siehe Abschnitt in [FEATURES_AND_STACKS.md](./FEATURES_AND_STACKS.md)
-  - Auto-Refine (Detaildoku vorhanden): [docs/feature-auto-refine.md](../feature-auto-refine.md)
-  - Files Ingest → siehe Abschnitt in [FEATURES_AND_STACKS.md](./FEATURES_AND_STACKS.md)
-  - RAG Search → siehe Abschnitt in [FEATURES_AND_STACKS.md](./FEATURES_AND_STACKS.md)
-  - Agent Answer → siehe Abschnitt in [FEATURES_AND_STACKS.md](./FEATURES_AND_STACKS.md)
-  - Vector Reset → siehe Abschnitt in [FEATURES_AND_STACKS.md](./FEATURES_AND_STACKS.md)
+**Agent types:** Planner, Solver, Verifier, ChunkMiner, KG Agent, Master Agent, Clarification Agent, Validation Workers, Criterion Specialists.
 
-Geplante Aufteilung (dedizierte Dateien):
-- features/validate-batch.md
-- features/suggestions-apply.md
-- features/files-ingest.md
-- features/rag-search.md
-- features/agent-answer.md
-- features/vector-reset.md
+**Execution modes:**
+- **AutoGen RAC** (`autogen_rac.py`) - Round-robin group chat with Planner → Solver → Verifier
+- **EventBus** (`main.py`) - Custom pub/sub with topic-based routing
+- **Web Service** (`service.py`) - Flask REST API for document mining
 
-Alle Inhalte sind bereits in [FEATURES_AND_STACKS.md](./FEATURES_AND_STACKS.md) enthalten; die oben genannten Dateien werden bei Bedarf als Deep-Dives ergänzt.
+See [agents.md](agents.md) for the full Society of Mind design.
 
+### 3. React Frontend (`src/`)
 
-----------------------------------------------------------------
+Single-page application with tabs for Mining, Validation, Knowledge Graph visualization, and Tech Stack analysis.
 
-## 3) Technologie-Stacks
+**Stack:** React 18, Vite, Cytoscape.js (graph visualization), React-Window (virtualized lists).
 
-- Backend/Flask: siehe [backend_app.__init__.create_app()](../../backend_app/__init__.py:13), [backend_app.api.*](../../backend_app/api.py)
-- LLM/OpenAI: [backend_app.llm.llm_evaluate()](../../backend_app/llm.py:102), [backend_app.llm.llm_suggest()](../../backend_app/llm.py:158), [backend_app.llm.llm_rewrite()](../../backend_app/llm.py:253), [backend_app.llm.llm_apply_with_suggestions()](../../backend_app/llm.py:339)
-- Vector/Qdrant: [backend_app.vector_store.get_qdrant_client()](../../backend_app/vector_store.py:41), [backend_app.vector_store.search()](../../backend_app/vector_store.py:151)
-- Frontend/UI: [frontend/app_optimized.js](../../frontend/app_optimized.js)
-- Tests/Playwright: [tests/ui/auto-refine.spec.ts](../../tests/ui/auto-refine.spec.ts), [playwright.config.ts](../../playwright.config.ts)
-- Docker/Infra: [Dockerfile](../../Dockerfile), [docker-compose.qdrant.yml](../../docker-compose.qdrant.yml)
+### 4. MCP Server (`mcp_server/`)
 
-Hinweis: Eigene Stack-Dateien (stacks/*.md) sind optional, da [FEATURES_AND_STACKS.md](./FEATURES_AND_STACKS.md) bereits pro Stack zusammenfasst.
+Model Context Protocol integration for Claude CLI orchestration. Provides 20+ tools for mining, validation, knowledge graph operations, RAG search, and workflow automation.
 
+**Install:** `claude mcp add req-orchestrator -- python -m mcp_server.server`
 
-----------------------------------------------------------------
+## Data Storage
 
-## 4) Showcases (10 Varianten)
+| Store | Purpose |
+|-------|---------|
+| SQLite | Evaluations, suggestions, requirement manifests, criteria |
+| Qdrant | Embeddings (RAG search), knowledge graph nodes/edges, agent traces |
 
-- Übersicht: [docs/showcases/README.md](../showcases/README.md)
-- Vollständige Sammlung: [docs/showcases/ALL_SHOWCASES.md](../showcases/ALL_SHOWCASES.md)
+## Key API Endpoints
 
-Abdeckung u. a.:
-- Evaluate-Only API
-- Suggestions → Apply → Re-Analyze
-- Auto-Refine Loop
-- Markdown-Batch „Merge-Report“
-- RAG Search, Files Ingest → Qdrant
-- Agent-/Memory Antwort
-- Vector Admin (Reset/Health/Collections)
-- NDJSON Streaming-Validate
-- RAG Benchmark Suite
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/v1/validate/batch` | Batch requirement validation |
+| `POST /api/v1/lx/extract` | Mine requirements from documents |
+| `GET /api/v1/rag/search` | Semantic search via RAG |
+| `POST /api/kg/build` | Build knowledge graph |
+| `WS /ws/enhancement` | Real-time processing updates |
+| `GET /docs` | OpenAPI documentation |
 
+## Detailed Documentation
 
-----------------------------------------------------------------
-
-## 5) C4-Übersicht (Zielbild)
-
-- Aktuelle C4-Preview: [docs/architecture/C4.md](./C4.md)
-
-Bezüge (Beispiele):
-- System-Kontext: Backend (Flask API), Frontend (statische Auslieferung), SQLite, OpenAI, Qdrant
-- Komponenten: API-Layer [backend_app.api](../../backend_app/api.py), LLM-Wrapper [backend_app.llm](../../backend_app/llm.py), Vector-Store [backend_app.vector_store](../../backend_app/vector_store.py), Logging [backend_app.logging_ext](../../backend_app/logging_ext.py)
-
-
-----------------------------------------------------------------
-
-## 6) Relevante Code-Deep-Links (Kurzliste)
-
-- API Kern-Endpunkte: [backend_app.api.validate_batch_optimized()](../../backend_app/api.py:599), [backend_app.api.files_ingest()](../../backend_app/api.py:1068), [backend_app.api.rag_search()](../../backend_app/api.py:1286), [backend_app.api.agent_answer()](../../backend_app/api.py:1512)
-- Batch-Prozesse: [backend_app.batch.ensure_evaluation_exists()](../../backend_app/batch.py:28), [backend_app.batch.process_evaluations()](../../backend_app/batch.py:100), [backend_app.batch.process_suggestions()](../../backend_app/batch.py:152), [backend_app.batch.process_rewrites()](../../backend_app/batch.py:217)
-- LLM Integration: [backend_app.llm.llm_evaluate()](../../backend_app/llm.py:102), [backend_app.llm.llm_apply_with_suggestions()](../../backend_app/llm.py:339)
-- Vektor-DB: [backend_app.vector_store.upsert_points()](../../backend_app/vector_store.py:109)
-- Frontend Auto-Refine: [frontend.app_optimized.autoRefineIndex()](../../frontend/app_optimized.js:1947)
-
-
-----------------------------------------------------------------
-
-## 7) Betrieb/Debug
-
-- Runtime-Konfiguration (Snapshot): [backend_app.settings.get_runtime_config()](../../backend_app/settings.py:108), Logging beim Start via [backend_app.logging_ext.log_runtime_config_once()](../../backend_app/logging_ext.py:248)
-- CORS/Preflight: [backend_app.__init__._global_api_preflight()](../../backend_app/__init__.py:37), [backend_app.api.options_cors_catch_all()](../../backend_app/api.py:45)
-- DB DDL/Migrationen: [backend_app.db.DDL](../../backend_app/db.py:11), [backend_app.db.ensure_schema_migrations()](../../backend_app/db.py:84)
-
-
-----------------------------------------------------------------
-
-Stand: generiert aus aktueller Arbeitskopie. Alle Links beziehen sich auf diese Repository-Struktur.
+- [agents.md](agents.md) - Multi-agent Society of Mind architecture
+- [flows.md](flows.md) - Workflow diagrams and data flows
+- [validation.md](validation.md) - Parallel validation system design
+- [requirements-validation.md](requirements-validation.md) - Requirements validation design

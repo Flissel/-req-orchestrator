@@ -13,7 +13,10 @@ import requests
 import textwrap
 import re
 
-from flask import Blueprint, jsonify, request, g, make_response
+try:
+    from flask import Blueprint, jsonify, request, g, make_response
+except ImportError:
+    Blueprint = jsonify = request = g = make_response = None  # type: ignore[assignment,misc]
 from backend.core.logging_ext import _json_log as json_log
 
 from backend.core import settings
@@ -36,7 +39,7 @@ from backend.core.vector_store import (
 from backend.core.memory import MemoryStore
 from backend.core.rag import StructuredRequirement
 
-api_bp = Blueprint("api", __name__)
+api_bp = Blueprint("api", __name__) if Blueprint is not None else None
 
 # Lightweight Memory (Agent policies/outcomes)
 _mem_store = MemoryStore()

@@ -4,7 +4,7 @@ services:
   app:
     build:
       context: .
-      target: production-fastapi
+      target: production
     image: req-orchestrator:latest
     container_name: req-orchestrator
     ports:

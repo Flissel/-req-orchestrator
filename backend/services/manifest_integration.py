@@ -164,7 +164,7 @@ def start_evaluation_stage(
     """
     Start evaluation stage for a requirement.
 
-    This is called from the validation pipeline (backend/legacy/batch.py)
+    This is called from the validation pipeline (backend/core/batch.py)
     before running llm_evaluate().
 
     Args:

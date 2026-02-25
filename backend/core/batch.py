@@ -1,28 +1,29 @@
 # -*- coding: utf-8 -*-
+"""
+Batch processing functions for requirements evaluation, suggestions, and rewrites.
+
+Migrated from backend.legacy.batch — Flask-free, pure business logic.
+"""
 from __future__ import annotations
 
 import time
 import json
 import logging
+import concurrent.futures as futures
 from typing import Any, Dict, List, Tuple
 
-from flask import Blueprint, jsonify, g
-from .logging_ext import _json_log as json_log
-
-from . import settings
-from .db import (
+from backend.core.logging_ext import _json_log as json_log
+from backend.core import settings
+from backend.core.db import (
     get_db,
     load_criteria,
     get_latest_evaluation_by_checksum,
     get_suggestions_for_eval,
     get_latest_rewrite_for_eval,
 )
-from .llm import llm_evaluate, llm_suggest, llm_rewrite
-from .utils import parse_context_cell, parse_requirements_md, sha256_text, weighted_score, compute_verdict, chunked
+from backend.core.llm import llm_evaluate, llm_suggest, llm_rewrite
+from backend.core.utils import parse_context_cell, parse_requirements_md, sha256_text, weighted_score, compute_verdict, chunked
 
-import concurrent.futures as futures
-
-# Manifest Integration
 from backend.services.manifest_integration import (
     start_evaluation_stage,
     complete_evaluation_stage,
@@ -31,12 +32,12 @@ from backend.services.manifest_integration import (
     record_atomicity_split,
 )
 
-batch_bp = Blueprint("batch", __name__)
 
-
-def ensure_evaluation_exists(requirement_text: str, context: Dict[str, Any], criteria_keys: List[str]) -> Tuple[str, Dict[str, Any]]:
+def ensure_evaluation_exists(
+    requirement_text: str, context: Dict[str, Any], criteria_keys: List[str]
+) -> Tuple[str, Dict[str, Any]]:
     """
-    Liefert (evaluation_id, summary). Falls noch keine Evaluation existiert, wird sie erzeugt.
+    Returns (evaluation_id, summary). Creates a new evaluation if none exists.
     summary = {"score": float, "verdict": str, "model": str, "latencyMs": int}
     """
     conn = get_db()
@@ -50,10 +51,8 @@ def ensure_evaluation_exists(requirement_text: str, context: Dict[str, Any], cri
             "latencyMs": row["latency_ms"],
         }
 
-    # Generate stable requirement ID
     requirement_id = f"REQ-{checksum[:6]}-api"
 
-    # Start evaluation stage tracking
     stage_id = None
     try:
         stage_id = start_evaluation_stage(
@@ -62,7 +61,7 @@ def ensure_evaluation_exists(requirement_text: str, context: Dict[str, Any], cri
             requirement_text=requirement_text,
             evaluation_id=None,
             model_used=settings.OPENAI_MODEL,
-            ctx=None
+            ctx=None,
         )
     except Exception as e:
         logging.getLogger(__name__).warning(f"Failed to start evaluation stage: {e}")
@@ -86,7 +85,6 @@ def ensure_evaluation_exists(requirement_text: str, context: Dict[str, Any], cri
                 (eval_id, d["criterion"], float(d["score"]), 1 if d["passed"] else 0, d.get("feedback", "")),
             )
 
-    # Complete evaluation stage tracking
     if stage_id is not None:
         try:
             complete_evaluation_stage(
@@ -95,38 +93,30 @@ def ensure_evaluation_exists(requirement_text: str, context: Dict[str, Any], cri
                 score=agg_score,
                 verdict=verdict,
                 latency_ms=latency_ms,
-                token_usage=None,  # TODO: Extract from llm_evaluate response
-                ctx=None
+                token_usage=None,
+                ctx=None,
             )
         except Exception as e:
             logging.getLogger(__name__).warning(f"Failed to complete evaluation stage: {e}")
 
-    # === CONDITIONAL ATOMICITY CHECK ===
-    # Check if atomic criterion failed (score < 0.7)
+    # Conditional atomicity check
     atomic_detail = next((d for d in details if d["criterion"] == "atomic"), None)
     if atomic_detail:
         atomic_score = atomic_detail.get("score", 1.0)
-
-        # Only process if atomic_score < 0.7 AND stage doesn't exist yet
         if atomic_score < 0.7:
             try:
-                # Start atomicity stage (returns None if already exists)
                 atomicity_stage_id = start_atomicity_stage(
                     conn,
                     requirement_id=requirement_id,
                     model_used=settings.OPENAI_MODEL,
-                    ctx=None
+                    ctx=None,
                 )
-
                 if atomicity_stage_id is not None:
-                    # Stage was created → invoke AtomicityAgent
                     try:
                         from backend.core.agents import RequirementsAtomicityAgent
                         import asyncio
 
                         agent = RequirementsAtomicityAgent()
-
-                        # Call _split_with_retry directly (synchronous path)
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
                         try:
@@ -136,40 +126,35 @@ def ensure_evaluation_exists(requirement_text: str, context: Dict[str, Any], cri
                         finally:
                             loop.close()
 
-                        # Complete atomicity stage
                         complete_atomicity_stage(
                             conn,
                             stage_id=atomicity_stage_id,
                             atomic_score=atomic_score,
                             is_atomic=False,
                             was_split=bool(splits),
-                            ctx=None
+                            ctx=None,
                         )
-
-                        # Record splits
                         if splits:
                             child_ids = record_atomicity_split(
                                 conn,
                                 parent_id=requirement_id,
                                 splits=splits,
                                 split_model=settings.OPENAI_MODEL,
-                                ctx=None
+                                ctx=None,
                             )
                             logging.getLogger(__name__).info(
                                 f"Atomicity: Split {requirement_id} into {len(child_ids)} children"
                             )
-
                     except Exception as split_error:
-                        # Mark stage as failed
                         conn.execute(
                             "UPDATE processing_stage SET status = 'failed', error_message = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?",
-                            (str(split_error), atomicity_stage_id)
+                            (str(split_error), atomicity_stage_id),
                         )
                         logging.getLogger(__name__).warning(f"Atomicity split failed: {split_error}")
                 else:
-                    # Stage already exists, skip
-                    logging.getLogger(__name__).info(f"Atomicity stage already exists for {requirement_id}, skipping")
-
+                    logging.getLogger(__name__).info(
+                        f"Atomicity stage already exists for {requirement_id}, skipping"
+                    )
             except Exception as e:
                 logging.getLogger(__name__).warning(f"Atomicity check failed: {e}")
 
@@ -177,14 +162,11 @@ def ensure_evaluation_exists(requirement_text: str, context: Dict[str, Any], cri
 
 
 def merged_markdown(rows: List[Dict[str, str]]) -> str:
-    """
-    Baut die zusammengeführte Markdown-Tabelle mit zusätzlichen Spalten:
-    [evaluationScore, verdict, suggestions, redefinedRequirement]
-    """
+    """Build merged markdown table with evaluation columns."""
     conn = get_db()
     out = []
     header = "| id | requirementText | context | evaluationScore | verdict | suggestions | redefinedRequirement |"
-    sep =    "|----|------------------|---------|-----------------|--------|-------------|----------------------|"
+    sep = "|----|------------------|---------|-----------------|--------|-------------|----------------------|"
     out.append(header)
     out.append(sep)
     for r in rows:
@@ -204,28 +186,17 @@ def merged_markdown(rows: List[Dict[str, str]]) -> str:
             rw = get_latest_rewrite_for_eval(conn, ev["id"])
             if rw:
                 rewrite_cell = rw.replace("\n", "<br>")
+
         def safe(s: str) -> str:
             return (s or "").replace("|", "\\|")
+
         out.append(f"| {safe(rid)} | {safe(req)} | {safe(ctx_raw)} | {safe(score)} | {safe(verdict)} | {safe(sugg_cell)} | {safe(rewrite_cell)} |")
     return "\n".join(out)
 
 
-def _safe_g_attr(name: str, default=None):
-    """
-    Liefert g.<name>, falls ein Flask-Anfragekontext vorhanden ist,
-    sonst default. Verhindert RuntimeError außerhalb des App-Kontexts.
-    """
-    try:
-        from flask import g as _g  # lokaler Import, um Proxy erst hier zu binden
-        return getattr(_g, name, default)
-    except Exception:
-        return default
-
-
 def process_evaluations(rows: List[Dict[str, str]]) -> Dict[str, Any]:
+    """Evaluate a batch of requirements in parallel."""
     lg = logging.getLogger("app")
-    corr = _safe_g_attr("correlation_id", None)
-    op = _safe_g_attr("operation_id", None) or "process_evaluations"
     total = len(rows)
     batch_size = settings.BATCH_SIZE
     total_chunks = (total + batch_size - 1) // batch_size
@@ -244,15 +215,13 @@ def process_evaluations(rows: List[Dict[str, str]]) -> Dict[str, Any]:
     for idx_batch, batch in enumerate(chunked(rows, settings.BATCH_SIZE), start=1):
         json_log(
             lg, logging.DEBUG, "batch.chunk.start",
-            correlation_id=corr, operation_id=op,
-            kind="evaluate", chunk_index=idx_batch, total_chunks=total_chunks, chunk_size=len(batch)
+            kind="evaluate", chunk_index=idx_batch, total_chunks=total_chunks, chunk_size=len(batch),
         )
         ts_pool = time.time()
         with futures.ThreadPoolExecutor(max_workers=settings.MAX_PARALLEL) as ex:
             json_log(
                 lg, logging.DEBUG, "parallel.pool.start",
-                correlation_id=corr, operation_id=op,
-                kind="evaluate", pool_size=settings.MAX_PARALLEL, queue_depth=len(batch)
+                kind="evaluate", pool_size=settings.MAX_PARALLEL, queue_depth=len(batch),
             )
             futs = [ex.submit(worker, r) for r in batch]
             processed = 0
@@ -262,22 +231,19 @@ def process_evaluations(rows: List[Dict[str, str]]) -> Dict[str, Any]:
                 processed += 1
             json_log(
                 lg, logging.DEBUG, "parallel.pool.end",
-                correlation_id=corr, operation_id=op,
                 kind="evaluate", processed_count=processed,
-                duration_ms=int((time.time() - ts_pool) * 1000)
+                duration_ms=int((time.time() - ts_pool) * 1000),
             )
         json_log(
             lg, logging.DEBUG, "batch.chunk.end",
-            correlation_id=corr, operation_id=op,
-            kind="evaluate", chunk_index=idx_batch, processed_count=processed
+            kind="evaluate", chunk_index=idx_batch, processed_count=processed,
         )
     return results
 
 
 def process_suggestions(rows: List[Dict[str, str]]) -> Dict[str, Any]:
+    """Generate suggestions for a batch of requirements in parallel."""
     lg = logging.getLogger("app")
-    corr = _safe_g_attr("correlation_id", None)
-    op = _safe_g_attr("operation_id", None) or "process_suggestions"
     total = len(rows)
     batch_size = settings.BATCH_SIZE
     total_chunks = (total + batch_size - 1) // batch_size
@@ -285,7 +251,6 @@ def process_suggestions(rows: List[Dict[str, str]]) -> Dict[str, Any]:
     crits = load_criteria(conn)
     criteria_keys = [c["key"] for c in crits] or ["clarity", "testability", "measurability"]
 
-    # Worker macht nur LLM-Aufruf, Speichern erfolgt sequenziell
     def worker(row: Dict[str, str]) -> Tuple[str, str, List[Dict[str, Any]]]:
         rid = row["id"]
         requirement_text = row["requirementText"]
@@ -298,15 +263,13 @@ def process_suggestions(rows: List[Dict[str, str]]) -> Dict[str, Any]:
     for idx_batch, batch in enumerate(chunked(rows, settings.BATCH_SIZE), start=1):
         json_log(
             lg, logging.DEBUG, "batch.chunk.start",
-            correlation_id=corr, operation_id=op,
-            kind="suggest", chunk_index=idx_batch, total_chunks=total_chunks, chunk_size=len(batch)
+            kind="suggest", chunk_index=idx_batch, total_chunks=total_chunks, chunk_size=len(batch),
         )
         ts_pool = time.time()
         with futures.ThreadPoolExecutor(max_workers=settings.MAX_PARALLEL) as ex:
             json_log(
                 lg, logging.DEBUG, "parallel.pool.start",
-                correlation_id=corr, operation_id=op,
-                kind="suggest", pool_size=settings.MAX_PARALLEL, queue_depth=len(batch)
+                kind="suggest", pool_size=settings.MAX_PARALLEL, queue_depth=len(batch),
             )
             futs = [ex.submit(worker, r) for r in batch]
             processed = 0
@@ -315,14 +278,12 @@ def process_suggestions(rows: List[Dict[str, str]]) -> Dict[str, Any]:
                 processed += 1
             json_log(
                 lg, logging.DEBUG, "parallel.pool.end",
-                correlation_id=corr, operation_id=op,
                 kind="suggest", processed_count=processed,
-                duration_ms=int((time.time() - ts_pool) * 1000)
+                duration_ms=int((time.time() - ts_pool) * 1000),
             )
         json_log(
             lg, logging.DEBUG, "batch.chunk.end",
-            correlation_id=corr, operation_id=op,
-            kind="suggest", chunk_index=idx_batch, processed_count=processed
+            kind="suggest", chunk_index=idx_batch, processed_count=processed,
         )
 
     with get_db() as c2:
@@ -340,11 +301,11 @@ def process_suggestions(rows: List[Dict[str, str]]) -> Dict[str, Any]:
 
 
 def process_rewrites(rows: List[Dict[str, str]]) -> Dict[str, Any]:
+    """Rewrite a batch of requirements in parallel."""
     conn = get_db()
     crits = load_criteria(conn)
     criteria_keys = [c["key"] for c in crits] or ["clarity", "testability", "measurability"]
 
-    # Worker macht nur LLM-Aufruf, Speichern erfolgt sequenziell
     def worker(row: Dict[str, str]) -> Tuple[str, str, str]:
         rid = row["id"]
         requirement_text = row["requirementText"]
@@ -355,8 +316,6 @@ def process_rewrites(rows: List[Dict[str, str]]) -> Dict[str, Any]:
 
     collected: List[Tuple[str, str, str]] = []
     lg = logging.getLogger("app")
-    corr = _safe_g_attr("correlation_id", None)
-    op = _safe_g_attr("operation_id", None) or "process_rewrites"
     total = len(rows)
     batch_size = settings.BATCH_SIZE
     total_chunks = (total + batch_size - 1) // batch_size
@@ -364,15 +323,13 @@ def process_rewrites(rows: List[Dict[str, str]]) -> Dict[str, Any]:
     for idx_batch, batch in enumerate(chunked(rows, settings.BATCH_SIZE), start=1):
         json_log(
             lg, logging.DEBUG, "batch.chunk.start",
-            correlation_id=corr, operation_id=op,
-            kind="rewrite", chunk_index=idx_batch, total_chunks=total_chunks, chunk_size=len(batch)
+            kind="rewrite", chunk_index=idx_batch, total_chunks=total_chunks, chunk_size=len(batch),
         )
         ts_pool = time.time()
         with futures.ThreadPoolExecutor(max_workers=settings.MAX_PARALLEL) as ex:
             json_log(
                 lg, logging.DEBUG, "parallel.pool.start",
-                correlation_id=corr, operation_id=op,
-                kind="rewrite", pool_size=settings.MAX_PARALLEL, queue_depth=len(batch)
+                kind="rewrite", pool_size=settings.MAX_PARALLEL, queue_depth=len(batch),
             )
             futs = [ex.submit(worker, r) for r in batch]
             processed = 0
@@ -381,14 +338,12 @@ def process_rewrites(rows: List[Dict[str, str]]) -> Dict[str, Any]:
                 processed += 1
             json_log(
                 lg, logging.DEBUG, "parallel.pool.end",
-                correlation_id=corr, operation_id=op,
                 kind="rewrite", processed_count=processed,
-                duration_ms=int((time.time() - ts_pool) * 1000)
+                duration_ms=int((time.time() - ts_pool) * 1000),
             )
         json_log(
             lg, logging.DEBUG, "batch.chunk.end",
-            correlation_id=corr, operation_id=op,
-            kind="rewrite", chunk_index=idx_batch, processed_count=processed
+            kind="rewrite", chunk_index=idx_batch, processed_count=processed,
         )
 
     with get_db() as c2:
@@ -402,58 +357,3 @@ def process_rewrites(rows: List[Dict[str, str]]) -> Dict[str, Any]:
     for rid, eval_id, rewritten in collected:
         results[rid] = {"redefinedRequirement": rewritten}
     return results
-
-
-@batch_bp.post("/api/v1/batch/evaluate")
-def batch_evaluate():
-    try:
-        rows = parse_requirements_md(settings.REQUIREMENTS_MD_PATH)
-        eval_map = process_evaluations(rows)
-        merged = merged_markdown(rows)
-        # Optional: Ergebnis serverseitig schreiben, wenn OUTPUT_MD_PATH gesetzt ist
-        try:
-            out_path = getattr(settings, "OUTPUT_MD_PATH", "")
-            if isinstance(out_path, str) and out_path.strip():
-                with open(out_path, "w", encoding="utf-8") as f:
-                    f.write(merged)
-        except Exception:
-            pass
-        return jsonify({"items": eval_map, "mergedMarkdown": merged}), 200
-    except Exception as e:
-        return jsonify({"error": "internal_error", "message": str(e)}), 500
-
-
-@batch_bp.post("/api/v1/batch/suggest")
-def batch_suggest():
-    try:
-        rows = parse_requirements_md(settings.REQUIREMENTS_MD_PATH)
-        sug_map = process_suggestions(rows)
-        merged = merged_markdown(rows)
-        try:
-            out_path = getattr(settings, "OUTPUT_MD_PATH", "")
-            if isinstance(out_path, str) and out_path.strip():
-                with open(out_path, "w", encoding="utf-8") as f:
-                    f.write(merged)
-        except Exception:
-            pass
-        return jsonify({"items": sug_map, "mergedMarkdown": merged}), 200
-    except Exception as e:
-        return jsonify({"error": "internal_error", "message": str(e)}), 500
-
-
-@batch_bp.post("/api/v1/batch/rewrite")
-def batch_rewrite():
-    try:
-        rows = parse_requirements_md(settings.REQUIREMENTS_MD_PATH)
-        rw_map = process_rewrites(rows)
-        merged = merged_markdown(rows)
-        try:
-            out_path = getattr(settings, "OUTPUT_MD_PATH", "")
-            if isinstance(out_path, str) and out_path.strip():
-                with open(out_path, "w", encoding="utf-8") as f:
-                    f.write(merged)
-        except Exception:
-            pass
-        return jsonify({"items": rw_map, "mergedMarkdown": merged}), 200
-    except Exception as e:
-        return jsonify({"error": "internal_error", "message": str(e)}), 500

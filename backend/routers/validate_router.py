@@ -7,7 +7,7 @@ import logging
 import json
 import time
 
-from backend.legacy.batch import (
+from backend.core.batch import (
     process_evaluations,
     process_rewrites,
     process_suggestions,

@@ -9,8 +9,13 @@ import time
 import uuid
 from typing import Any, Dict, Optional
 
-from flask import Flask, Request, Response, g, request
-from werkzeug.wrappers.response import Response as WSGIResponse
+try:
+    from flask import Flask, Request, Response, g, request
+    from werkzeug.wrappers.response import Response as WSGIResponse
+    _HAS_FLASK = True
+except ImportError:
+    Flask = Request = Response = g = request = WSGIResponse = None  # type: ignore[assignment,misc]
+    _HAS_FLASK = False
 
 try:
     from . import settings

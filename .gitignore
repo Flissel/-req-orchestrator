@@ -1,6 +1,4 @@
-# ---------------------------
 # Python
-# ---------------------------
 __pycache__/
 *.py[cod]
 *.pyo
@@ -19,9 +17,7 @@ htmlcov/
 .pyre/
 .pytype/
 
-# ---------------------------
-# Environments/Secrets
-# ---------------------------
+# Environments / Secrets
 .env
 .env.*
 !.env.example
@@ -29,69 +25,47 @@ htmlcov/
 venv/
 .envrc
 
-# ---------------------------
-# Node/JS
-# ---------------------------
+# Node / JS
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-store/
 
-# ---------------------------
-# IDE/Editor
-# ---------------------------
+# IDE / Editor
 .vscode/
 .idea/
 *.code-workspace
 
-# ---------------------------
 # OS
-# ---------------------------
 .DS_Store
 Thumbs.db
 
-# ---------------------------
-# Docker/Runtime logs
-# ---------------------------
+# Docker / Runtime logs
 *.log
 logs/
 tmp/
 temp/
 
-# ---------------------------
 # Databases / local state
-# ---------------------------
 app.db
 *.db
 *.db-journal
 
-# ---------------------------
-# Data directory (keep selected docs)
-# ---------------------------
+# Data directory (keep sample docs)
 data/**
 !data/*.md
 !data/README.md
 !data/requirements.md
-# Optional: wenn JSON-Beispiele behalten werden sollen, folgende Zeile aktivieren
-# !data/*.json
 
-# Qdrant storage (lokal/persist)
+# Qdrant storage (local)
 data/qdrant/
 qdrant-data/
 prometheus-data/
 grafana-data/
 
-# ---------------------------
-# Test/Playwright artefacts
-# ---------------------------
+# Test / Playwright artifacts
 test-results/
 playwright-report/
 blob-report/
 *.trace
-
-# ---------------------------
-# Tooling
-# ---------------------------
-.kilocode/
-nul

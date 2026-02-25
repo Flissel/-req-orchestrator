@@ -1,30 +1,32 @@
-# Unified requirements for consolidated backend
-# Backend structure: backend/ (FastAPI + Flask hybrid)
-Flask==3.0.3
-openai==2.0.0
-Flask-Cors==4.0.1
-python-dotenv==1.0.1
-# --- FastAPI Stack (für Tests/Backend v2) ---
+# Backend dependencies for req-orchestrator
+# FastAPI Stack
 fastapi==0.115.5
 starlette==0.41.3
 uvicorn==0.30.6
-# --- Async SQLite für Tests/Persistenz ---
+# LLM Integration
+openai==2.0.0
+# Config & Utils
+python-dotenv==1.0.1
+pydantic>=2.10.0,<3
+tenacity==8.2.3
+requests==2.32.3
+# Async SQLite
 aiosqlite==0.20.0
-gunicorn==21.2.0
-# --- Vektor-RAG Ingest / Embeddings / Parser ---
+# Vector-RAG / Embeddings / Parser
 qdrant-client==1.11.1
 tiktoken==0.7.0
 PyMuPDF==1.24.4
 python-docx==1.1.0
 markdown-it-py==3.0.0
-pydantic>=2.10.0,<3
-tenacity==8.2.3
-requests==2.32.3
-pytest==8.2.1
-# --- AutoGen 0.4+ ---
+# AutoGen 0.4+
 autogen-agentchat==0.7.4
 autogen-core==0.7.4
 autogen-ext==0.7.4
-pytest-asyncio>=0.23.6
-# Structured extraction library
+# Structured extraction
 langextract
+# MCP SDK
+mcp>=1.0.0
+# Async HTTP Client
+httpx>=0.27.0
+# CLI
+rich>=13.0.0

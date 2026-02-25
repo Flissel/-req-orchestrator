@@ -9,7 +9,10 @@ import logging
 from typing import Dict, Any, List
 import traceback
 
-from flask import jsonify, request
+try:
+    from flask import jsonify, request
+except ImportError:
+    jsonify = request = None  # type: ignore[assignment,misc]
 
 # Importiere aus Teil 1 die gemeinsamen Hilfen/Blueprint
 from .api_v2 import api_bp, build_chunks_absatz, _lx_default_config, _normalize_lx_result

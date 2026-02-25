@@ -1,40 +1,35 @@
-# FastAPI production requirements (subset of main requirements.txt)
-# For production-fastapi Docker target
+# FastAPI production requirements
+# For production Docker target
 
-# --- Core FastAPI Stack ---
+# Core FastAPI Stack
 fastapi==0.115.5
 starlette==0.41.3
 uvicorn==0.30.6
-gunicorn==21.2.0
 
-# --- Flask (for WSGI hybrid mode) ---
-Flask==3.0.3
-Flask-Cors==4.0.1
-
-# --- LLM / OpenAI ---
+# LLM / OpenAI
 openai==2.0.0
 
-# --- Config & Utils ---
+# Config & Utils
 python-dotenv==1.0.1
 python-multipart>=0.0.6
 pydantic>=2.10.0,<3
 tenacity==8.2.3
 requests==2.32.3
 
-# --- Async SQLite ---
+# Async SQLite
 aiosqlite==0.20.0
 
-# --- Vector-RAG / Embeddings / Parser ---
+# Vector-RAG / Embeddings / Parser
 qdrant-client==1.11.1
 tiktoken==0.7.0
 PyMuPDF==1.24.4
 python-docx==1.1.0
 markdown-it-py==3.0.0
 
-# --- AutoGen 0.4+ ---
+# AutoGen 0.4+
 autogen-agentchat==0.7.4
 autogen-core==0.7.4
 autogen-ext==0.7.4
 
-# --- Structured extraction ---
+# Structured extraction
 langextract

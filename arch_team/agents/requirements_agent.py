@@ -15,7 +15,6 @@ Architecture:
            ├─ RequirementsOperator (tools: evaluate, rewrite, suggest, detect_duplicates)
            └─ QAValidator (no tools, quality gate pattern, terminates with "APPROVE")
 
-Reference Implementation: arch_team/dev_folder_/agent.py (GitHub MCP Agent)
 """
 from __future__ import annotations
 
